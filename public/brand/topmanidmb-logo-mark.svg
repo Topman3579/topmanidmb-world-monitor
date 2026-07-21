@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">TOPMANIDMB Logo Mark</title>
+  <desc id="desc">A gold shield with a gold T and cyan atom orbits for TOPMANIDMB AI Command Center.</desc>
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="58%">
+      <stop offset="0%" stop-color="#183765"/>
+      <stop offset="55%" stop-color="#0b1b34"/>
+      <stop offset="100%" stop-color="#061020"/>
+    </radialGradient>
+
+    <linearGradient id="gold" x1="20%" y1="12%" x2="85%" y2="88%">
+      <stop offset="0%" stop-color="#fff3b0"/>
+      <stop offset="18%" stop-color="#ffe176"/>
+      <stop offset="45%" stop-color="#ffcb2d"/>
+      <stop offset="70%" stop-color="#d19a16"/>
+      <stop offset="100%" stop-color="#7d5208"/>
+    </linearGradient>
+
+    <linearGradient id="goldSoft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff6c8"/>
+      <stop offset="42%" stop-color="#ffcb2d"/>
+      <stop offset="100%" stop-color="#af7810"/>
+    </linearGradient>
+
+    <linearGradient id="cyan" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#bfeaff"/>
+      <stop offset="42%" stop-color="#5bb8f5"/>
+      <stop offset="100%" stop-color="#1d79c8"/>
+    </linearGradient>
+
+    <filter id="goldGlow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="1 0 0 0 1
+                0 1 0 0 .72
+                0 0 1 0 .10
+                0 0 0 .72 0" result="warm"/>
+      <feMerge>
+        <feMergeNode in="warm"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="cyanGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="0 0 0 0 .30
+                0 0 0 0 .74
+                0 0 0 0 1
+                0 0 0 .85 0" result="blue"/>
+      <feMerge>
+        <feMergeNode in="blue"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#000814" flood-opacity=".55"/>
+    </filter>
+
+    <path id="orbit" d="M220 512 C300 338 724 338 804 512 C724 686 300 686 220 512Z"/>
+  </defs>
+
+  <rect width="1024" height="1024" fill="none"/>
+
+  <g filter="url(#softShadow)">
+    <path d="M512 70 L830 198 L830 500 C830 704 704 850 512 948 C320 850 194 704 194 500 L194 198 Z"
+      fill="url(#gold)" filter="url(#goldGlow)"/>
+
+    <path d="M512 142 L768 246 L768 502 C768 657 672 772 512 858 C352 772 256 657 256 502 L256 246 Z"
+      fill="url(#bg)" stroke="#f3c94d" stroke-width="7"/>
+
+    <path d="M512 190 L716 272 L716 500 C716 621 646 714 512 790 C378 714 308 621 308 500 L308 272 Z"
+      fill="none" stroke="#d7b457" stroke-width="4" opacity=".72"/>
+
+    <g opacity=".20">
+      <path d="M338 320 H686 M324 386 H700 M314 452 H710 M314 518 H710 M326 584 H698 M346 650 H678"
+        stroke="#8fd0ff" stroke-width="1.4"/>
+      <path d="M380 250 V706 M446 222 V756 M512 190 V790 M578 222 V756 M644 250 V706"
+        stroke="#8fd0ff" stroke-width="1.4"/>
+    </g>
+
+    <g filter="url(#cyanGlow)">
+      <use href="#orbit" fill="none" stroke="url(#cyan)" stroke-width="9"
+        stroke-linecap="round" stroke-dasharray="10 20" transform="rotate(29 512 512)"/>
+      <use href="#orbit" fill="none" stroke="url(#cyan)" stroke-width="9"
+        stroke-linecap="round" stroke-dasharray="10 20" transform="rotate(-29 512 512)"/>
+
+      <circle cx="275" cy="512" r="13" fill="#8fd0ff"/>
+      <circle cx="749" cy="512" r="13" fill="#8fd0ff"/>
+      <circle cx="380" cy="368" r="12" fill="#8fd0ff"/>
+      <circle cx="638" cy="662" r="12" fill="#8fd0ff"/>
+      <circle cx="610" cy="302" r="8" fill="#8fd0ff" opacity=".9"/>
+      <circle cx="438" cy="690" r="7" fill="#cfeeff" opacity=".86"/>
+    </g>
+
+    <g filter="url(#goldGlow)">
+      <path d="M382 385 H642 V446 H542 V648 H482 V446 H382 Z"
+        fill="url(#goldSoft)"/>
+      <path d="M382 385 H642 V446 H542 V648 H482 V446 H382 Z"
+        fill="none" stroke="#fff0a6" stroke-width="3" opacity=".55"/>
+    </g>
+
+    <g opacity=".7" filter="url(#goldGlow)">
+      <path d="M238 750 L248 778 L276 788 L248 798 L238 826 L228 798 L200 788 L228 778 Z"
+        fill="#ffe9a8" transform="scale(.62) translate(210 282)"/>
+      <path d="M238 750 L248 778 L276 788 L248 798 L238 826 L228 798 L200 788 L228 778 Z"
+        fill="#ffe9a8" transform="scale(.55) translate(1070 300)"/>
+    </g>
+  </g>
+</svg>

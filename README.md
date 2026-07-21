@@ -1,4 +1,14 @@
-# World Monitor
+# TOPMANIDMB World Intelligence
+
+> TOPMANIDMB Command HUD branded fork of [World Monitor](https://github.com/koala73/worldmonitor), maintained as a public-safe situational-awareness surface.
+
+This fork changes the identity, visual tokens, metadata, and release defaults while preserving upstream architecture. World Monitor is copyright Elie Habib and contributors and is licensed under AGPL-3.0-only. TOPMANIDMB branding does not imply ownership of the upstream project or its data providers.
+
+Brand layer: Navy `#0a1426`, Gold `#ffcb2d`, Cyan `#8fd0ff`, Ivory `#f7f3ea`; official The Living Emblem mark; Command HUD visual language.
+
+---
+
+## Upstream project
 
 [简体中文](README.zh-CN.md)
 

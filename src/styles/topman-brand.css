@@ -1,0 +1,177 @@
+/*
+ * TOPMANIDMB Official Brand System — Command HUD skin.
+ * Kept unlayered so this small, reviewable adapter can sit above the upstream
+ * World Monitor base layer without forking the dashboard component system.
+ */
+:root {
+  --topman-navy: #0a1426;
+  --topman-navy-deep: #050b16;
+  --topman-gold: #ffcb2d;
+  --topman-gold-deep: #d9a50f;
+  --topman-gold-light: #ffe28a;
+  --topman-cyan: #8fd0ff;
+  --topman-blue: #5bb8f5;
+  --topman-ivory: #f7f3ea;
+  --topman-ink: #14223a;
+
+  --bg: var(--topman-navy-deep);
+  --bg-secondary: #071120;
+  --surface: rgba(10, 20, 38, 0.96);
+  --surface-hover: #132746;
+  --surface-active: #18345b;
+  --border: rgba(143, 208, 255, 0.2);
+  --border-strong: rgba(255, 203, 45, 0.52);
+  --border-subtle: rgba(143, 208, 255, 0.11);
+  --text: var(--topman-ivory);
+  --text-secondary: #d9e8f7;
+  --text-dim: #9cb4ca;
+  --text-muted: #7f9ab3;
+  --accent: var(--topman-gold);
+  --green: var(--topman-cyan);
+  --panel-bg: rgba(10, 20, 38, 0.95);
+  --panel-border: rgba(143, 208, 255, 0.2);
+  --map-bg: #030a15;
+  --map-grid: rgba(91, 184, 245, 0.17);
+  --map-country: #0c2039;
+  --map-stroke: #2a72a6;
+}
+
+body {
+  background:
+    radial-gradient(circle at 16% -12%, rgba(91, 184, 245, 0.16), transparent 34%),
+    linear-gradient(145deg, var(--topman-navy-deep), var(--topman-navy));
+}
+
+.header {
+  background:
+    linear-gradient(90deg, rgba(255, 203, 45, 0.055), transparent 28%),
+    rgba(7, 17, 32, 0.96);
+  border-bottom-color: rgba(255, 203, 45, 0.4);
+  box-shadow: 0 9px 30px rgba(0, 0, 0, 0.26), inset 0 -1px rgba(143, 208, 255, 0.08);
+}
+
+.topman-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: max-content;
+  color: var(--topman-ivory);
+  text-decoration: none;
+}
+
+.topman-brand-mark {
+  width: 27px;
+  height: 27px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(255, 203, 45, 0.25));
+}
+
+.topman-brand-copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.topman-brand-name {
+  color: var(--topman-gold);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 1.65px;
+}
+
+.topman-brand-subtitle {
+  margin-top: 3px;
+  color: var(--topman-cyan);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 1.35px;
+  text-transform: uppercase;
+}
+
+.logo,
+.logo-mobile {
+  display: none;
+}
+
+.powered-by-link {
+  color: var(--text-dim);
+  font-size: 8px;
+  letter-spacing: 0.45px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.powered-by-link strong {
+  color: var(--topman-gold-light);
+  font-weight: 700;
+}
+
+.powered-by-link:hover,
+.powered-by-link:focus-visible {
+  color: var(--topman-cyan);
+}
+
+.variant-switcher,
+.region-select,
+.search-btn,
+.copy-link-btn,
+.fullscreen-btn,
+.mission-preset-button {
+  background-color: rgba(143, 208, 255, 0.045);
+  border-color: rgba(143, 208, 255, 0.18);
+}
+
+.variant-option.active {
+  color: var(--topman-gold);
+  background: rgba(255, 203, 45, 0.11);
+}
+
+.variant-option.active .variant-icon {
+  filter: grayscale(0%) drop-shadow(0 0 4px rgba(255, 203, 45, 0.65));
+}
+
+.panel {
+  border-color: rgba(143, 208, 255, 0.18);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.panel-header {
+  background: linear-gradient(90deg, rgba(91, 184, 245, 0.085), transparent 72%);
+  border-bottom-color: rgba(143, 208, 255, 0.16);
+}
+
+.panel-title {
+  color: var(--topman-ivory);
+  letter-spacing: 0.55px;
+}
+
+.status-dot {
+  background: var(--topman-cyan);
+  box-shadow: 0 0 8px rgba(143, 208, 255, 0.72);
+}
+
+@media (max-width: 1180px) {
+  .topman-brand-subtitle,
+  .powered-by-link {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .topman-brand-mark {
+    width: 24px;
+    height: 24px;
+  }
+
+  .topman-brand-name {
+    font-size: 10px;
+    letter-spacing: 1.1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topman-brand-mark,
+  .status-dot {
+    animation: none;
+  }
+}
