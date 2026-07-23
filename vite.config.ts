@@ -926,16 +926,27 @@ export default defineConfig(({ mode }) => {
         includeManifestIcons: false,
 
         manifest: {
+          id: '/dashboard',
           name: `${activeMeta.siteName} - ${activeMeta.subject}`,
           short_name: activeMeta.shortName,
           description: activeMeta.description,
           start_url: '/dashboard',
           scope: '/',
           display: 'standalone',
+          display_override: ['window-controls-overlay', 'standalone'],
           orientation: 'any',
           theme_color: '#0a0f0a',
           background_color: '#0a0f0a',
           categories: activeMeta.categories,
+          shortcuts: [
+            {
+              name: 'World Dashboard',
+              short_name: 'Dashboard',
+              description: 'Open the TOPMANIDMB global situation dashboard',
+              url: '/dashboard',
+              icons: [{ src: '/favico/android-chrome-192x192.png', sizes: '192x192' }],
+            },
+          ],
           icons: [
             { src: '/favico/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
             { src: '/favico/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },

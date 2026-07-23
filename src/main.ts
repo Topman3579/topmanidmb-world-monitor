@@ -8,6 +8,7 @@ import { registerClsReporting } from '@/bootstrap/cls-report';
 import { registerInpReporting } from '@/bootstrap/inp-report';
 import { registerLcpReporting } from '@/bootstrap/lcp-report';
 import { initVercelAnalytics } from '@/bootstrap/secondary-startup';
+import { initPwaInstallExperience } from '@/services/pwa-install';
 import { App } from './App';
 import { installUtmInterceptor } from './utils/utm';
 
@@ -37,6 +38,7 @@ function activateDeferredDashboardStyles(): void {
 
 activateDeferredDashboardStyles();
 installLcpAttributionDebug();
+initPwaInstallExperience();
 
 // perf G — defer @sentry/browser off the critical path (#3994).
 // The eager `Sentry.init({...})` previously ran here cost ~1.96 s of pre-LCP
