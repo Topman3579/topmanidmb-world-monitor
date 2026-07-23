@@ -208,7 +208,7 @@ export default function middleware(request: Request) {
 <p>${eDesc}</p>
 <h2>Explore the platform</h2>
 <ul>
-<li><a href="https://www.worldmonitor.app/dashboard">World Monitor — geopolitics &amp; intelligence</a></li>
+<li><a href="https://topmanidmb-world-monitor.vercel.app/dashboard">TOPMANIDMB World Intelligence — geopolitics &amp; intelligence</a></li>
 <li><a href="https://tech.worldmonitor.app/dashboard">Tech Monitor</a></li>
 <li><a href="https://finance.worldmonitor.app/dashboard">Finance Monitor</a></li>
 <li><a href="https://commodity.worldmonitor.app/dashboard">Commodity Monitor</a></li>

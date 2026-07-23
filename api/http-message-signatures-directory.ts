@@ -26,7 +26,7 @@
  * `application/http-message-signatures-directory+json`.
  */
 
-import { guardMetadataMethod } from './_agent-metadata';
+import { guardMetadataMethod } from './_agent-metadata.ts';
 
 export const config = { runtime: 'edge' };
 

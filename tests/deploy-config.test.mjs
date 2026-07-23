@@ -37,7 +37,7 @@ const dockerignoreSource = readFileSync(resolve(__dirname, '../.dockerignore'), 
 const vercelIgnoreSource = readFileSync(resolve(__dirname, '../scripts/vercel-ignore.sh'), 'utf-8');
 const SPA_HTML_CACHE_SOURCE = '/((?!api|mcp|a2a|ask|oauth|assets|blog|docs|countries|chokepoints|reference|changelog|embed|embed\\.html|favico|map-styles|data|textures|pro|sw\\.js|workbox-[a-f0-9]+\\.js|manifest\\.webmanifest|offline\\.html|robots\\.txt|sitemap\\.xml|llms\\.txt|llms-full\\.txt|openapi\\.yaml|openapi\\.json|auth\\.md|pricing\\.md|support\\.md|ai-search\\.md|agents\\.md|developers\\.md|mcp-server\\.md|openapi\\.md|sdks\\.md|agent\\.txt|\\.well-known|wm-widget-sandbox\\.html|mcp-grant\\.html|mcp-grant).*)';
 const GLOBAL_SECURITY_HEADER_SOURCE = '/((?!docs|embed|embed\\.html).*)';
-const APP_ROOT_HOST_PATTERN = '^(?:(?:www|tech|finance|commodity|happy|energy)\\.)?worldmonitor\\.app$';
+const APP_ROOT_HOST_PATTERN = '^(?:(?:(?:www|tech|finance|commodity|happy|energy)\\.)?worldmonitor\\.app|topmanidmb-world-monitor\\.vercel\\.app)$';
 const GLOBAL_CSP_INLINE_SCRIPT_HTML_FILES = [
   'index.html',
   'settings.html',
@@ -563,7 +563,7 @@ describe('welcome landing page routing', () => {
 
   it('keeps variant canonicals aligned with the /dashboard routing strategy', () => {
     const variantUrls = getVariantUrls();
-    assert.equal(variantUrls.full, 'https://www.worldmonitor.app/dashboard');
+    assert.equal(variantUrls.full, 'https://topmanidmb-world-monitor.vercel.app/dashboard');
 
     const nonFullUrls = Object.entries(variantUrls).filter(([variant]) => variant !== 'full');
     assert.ok(nonFullUrls.length >= 5, 'expected non-full variant metadata entries');

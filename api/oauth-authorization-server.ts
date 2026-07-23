@@ -41,7 +41,7 @@
  * spoofed Host cannot be reflected into `issuer`/`token_endpoint`.
  */
 
-import { guardMetadataMethod, resolveMetadataOrigin } from './_agent-metadata';
+import { guardMetadataMethod, resolveMetadataOrigin } from './_agent-metadata.ts';
 
 export const config = { runtime: 'edge' };
 
