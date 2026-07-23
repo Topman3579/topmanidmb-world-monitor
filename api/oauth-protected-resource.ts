@@ -20,7 +20,7 @@
  * spoofed Host cannot be reflected into `resource`/`authorization_servers`.
  */
 
-import { guardMetadataMethod, resolveMetadataOrigin } from './_agent-metadata.ts';
+import { guardMetadataMethod, resolveMetadataOrigin } from './_agent-metadata.js';
 
 export const config = { runtime: 'edge' };
 

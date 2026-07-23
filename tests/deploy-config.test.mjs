@@ -1824,7 +1824,7 @@ describe('agent readiness: MCP/OAuth origin alignment', () => {
   });
 
   // The Host header is client-controlled; both discovery handlers derive their
-  // origin through the shared allowlist (api/_agent-metadata.ts) so a spoofed
+  // origin through the shared allowlist (api/_agent-metadata.js) so a spoofed
   // Host cannot be reflected into issuer/resource/endpoints. They also guard the
   // HTTP method (read-only docs).
   it('discovery handlers reject spoofed Host (apex fallback) and non-GET methods', async () => {
