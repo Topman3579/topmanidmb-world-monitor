@@ -787,7 +787,7 @@ export class PanelLayoutManager implements AppModule {
             </a>`;
       })()}</div>
           <span class="topman-brand-lockup" aria-label="TOPMANIDMB World Intelligence">
-            <img class="topman-brand-mark" src="/brand/topmanidmb-logo-mark.svg" alt="" width="27" height="27">
+            <img class="topman-brand-mark" src="/brand/topmanidmb-orbit-emblem.png" alt="" width="27" height="27">
             <span class="topman-brand-copy">
               <span class="topman-brand-name">TOPMANIDMB</span>
               <span class="topman-brand-subtitle">World Intelligence</span>
