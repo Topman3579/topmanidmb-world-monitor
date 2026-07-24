@@ -4,10 +4,6 @@ import WebKit
 
 @MainActor
 final class BrowserController: ObservableObject {
-    static let dashboardURL = URL(
-        string: "https://topmanidmb-world-monitor.vercel.app/dashboard"
-    )!
-
     let webView: WKWebView
     @Published private(set) var isLoading = true
     @Published private(set) var canGoBack = false
@@ -28,10 +24,10 @@ final class BrowserController: ObservableObject {
         self.webView = webView
     }
 
-    func loadDashboard() {
+    func loadDashboard(languageMode: AppLanguageMode) {
         errorMessage = nil
         webView.load(URLRequest(
-            url: Self.dashboardURL,
+            url: languageMode.dashboardURL,
             cachePolicy: .reloadRevalidatingCacheData,
             timeoutInterval: 30
         ))
@@ -64,6 +60,7 @@ final class BrowserController: ObservableObject {
 
 struct WorldMonitorWebView: UIViewRepresentable {
     @ObservedObject var controller: BrowserController
+    let languageMode: AppLanguageMode
 
     func makeCoordinator() -> Coordinator {
         Coordinator(controller: controller)
@@ -80,7 +77,7 @@ struct WorldMonitorWebView: UIViewRepresentable {
         webView.scrollView.refreshControl = refresh
 
         if webView.url == nil {
-            controller.loadDashboard()
+            controller.loadDashboard(languageMode: languageMode)
         }
         return webView
     }
@@ -178,4 +175,3 @@ struct WorldMonitorWebView: UIViewRepresentable {
         }
     }
 }
-

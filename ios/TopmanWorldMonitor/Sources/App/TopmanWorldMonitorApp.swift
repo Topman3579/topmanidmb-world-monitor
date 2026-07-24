@@ -11,26 +11,42 @@ struct TopmanWorldMonitorApp: App {
     @StateObject private var network = NetworkMonitor()
     @StateObject private var health = HealthMonitor()
     @State private var selectedTab: RootTab = .monitor
+    @AppStorage("topman-language-mode") private var languageMode: AppLanguageMode = .bilingual
 
     var body: some Scene {
         WindowGroup {
             TabView(selection: $selectedTab) {
                 NavigationStack {
-                    MonitorView()
+                    MonitorView(languageMode: languageMode)
                 }
-                .tabItem { Label("สถานการณ์", systemImage: "globe.asia.australia.fill") }
+                .tabItem {
+                    Label(
+                        languageMode.text(thai: "สถานการณ์", english: "Monitor"),
+                        systemImage: "globe.asia.australia.fill"
+                    )
+                }
                 .tag(RootTab.monitor)
 
                 NavigationStack {
-                    HealthStatusView()
+                    HealthStatusView(languageMode: languageMode)
                 }
-                .tabItem { Label("สถานะระบบ", systemImage: "waveform.path.ecg") }
+                .tabItem {
+                    Label(
+                        languageMode.text(thai: "สถานะระบบ", english: "Health"),
+                        systemImage: "waveform.path.ecg"
+                    )
+                }
                 .tag(RootTab.health)
 
                 NavigationStack {
-                    AboutView()
+                    AboutView(languageMode: $languageMode)
                 }
-                .tabItem { Label("เกี่ยวกับ", systemImage: "shield.lefthalf.filled") }
+                .tabItem {
+                    Label(
+                        languageMode.text(thai: "เกี่ยวกับ", english: "About"),
+                        systemImage: "shield.lefthalf.filled"
+                    )
+                }
                 .tag(RootTab.about)
             }
             .environmentObject(network)
@@ -44,4 +60,3 @@ struct TopmanWorldMonitorApp: App {
         }
     }
 }
-

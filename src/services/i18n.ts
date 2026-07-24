@@ -15,6 +15,11 @@ import enShellTranslation from '../locales/en.shell.json';
 // future visits. Anyone whose browser is French now sees French automatically;
 // the moment they pick another language explicitly, that choice persists here.
 const EXPLICIT_LOCALE_KEY = 'wm-locale-explicit';
+const TOPMAN_LANGUAGE_MODE_KEY = 'topman-language-mode';
+
+export type TopmanLanguageMode = 'th' | 'bilingual' | 'en';
+
+const TOPMAN_LANGUAGE_MODES = new Set<TopmanLanguageMode>(['th', 'bilingual', 'en']);
 
 const SUPPORTED_LANGUAGES = ['en', 'bg', 'cs', 'fr', 'de', 'el', 'es', 'hr', 'hu', 'it', 'pl', 'pt', 'nl', 'sv', 'ru', 'ar', 'fa', 'zh', 'ja', 'ko', 'ro', 'tr', 'th', 'vi', 'hi'] as const;
 type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
@@ -46,6 +51,56 @@ function normalizeLanguage(lng: string): SupportedLanguage {
     return base as SupportedLanguage;
   }
   return 'en';
+}
+
+function normalizeTopmanLanguageMode(value: string | null | undefined): TopmanLanguageMode | null {
+  return value && TOPMAN_LANGUAGE_MODES.has(value as TopmanLanguageMode)
+    ? value as TopmanLanguageMode
+    : null;
+}
+
+function readTopmanLanguageModeFromUrl(): TopmanLanguageMode | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return normalizeTopmanLanguageMode(new URL(window.location.href).searchParams.get('topmanMode'));
+  } catch {
+    return null;
+  }
+}
+
+function storedTopmanLanguageMode(): TopmanLanguageMode | null {
+  try {
+    return normalizeTopmanLanguageMode(localStorage.getItem(TOPMAN_LANGUAGE_MODE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export function getTopmanLanguageMode(): TopmanLanguageMode {
+  const requested = readTopmanLanguageModeFromUrl();
+  if (requested) return requested;
+
+  const stored = storedTopmanLanguageMode();
+  if (stored) return stored;
+
+  // Keep a prior explicit English selection intact. Thai and first-time users
+  // receive the TOPMANIDMB default: Thai-first with short English guidance.
+  try {
+    if (localStorage.getItem(EXPLICIT_LOCALE_KEY) === 'en') return 'en';
+  } catch { /* private mode */ }
+  return 'bilingual';
+}
+
+export function topmanText(thai: string, english: string): string {
+  switch (getTopmanLanguageMode()) {
+    case 'th': return thai;
+    case 'en': return english;
+    case 'bilingual': return `${thai} / ${english}`;
+  }
+}
+
+export function getTopmanBrandSubtitle(): string {
+  return topmanText('ข่าวกรองสถานการณ์โลก', 'World Intelligence');
 }
 
 function applyDocumentDirection(lang: string): void {
@@ -157,6 +212,17 @@ export async function initI18n(): Promise<void> {
   // (`wm-locale-explicit`) is preserved untouched.
   try { localStorage.removeItem('i18nextLng'); } catch { /* private mode */ }
 
+  // The native app passes its selected TOPMANIDMB mode in the launch URL.
+  // Persist it before the dashboard normalizes query parameters so internal
+  // navigation and reloads keep the same language choice.
+  const requestedTopmanMode = readTopmanLanguageModeFromUrl();
+  if (requestedTopmanMode) {
+    try {
+      localStorage.setItem(TOPMAN_LANGUAGE_MODE_KEY, requestedTopmanMode);
+      localStorage.setItem(EXPLICIT_LOCALE_KEY, requestedTopmanMode === 'en' ? 'en' : 'th');
+    } catch { /* private mode */ }
+  }
+
   // Custom detectors:
   // - wmQuery honors shareable/SEO language URLs such as /dashboard?lang=fa.
   // - wmExplicit reads ONLY the explicit-choice key. Returns undefined when
@@ -178,6 +244,24 @@ export async function initI18n(): Promise<void> {
     },
     cacheUserLanguage: () => { /* writes go through explicit changeLanguage() */ },
   });
+  detector.addDetector({
+    name: 'wmTopman',
+    lookup: () => {
+      const requested = readTopmanLanguageModeFromUrl();
+      if (requested) return requested === 'en' ? 'en' : 'th';
+
+      const stored = storedTopmanLanguageMode();
+      if (stored) return stored === 'en' ? 'en' : 'th';
+
+      // Respect existing explicit choices in any of the upstream languages.
+      // New TOPMANIDMB visitors default to bilingual Thai-first mode.
+      try {
+        if (localStorage.getItem(EXPLICIT_LOCALE_KEY)) return undefined;
+      } catch { /* private mode */ }
+      return 'th';
+    },
+    cacheUserLanguage: () => { /* writes go through setTopmanLanguageMode() */ },
+  });
 
   await i18next
     .use(detector)
@@ -193,7 +277,7 @@ export async function initI18n(): Promise<void> {
         escapeValue: false, // not needed for these simple strings
       },
       detection: {
-        order: ['wmQuery', 'wmExplicit', 'navigator'],
+        order: ['wmQuery', 'wmTopman', 'wmExplicit', 'navigator'],
         caches: [], // never auto-write — only changeLanguage() persists
       },
     });
@@ -228,6 +312,7 @@ export function t(key: string, options?: Record<string, unknown>): string {
 // We deliberately don't ship that helper now since no UI consumes it.
 export async function changeLanguage(lng: string): Promise<void> {
   const normalized = await ensureLanguageLoaded(lng);
+  try { localStorage.removeItem(TOPMAN_LANGUAGE_MODE_KEY); } catch { /* private mode */ }
   try { localStorage.setItem(EXPLICIT_LOCALE_KEY, normalized); } catch { /* private mode */ }
   await i18next.changeLanguage(normalized);
   applyDocumentDirection(normalized);
@@ -241,6 +326,24 @@ export async function changeLanguage(lng: string): Promise<void> {
     }
   } catch { /* history unavailable */ }
   window.location.reload(); // Simple reload to update all components for now
+}
+
+export async function setTopmanLanguageMode(mode: TopmanLanguageMode): Promise<void> {
+  const language = mode === 'en' ? 'en' : 'th';
+  const normalized = await ensureLanguageLoaded(language);
+  try {
+    localStorage.setItem(TOPMAN_LANGUAGE_MODE_KEY, mode);
+    localStorage.setItem(EXPLICIT_LOCALE_KEY, normalized);
+  } catch { /* private mode */ }
+  await i18next.changeLanguage(normalized);
+  applyDocumentDirection(normalized);
+
+  try {
+    const url = new URL(stripQueryLanguage(window.location.href));
+    url.searchParams.delete('topmanMode');
+    window.history.replaceState(window.history.state, '', url.toString());
+  } catch { /* history unavailable */ }
+  window.location.reload();
 }
 
 // Helper to get current language (normalized to short code)

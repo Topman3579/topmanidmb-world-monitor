@@ -38,7 +38,7 @@ import {
 } from '@/config';
 import { resolveNewsCategories, enabledNewsCategoryKeys } from '@/config/feed-resolution';
 import { BETA_MODE } from '@/config/beta';
-import { t } from '@/services/i18n';
+import { getTopmanBrandSubtitle, t } from '@/services/i18n';
 import { getCurrentTheme } from '@/utils';
 import { trackCriticalBannerAction, trackCheckoutSuccess, trackCheckoutFailed, replayPendingCheckoutSuccess, replayPendingProFunnelEvents } from '@/services/analytics';
 import { getStoredMapModePreference } from '@/services/map-mode-preference';
@@ -786,11 +786,11 @@ export class PanelLayoutManager implements AppModule {
               <span class="variant-label">Good News</span>
             </a>`;
       })()}</div>
-          <span class="topman-brand-lockup" aria-label="TOPMANIDMB World Intelligence">
+          <span class="topman-brand-lockup" aria-label="TOPMANIDMB ${escapeHtml(getTopmanBrandSubtitle())}">
             <img class="topman-brand-mark" src="/brand/topmanidmb-orbit-emblem.png" alt="" width="27" height="27">
             <span class="topman-brand-copy">
               <span class="topman-brand-name">TOPMANIDMB</span>
-              <span class="topman-brand-subtitle">World Intelligence</span>
+              <span class="topman-brand-subtitle">${escapeHtml(getTopmanBrandSubtitle())}</span>
             </span>
           </span>
           <span class="logo">MONITOR</span><span class="logo-mobile">World Monitor</span><span class="version">v${__APP_VERSION__}</span>${BETA_MODE ? '<span class="beta-badge">BETA</span>' : ''}

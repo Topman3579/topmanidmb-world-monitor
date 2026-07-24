@@ -18632,6 +18632,19 @@ a.prediction-link:hover {
   border-color: var(--text-dim);
 }
 
+.topman-language-heading {
+  margin-top: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent, #d4af37) 34%, var(--border));
+  border-radius: 8px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--accent, #d4af37) 7%, transparent);
+}
+
+.topman-language-select {
+  border-color: color-mix(in srgb, var(--accent, #d4af37) 42%, var(--border));
+  font-weight: 600;
+}
+
 /* Responsive grids */
 @media (max-width: 500px) {
 

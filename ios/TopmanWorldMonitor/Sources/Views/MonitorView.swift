@@ -3,24 +3,33 @@ import SwiftUI
 struct MonitorView: View {
     @EnvironmentObject private var network: NetworkMonitor
     @StateObject private var browser = BrowserController()
+    let languageMode: AppLanguageMode
 
     var body: some View {
         ZStack(alignment: .top) {
             Color("LaunchBackground").ignoresSafeArea()
-            WorldMonitorWebView(controller: browser)
+            WorldMonitorWebView(controller: browser, languageMode: languageMode)
 
             if !network.isOnline {
-                OfflineBanner()
+                OfflineBanner(languageMode: languageMode)
                     .padding(.top, 8)
             }
 
             if let error = browser.errorMessage {
                 ContentUnavailableView {
-                    Label("เปิดศูนย์สถานการณ์ไม่ได้", systemImage: "wifi.exclamationmark")
+                    Label(
+                        languageMode.text(
+                            thai: "เปิดศูนย์สถานการณ์ไม่ได้",
+                            english: "Unable to open the monitor"
+                        ),
+                        systemImage: "wifi.exclamationmark"
+                    )
                 } description: {
                     Text(error)
                 } actions: {
-                    Button("ลองใหม่") { browser.loadDashboard() }
+                    Button(languageMode.text(thai: "ลองใหม่", english: "Try again")) {
+                        browser.loadDashboard(languageMode: languageMode)
+                    }
                         .buttonStyle(.borderedProminent)
                 }
                 .padding()
@@ -40,7 +49,7 @@ struct MonitorView: View {
                     Image(systemName: "chevron.backward")
                 }
                 .disabled(!browser.canGoBack)
-                .accessibilityLabel("ย้อนกลับ")
+                .accessibilityLabel(languageMode.text(thai: "ย้อนกลับ", english: "Back"))
 
                 Button {
                     browser.goForward()
@@ -48,7 +57,7 @@ struct MonitorView: View {
                     Image(systemName: "chevron.forward")
                 }
                 .disabled(!browser.canGoForward)
-                .accessibilityLabel("ไปข้างหน้า")
+                .accessibilityLabel(languageMode.text(thai: "ไปข้างหน้า", english: "Forward"))
             }
 
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -61,20 +70,31 @@ struct MonitorView: View {
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
-                .accessibilityLabel("โหลดข้อมูลใหม่")
+                .accessibilityLabel(languageMode.text(thai: "โหลดข้อมูลใหม่", english: "Reload"))
 
-                ShareLink(item: BrowserController.dashboardURL) {
+                ShareLink(item: languageMode.dashboardURL) {
                     Image(systemName: "square.and.arrow.up")
                 }
-                .accessibilityLabel("แชร์ศูนย์สถานการณ์")
+                .accessibilityLabel(languageMode.text(thai: "แชร์ศูนย์สถานการณ์", english: "Share monitor"))
             }
+        }
+        .onChange(of: languageMode) { _, newMode in
+            browser.loadDashboard(languageMode: newMode)
         }
     }
 }
 
 private struct OfflineBanner: View {
+    let languageMode: AppLanguageMode
+
     var body: some View {
-        Label("ออฟไลน์ — กำลังแสดงข้อมูลที่มีในเครื่อง", systemImage: "wifi.slash")
+        Label(
+            languageMode.text(
+                thai: "ออฟไลน์ — กำลังแสดงข้อมูลที่มีในเครื่อง",
+                english: "Offline — showing cached data"
+            ),
+            systemImage: "wifi.slash"
+        )
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
