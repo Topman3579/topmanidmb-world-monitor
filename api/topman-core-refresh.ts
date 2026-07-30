@@ -46,6 +46,7 @@ interface RefreshResult {
 
 const GROUPS = new Set<RefreshGroup>(['fast', 'slow', 'market']);
 const FETCH_TIMEOUT_MS = 12_000;
+const GDELT_FETCH_TIMEOUT_MS = 18_000;
 const META_TTL_SECONDS = 7 * 24 * 60 * 60;
 const LOCK_TTL_SECONDS = 90;
 const TOPMAN_CORE_PREFIX = 'topman:core';
@@ -376,6 +377,7 @@ async function gdeltDataset(): Promise<PublishableDataset> {
   const raw = await fetchJson(
     `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=50&format=json&sort=date&timespan=24h`,
     'GDELT',
+    GDELT_FETCH_TIMEOUT_MS,
   );
   const articles = normalizeGdeltArticles(raw);
   if (articles.length === 0) throw new Error('GDELT returned no usable articles');
