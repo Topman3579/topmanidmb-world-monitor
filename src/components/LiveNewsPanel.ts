@@ -66,6 +66,7 @@ export interface LiveChannel {
 
 // Full variant: Thailand-first (TOPMAN) then key world feeds
 const FULL_LIVE_CHANNELS: LiveChannel[] = [
+  // Thai defaults: 24/7 HLS via DIRECT_HLS_MAP; YouTube handles remain as fallback after HLS cooldown
   { id: 'thai-pbs', name: 'Thai PBS', handle: '@ThaiPBS' },
   { id: 'nation-tv', name: 'Nation TV', handle: '@NationTVOfficial' },
   { id: 'tnn', name: 'TNN', handle: '@TNNCHANNEL' },
@@ -249,6 +250,13 @@ const DEFAULT_STORED: StoredLiveChannels = {
 };
 
 const DIRECT_HLS_MAP: Readonly<Record<string, string>> = {
+  // Thailand — official CDN when available; otherwise public CORS-friendly live HLS
+  'thai-pbs': 'https://thaipbs-mcx0wm.cdn.byteark.com/live/playlist.m3u8',
+  'nation-tv': 'https://nationtv-1jdcjo.cdn.byteark.com/fleetstream/nationtvlive/index.m3u8',
+  'tnn': 'https://live-us1.thaimomo.com/live-as/chtnn24-2/playlist.m3u8',
+  'workpoint-news': 'https://live-us1.thaimomo.com/live-as/chworkpointt-3/playlist.m3u8',
+  'pptv-hd36': 'https://live-us1.thaimomo.com/live-as/chpptv-3/playlist.m3u8',
+  'thairath': 'https://live-us1.thaimomo.com/live-as/chthairathhd-3/playlist.m3u8',
   'sky': 'https://linear901-oo-hls0-prd-gtm.delivery.skycdp.com/17501/sde-fast-skynews/master.m3u8',
   'euronews': 'https://dash4.antik.sk/live/test_euronews/playlist.m3u8',
   'dw': 'https://dwamdstream103.akamaized.net/hls/live/2015526/dwstream103/master.m3u8',

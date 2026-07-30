@@ -811,9 +811,18 @@ function youtubeLivePlugin(): Plugin {
           if (detailsIdx !== -1) {
             const block = html.substring(detailsIdx, detailsIdx + 5000);
             const vidMatch = block.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-            const liveMatch = block.match(/"isLive"\s*:\s*true/);
+            const liveMatch = block.match(/"isLive(?:Now|Content)?"\s*:\s*true/);
             if (vidMatch && liveMatch) {
               videoId = vidMatch[1];
+            }
+          }
+          if (!videoId) {
+            const liveNowIdx = html.search(/"isLiveNow"\s*:\s*true/);
+            if (liveNowIdx !== -1) {
+              const windowStart = Math.max(0, liveNowIdx - 2500);
+              const near = html.substring(windowStart, liveNowIdx + 500);
+              const nearVid = near.match(/"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/);
+              if (nearVid) videoId = nearVid[1];
             }
           }
 

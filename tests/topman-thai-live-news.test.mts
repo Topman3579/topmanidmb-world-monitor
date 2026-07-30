@@ -28,12 +28,34 @@ const THAI_HANDLES: Record<(typeof THAI_IDS)[number], string> = {
   thairath: '@Thairath',
 };
 
+const THAI_HLS: Record<(typeof THAI_IDS)[number], RegExp> = {
+  'thai-pbs': /thaipbs-mcx0wm\.cdn\.byteark\.com\/live\/playlist\.m3u8/,
+  'nation-tv': /nationtv-1jdcjo\.cdn\.byteark\.com\/fleetstream\/nationtvlive\/index\.m3u8/,
+  tnn: /live-us1\.thaimomo\.com\/live-as\/chtnn24-2\/playlist\.m3u8/,
+  'workpoint-news': /live-us1\.thaimomo\.com\/live-as\/chworkpointt-3\/playlist\.m3u8/,
+  'pptv-hd36': /live-us1\.thaimomo\.com\/live-as\/chpptv-3\/playlist\.m3u8/,
+  thairath: /live-us1\.thaimomo\.com\/live-as\/chthairathhd-3\/playlist\.m3u8/,
+};
+
 describe('TOPMAN Thai live news channels', () => {
   it('registers six Thailand channels in OPTIONAL_LIVE_CHANNELS with YouTube handles', () => {
     for (const id of THAI_IDS) {
       const match = liveNewsSrc.match(new RegExp(`id:\\s*'${id}'[^}]*}`));
       assert.ok(match, `missing channel ${id}`);
       assert.match(match[0], new RegExp(`handle:\\s*'${THAI_HANDLES[id]}'`));
+    }
+  });
+
+  it('maps all six Thailand channels to playable DIRECT_HLS_MAP URLs', () => {
+    const hlsMap = liveNewsSrc.match(/const DIRECT_HLS_MAP[^{]*\{([\s\S]*?)\};/);
+    assert.ok(hlsMap, 'DIRECT_HLS_MAP missing');
+    const body = hlsMap[1];
+    for (const id of THAI_IDS) {
+      const entry = body.match(new RegExp(`'${id}':\\s*'([^']+)'`));
+      assert.ok(entry, `${id} missing from DIRECT_HLS_MAP`);
+      assert.match(entry[1], /^https:\/\//);
+      assert.match(entry[1], /\.m3u8/);
+      assert.match(entry[1], THAI_HLS[id]);
     }
   });
 
