@@ -610,7 +610,6 @@ html.topman-ui-mode-simple .fullscreen-btn,
 html.topman-ui-mode-simple .region-selector,
 html.topman-ui-mode-simple .dashboard-tabs-mount,
 html.topman-ui-mode-simple .pro-banner-slot,
-html.topman-ui-mode-simple .auth-widget-mount,
 html.topman-ui-mode-simple #unifiedSettingsMount,
 html.topman-ui-mode-simple .mobile-search-btn,
 html.topman-ui-mode-simple .mobile-settings-btn,
@@ -621,6 +620,11 @@ html.topman-ui-mode-simple .intelligence-gap-badge,
 html.topman-ui-mode-simple #searchMobileFab,
 html.topman-ui-mode-simple .search-mobile-fab {
   display: none !important;
+}
+
+/* Keep auth slot in layout (CLS / e2e header reservation). Soften only. */
+html.topman-ui-mode-simple .auth-widget-mount {
+  opacity: 0.92;
 }
 
 html.topman-ui-mode-simple .header-right {

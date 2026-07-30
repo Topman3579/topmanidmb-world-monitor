@@ -40,7 +40,12 @@ describe('TOPMAN Simple Mode wiring', () => {
     assert.match(simpleCss, /grid-template-columns:\s*repeat\(3/);
     assert.match(simpleCss, /#topmanSimpleModeBelow/);
     assert.match(simpleCss, /topman-tour-spotlight/);
-    assert.match(simpleCss, /auth-widget-mount/);
+    // Auth mount stays in layout for CLS/e2e header reservation (not display:none).
+    assert.match(simpleCss, /\.auth-widget-mount\s*\{[\s\S]*opacity:/);
+    assert.doesNotMatch(
+      simpleCss,
+      /topman-ui-mode-simple \.auth-widget-mount[^{]*\{[^}]*display:\s*none/,
+    );
   });
 
   it('renders executive summary, three cards, missions, and tour controls', () => {
