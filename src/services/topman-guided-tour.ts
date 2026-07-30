@@ -22,6 +22,15 @@ export function getGuidedTourSteps(): GuidedTourStep[] {
       targetSelector: '[data-tour="summary"]',
     },
     {
+      id: 'health',
+      title: topmanText('สถานะข้อมูลหลักกับระบบเต็ม', 'Core vs full-system status'),
+      body: topmanText(
+        'แถบใต้หัวข้อแยก “ข้อมูลหลัก TOPMAN” (6 ชุดบรีฟ) กับ “ระบบเต็ม” — เขียวที่ข้อมูลหลักไม่ได้แปลว่าระบบทั้งก้อนพร้อม',
+        'The strip under the title separates TOPMAN Core (6 briefing lanes) from full-system health — Core green is not full-system green.',
+      ),
+      targetSelector: '[data-tour="health-strip"]',
+    },
+    {
       id: 'levels',
       title: topmanText('สีแต่ละสีหมายถึงอะไร', 'What the colors mean'),
       body: topmanText(

@@ -4,7 +4,11 @@
  */
 
 import type { ServerInsights, ServerInsightStory } from '@/services/insights-loader';
-import type { TopmanHealthSnapshot, TopmanHealthState } from '@/services/topman-health-status';
+import type {
+  SystemHealthBrief,
+  TopmanHealthSnapshot,
+  TopmanHealthState,
+} from '@/services/topman-health-status';
 import { topmanText } from '@/services/topman-language-mode';
 
 export type SimpleSituationLevel = 'calm' | 'watch' | 'elevated' | 'critical' | 'unknown';
@@ -30,6 +34,14 @@ export interface SimpleExecutiveSummary {
   status: SimpleDataStatus;
   cards: SimpleSummaryCard[];
   generatedFrom: string[];
+  /** Thai-first labels for generatedFrom IDs (same order). */
+  generatedFromLabels: string[];
+  /** Core 6 lane strip — never implies full-system readiness. */
+  coreStrip: string;
+  /** Compact full-system strip when verified; empty when unavailable. */
+  systemStrip: string;
+  /** Always-visible scope note separating Core vs full system. */
+  healthScopeNote: string;
 }
 
 const ASEAN_CODES = new Set([
@@ -64,16 +76,66 @@ export function mapHealthToSimpleStatus(health: TopmanHealthSnapshot | null | un
 }
 
 export function formatSimpleDataStatusLabel(status: SimpleDataStatus): string {
+  // Always scope the badge to TOPMAN Core — never a generic “all green”.
   switch (status) {
     case 'ready':
-      return topmanText('พร้อม', 'Ready');
+      return topmanText('ข้อมูลหลักพร้อม', 'Core ready');
     case 'partial':
-      return topmanText('พร้อมบางส่วน', 'Partially ready');
+      return topmanText('ข้อมูลหลักบางส่วน', 'Core partial');
     case 'stale':
-      return topmanText('ข้อมูลล่าช้า', 'Data delayed');
+      return topmanText('ข้อมูลหลักล่าช้า', 'Core delayed');
     case 'unavailable':
-      return topmanText('ไม่สามารถตรวจสอบได้', 'Cannot verify');
+      return topmanText('ข้อมูลหลักไม่พร้อม', 'Core unavailable');
   }
+}
+
+export function formatSimpleGeneratedFromLabel(sourceId: string): string {
+  switch (sourceId) {
+    case 'topman-core-status':
+      return topmanText('สถานะข้อมูลหลัก TOPMAN', 'TOPMAN Core status');
+    case 'server-insights':
+      return topmanText('สรุปข่าวที่ตรวจสอบแล้ว', 'Verified news brief');
+    default:
+      return sourceId;
+  }
+}
+
+export function getSimpleHealthScopeNote(): string {
+  return topmanText(
+    'ข้อมูลหลัก = 6 ชุดที่เฝ้าสำหรับบรีฟ · ระบบเต็ม = แหล่งทั้งหมดของแดชบอร์ด — คนละชั้นกัน',
+    'Core = 6 briefing lanes · Full system = all dashboard sources — separate layers',
+  );
+}
+
+export function formatSimpleCoreStrip(health: TopmanHealthSnapshot | null | undefined): string {
+  if (!health || health.summary.total < 1) {
+    return topmanText('ข้อมูลหลัก TOPMAN: ยังยืนยันไม่ได้', 'TOPMAN Core: not verified');
+  }
+  const { ok, total, warn, crit } = health.summary;
+  return topmanText(
+    `ข้อมูลหลัก TOPMAN: ${ok}/${total} · เตือน ${warn} · วิกฤต ${crit}`,
+    `TOPMAN Core: ${ok}/${total} · warnings ${warn} · critical ${crit}`,
+  );
+}
+
+export function formatSimpleSystemStrip(system: SystemHealthBrief | null | undefined): string {
+  if (!system || system.state === 'unavailable' || system.total < 1) {
+    return topmanText('ระบบเต็ม: ยังยืนยันไม่ได้', 'Full system: not verified');
+  }
+  const thaiState = system.state === 'healthy'
+    ? 'พร้อม'
+    : system.crit > 0
+      ? 'ไม่พร้อม'
+      : 'พร้อมบางส่วน';
+  const enState = system.state === 'healthy'
+    ? 'ready'
+    : system.crit > 0
+      ? 'not ready'
+      : 'partial';
+  return topmanText(
+    `ระบบเต็ม: ${thaiState} ${system.ok}/${system.total}${system.crit > 0 ? ` · วิกฤต ${system.crit}` : ''}`,
+    `Full system: ${enState} ${system.ok}/${system.total}${system.crit > 0 ? ` · critical ${system.crit}` : ''}`,
+  );
 }
 
 export function formatSituationLevelLabel(level: SimpleSituationLevel): string {
@@ -186,19 +248,46 @@ function emptyCard(
 export function buildSimpleExecutiveSummary(input: {
   insights: ServerInsights | null;
   health: TopmanHealthSnapshot | null;
+  systemHealth?: SystemHealthBrief | null;
   nowMs?: number;
 }): SimpleExecutiveSummary {
   const healthStatus = mapHealthToSimpleStatus(input.health);
   const insights = input.insights;
   const generatedFrom: string[] = [];
+  const coreStrip = formatSimpleCoreStrip(input.health);
+  const systemStrip = input.systemHealth
+    ? formatSimpleSystemStrip(input.systemHealth)
+    : topmanText('ระบบเต็ม: ยังไม่ได้ตรวจในรอบนี้', 'Full system: not checked this round');
+  const healthScopeNote = getSimpleHealthScopeNote();
+
+  const withMeta = (
+    summary: Omit<SimpleExecutiveSummary, 'generatedFromLabels' | 'coreStrip' | 'systemStrip' | 'healthScopeNote'>,
+  ): SimpleExecutiveSummary => ({
+    ...summary,
+    generatedFromLabels: summary.generatedFrom.map(formatSimpleGeneratedFromLabel),
+    coreStrip,
+    systemStrip,
+    healthScopeNote,
+  });
+
+  /** Core ready must not stay “all green” when full-system compact health is degraded. */
+  const applySystemHonesty = (status: SimpleDataStatus): SimpleDataStatus => {
+    const system = input.systemHealth;
+    if (!system || system.state === 'unavailable' || system.total < 1) return status;
+    if (system.state === 'healthy') return status;
+    if (status === 'ready') return 'partial';
+    return status;
+  };
 
   if (!insights) {
     const reason = topmanText(
       'ยังไม่มีสรุปสถานการณ์จากแหล่งที่ตรวจสอบได้ในขณะนี้ ระบบจะไม่เดาข้อเท็จจริงให้',
       'No verified situation summary is available right now. The system will not invent facts.',
     );
-    const status: SimpleDataStatus = healthStatus === 'ready' ? 'partial' : healthStatus;
-    return {
+    const status: SimpleDataStatus = applySystemHonesty(
+      healthStatus === 'ready' ? 'partial' : healthStatus,
+    );
+    return withMeta({
       headline: topmanText('วันนี้ยังสรุปภาพรวมไม่ได้ครบ', 'Full summary not available today'),
       body: reason,
       status,
@@ -208,7 +297,7 @@ export function buildSimpleExecutiveSummary(input: {
         emptyCard('watch', topmanText('สิ่งที่ต้องจับตา', 'What to watch'), reason, status),
       ],
       generatedFrom: input.health ? ['topman-core-status'] : [],
-    };
+    });
   }
 
   generatedFrom.push('server-insights');
@@ -350,14 +439,15 @@ export function buildSimpleExecutiveSummary(input: {
   if (healthStatus === 'partial' || healthStatus === 'stale' || healthStatus === 'unavailable') {
     overallStatus = healthStatus;
   }
+  overallStatus = applySystemHonesty(overallStatus);
 
-  return {
+  return withMeta({
     headline,
     body: clipSentences(bodyParts.join(' · '), 4, 480),
     status: overallStatus,
     cards: [worldCard, aseanCard, watchCard],
     generatedFrom,
-  };
+  });
 }
 
 /** Guard against accidental AI-hallucinated free text in unit tests / future LLM hooks. */

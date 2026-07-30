@@ -47,8 +47,11 @@ async function loadTopmanHealthModule(): Promise<TopmanHealthModule> {
 
 const {
   buildTopmanHealthPresentation,
+  classifyCompactSystemHealth,
   classifyTopmanHealthPayload,
   fetchTopmanHealthSnapshot,
+  formatCoreHealthStrip,
+  formatSystemHealthBrief,
   formatTopmanHealthLabel,
   getTopmanSourceHref,
   TOPMAN_HEALTH_POLL_INTERVAL_MS,
@@ -257,6 +260,31 @@ describe('TOPMAN health transport and presentation', () => {
     assert.match(presentation.description, /วิกฤต\/Critical 4/);
     assert.match(presentation.description, /ตรวจล่าสุด/);
     assert.match(presentation.description, /Last checked/);
+  });
+
+  it('classifies compact full-system health separately from TOPMAN Core 6', () => {
+    const healthy = classifyCompactSystemHealth({
+      status: 'HEALTHY',
+      checkedAt: new Date(NOW_MS).toISOString(),
+      summary: { total: 232, ok: 232, warn: 0, onDemandWarn: 0, staleContent: 0, crit: 0 },
+    }, NOW_MS);
+    const degraded = classifyCompactSystemHealth({
+      status: 'UNHEALTHY',
+      checkedAt: new Date(NOW_MS).toISOString(),
+      summary: { total: 232, ok: 17, warn: 21, onDemandWarn: 29, staleContent: 0, crit: 165 },
+    }, NOW_MS);
+
+    assert.equal(healthy.state, 'healthy');
+    assert.equal(degraded.state, 'partial');
+    assert.equal(degraded.ok, 17);
+    assert.equal(degraded.crit, 165);
+    assert.match(formatSystemHealthBrief(degraded, 'th'), /ระบบเต็ม: ไม่พร้อม 17\/232/);
+    assert.match(formatCoreHealthStrip(classifyTopmanHealthPayload(healthPayload({
+      status: 'WARNING',
+      ok: 4,
+      warn: 2,
+      staleContent: 1,
+    }), NOW_MS), 'th'), /ข้อมูลหลัก TOPMAN: 4\/6/);
   });
 
   it('links to the exact TOPMAN commit when the build hash is available', () => {
