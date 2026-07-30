@@ -65,6 +65,12 @@ import {
   buildDefaultTabPanels,
 } from '@/services/tab-store';
 import type { PanelTab, TabsState } from '@/services/tab-store';
+import {
+  buildTopmanProDesksState,
+  markTopmanProDesksSeeded,
+} from '@/services/topman-pro-desks';
+import { DEFAULT_MAP_LAYERS, MOBILE_DEFAULT_MAP_LAYERS } from '@/config/panels';
+import { saveMissionPreset } from '@/services/mission-presets';
 import { showToast } from '@/utils';
 import { loadMcpPanels, saveMcpPanel } from '@/services/mcp-store';
 import type { McpPanelSpec } from '@/services/mcp-store';
@@ -1165,6 +1171,64 @@ export class PanelLayoutManager implements AppModule {
     }
     this.panelTabBar?.refresh();
     showToast(t('dashboardTabs.tabDeleted', { name: removed!.name }));
+  }
+
+  /**
+   * Install the four TOPMAN command desks as dashboard tabs (Pro Business playbook).
+   * Replaces the current tab strip with the briefing desks and activates desk 01.
+   */
+  public installTopmanProDesks(): boolean {
+    if (SITE_VARIANT !== 'full') {
+      showToast(topmanText('โต๊ะ Pro ใช้ได้เฉพาะเวอร์ชันเต็ม', 'Pro desks require the full variant'));
+      return false;
+    }
+    if (!this.tabsState) {
+      showToast(topmanText('ยังโหลดแท็บไม่เสร็จ ลองอีกครั้ง', 'Tabs not ready — try again'));
+      return false;
+    }
+
+    this.snapshotActiveTab();
+
+    const defaultLayers = this.ctx.isMobile ? MOBILE_DEFAULT_MAP_LAYERS : DEFAULT_MAP_LAYERS;
+    const pro = isProUser() || isEntitled();
+    let built;
+    try {
+      built = buildTopmanProDesksState(this.ctx.panelSettings, defaultLayers, SITE_VARIANT);
+    } catch (err) {
+      console.warn('[TopmanProDesks] build failed', err);
+      showToast(topmanText('ติดตั้งโต๊ะไม่สำเร็จ', 'Could not install desks'));
+      return false;
+    }
+
+    // Clamp each desk to free panel cap when not Pro (still useful layout).
+    for (const tab of built.tabsState.tabs) {
+      tab.panelSettings = enforceFreePanelLimit(tab.panelSettings, pro);
+    }
+
+    this.tabsState = built.tabsState;
+    saveTabsState(this.tabsState);
+
+    const active = this.tabsState.tabs[0]!;
+    this.applyTabPanelState(active.panelSettings, active.panelOrder, active.bottomSet);
+
+    this.ctx.mapLayers = built.activeMapLayers;
+    saveToStorage(STORAGE_KEYS.mapLayers, built.activeMapLayers);
+    this.ctx.map?.setLayers(built.activeMapLayers);
+    try {
+      saveMissionPreset(built.activeMissionId, SITE_VARIANT);
+    } catch {
+      // Mission storage is optional for desk install.
+    }
+
+    markTopmanProDesksSeeded();
+    this.panelTabBar?.refresh();
+    showToast(
+      topmanText(
+        `ติดตั้งโต๊ะ ${built.deskNames.length} ใบแล้ว · เริ่มที่ ${built.deskNames[0]}`,
+        `Installed ${built.deskNames.length} desks · start on ${built.deskNames[0]}`,
+      ),
+    );
+    return true;
   }
 
   /**

@@ -58,6 +58,8 @@ describe('TOPMAN Simple Mode wiring', () => {
     assert.match(simpleModeTs, /ดูรายละเอียด/);
     assert.match(simpleModeTs, /getTopmanProductName|TOPMAN News Room/);
     assert.match(simpleModeTs, /getTopmanProductMission/);
+    assert.match(simpleModeTs, /install-pro-desks/);
+    assert.match(simpleModeTs, /topman-pro-business-playbook/);
   });
 
   it('routes welcome CTAs into simple mode without inventing facts', () => {

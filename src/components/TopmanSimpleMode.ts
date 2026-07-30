@@ -74,6 +74,8 @@ export interface TopmanSimpleModeCallbacks {
   onFocusMap?: () => void;
   /** Optional: focus a named panel in advanced mode */
   onFocusPanel?: (panelId: string) => void;
+  /** Install four Pro command desks as dashboard tabs */
+  onInstallProDesks?: () => void;
 }
 
 export class TopmanSimpleMode {
@@ -283,6 +285,13 @@ export class TopmanSimpleMode {
         break;
       case 'refresh-summary':
         void this.refreshData(true);
+        break;
+      case 'install-pro-desks':
+        this.callbacks.onInstallProDesks?.();
+        this.setMode('advanced');
+        break;
+      case 'open-pro-playbook':
+        window.open('/topman-pro-business-playbook.html', '_blank', 'noopener,noreferrer');
         break;
       default:
         break;
@@ -560,6 +569,14 @@ export class TopmanSimpleMode {
                 'TOPMAN Core status does not mean every external source in the full system is healthy.',
               ))}
             </p>
+            <div class="topman-simple-pro-actions">
+              <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="install-pro-desks">
+                ${escapeHtml(topmanText('ติดตั้งโต๊ะ Pro 4 ใบ', 'Install 4 Pro desks'))}
+              </button>
+              <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="open-pro-playbook">
+                ${escapeHtml(topmanText('คู่มือ Pro Business', 'Pro Business playbook'))}
+              </button>
+            </div>
             <p class="topman-simple-attribution">
               ${escapeHtml(topmanText('ขับเคลื่อนด้วย', 'Powered by'))}
               <a href="https://github.com/koala73/worldmonitor" target="_blank" rel="noopener">World Monitor</a>
