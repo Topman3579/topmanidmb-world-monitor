@@ -28,6 +28,10 @@ import { hasPremiumAccess } from '@/services/panel-gating';
 import { trackGateHit } from '@/services/analytics';
 import { renderPopupSourceLinks } from './map-popup-source-links';
 import { setTrustedHtml, trustedHtml } from '@/utils/dom-utils';
+import {
+  extractCoordinatesFromUnknown,
+  renderGeoExploreLinks,
+} from '@/utils/geo-external-links';
 
 
 // ── Static HS2 sector breakdown per chokepoint ────────────────────────────────
@@ -255,9 +259,14 @@ export class MapPopup {
     this.popup.className = this.isMobileSheet ? 'map-popup map-popup-sheet' : 'map-popup';
 
     const content = this.renderContent(data);
+    const coords = extractCoordinatesFromUnknown(data.data);
+    const exploreLinks = coords
+      ? renderGeoExploreLinks(coords.lat, coords.lon)
+      : '';
+    const body = `${content}${exploreLinks}`;
     setTrustedHtml(this.popup, trustedHtml(this.isMobileSheet
-      ? `<button class="map-popup-sheet-handle" aria-label="${t('common.close')}"></button>${content}`
-      : content, "legacy direct innerHTML migration"));
+      ? `<button class="map-popup-sheet-handle" aria-label="${t('common.close')}"></button>${body}`
+      : body, "legacy direct innerHTML migration"));
 
     // Get container's viewport position for absolute positioning
     const containerRect = this.container.getBoundingClientRect();

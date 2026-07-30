@@ -8658,6 +8658,82 @@ a.prediction-link:hover {
   font-size: 10px;
 }
 
+/* Google Earth / Maps outbound explore (TOPMAN News Room) */
+.popup-geo-explore {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border, rgba(143, 208, 255, 0.18));
+  background: rgba(10, 20, 38, 0.35);
+}
+
+.popup-geo-explore__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.popup-geo-explore__title {
+  color: var(--topman-gold, var(--accent, #ffcb2d));
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+}
+
+.popup-geo-explore__coords {
+  color: var(--text-dim, #9cb4ca);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.popup-geo-explore__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.popup-geo-explore__btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(143, 208, 255, 0.28);
+  background: rgba(19, 39, 70, 0.9);
+  color: var(--text, #f7f3ea);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.popup-geo-explore__btn:hover {
+  border-color: rgba(255, 203, 45, 0.5);
+  color: var(--topman-gold, #ffcb2d);
+}
+
+.popup-geo-explore__btn--earth {
+  border-color: rgba(255, 203, 45, 0.35);
+}
+
+.popup-geo-explore__btn--maps {
+  border-color: rgba(143, 208, 255, 0.35);
+}
+
+.popup-geo-explore__hint {
+  margin: 8px 0 0;
+  color: var(--text-muted, #7f9ab3);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.map-popup.map-popup-sheet .popup-geo-explore {
+  margin-left: 0;
+  margin-right: 0;
+}
+
 /* Hotspot subtitles on map */
 .hotspot-subtext {
   position: absolute;
