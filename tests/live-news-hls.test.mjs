@@ -92,12 +92,15 @@ describe('DIRECT_HLS_MAP integrity', () => {
 // ── 2. Channel data integrity ──
 
 describe('channel data integrity', () => {
-  it('all FULL_LIVE_CHANNELS have fallbackVideoId', () => {
+  it('all FULL_LIVE_CHANNELS have a playback path (fallbackVideoId, hlsUrl, or handle)', () => {
     for (const id of fullIds) {
       const match = liveNewsSrc.match(new RegExp(`id:\\s*'${id}'[^}]*}`, 's'));
       assert.ok(match, `Channel '${id}' not found`);
-      assert.match(match[0], /fallbackVideoId:\s*'[^']+'/,
-        `FULL channel '${id}' missing fallbackVideoId`);
+      const hasFallback = /fallbackVideoId:\s*'[^']+'/.test(match[0]);
+      const hasHlsUrl = /hlsUrl:\s*'[^']+'/.test(match[0]);
+      const hasHandle = /handle:\s*'[^']+'/.test(match[0]);
+      assert.ok(hasFallback || hasHlsUrl || hasHandle,
+        `FULL channel '${id}' must have fallbackVideoId, hlsUrl, or handle`);
     }
   });
 
