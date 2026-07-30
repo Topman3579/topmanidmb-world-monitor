@@ -478,6 +478,13 @@
   margin: 0 0 6px;
 }
 
+.topman-simple-pro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
 .topman-simple-attribution a {
   color: var(--topman-cyan, #8fd0ff);
 }

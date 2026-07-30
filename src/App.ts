@@ -2041,6 +2041,12 @@ export class App {
             window.setTimeout(() => panelEl.classList.remove('topman-simple-panel-focus'), 2400);
           }
         },
+        onInstallProDesks: () => {
+          const ok = this.panelLayout.installTopmanProDesks();
+          if (ok) {
+            void this.dataLoader.loadAllData();
+          }
+        },
       }, below);
       this.topmanSimpleMode.init();
     }).catch((err) => {
