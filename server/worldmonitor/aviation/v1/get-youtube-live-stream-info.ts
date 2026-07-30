@@ -107,9 +107,18 @@ function parseChannelHtml(html: string): GetYoutubeLiveStreamInfoResponse {
   if (detailsIndex !== -1) {
     const detailsBlock = html.substring(detailsIndex, detailsIndex + 5_000);
     const videoIdMatch = detailsBlock.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-    const isLiveMatch = detailsBlock.match(/"isLive"\s*:\s*true/);
+    const isLiveMatch = detailsBlock.match(/"isLive(?:Now|Content)?"\s*:\s*true/);
     if (videoIdMatch?.[1] && isLiveMatch) {
       detectedVideoId = videoIdMatch[1];
+    }
+  }
+  if (!detectedVideoId) {
+    const liveNowIdx = html.search(/"isLiveNow"\s*:\s*true/);
+    if (liveNowIdx !== -1) {
+      const windowStart = Math.max(0, liveNowIdx - 2500);
+      const near = html.substring(windowStart, liveNowIdx + 500);
+      const nearVid = near.match(/"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/);
+      if (nearVid?.[1]) detectedVideoId = nearVid[1];
     }
   }
 
