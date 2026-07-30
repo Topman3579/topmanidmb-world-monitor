@@ -22,6 +22,7 @@ describe('TOPMAN Simple Mode wiring', () => {
 
   it('mounts simple mode root and mode toggles in the shell', () => {
     assert.match(panelLayout, /id="topmanSimpleModeRoot"/);
+    assert.match(panelLayout, /id="topmanSimpleModeBelow"/);
     assert.match(panelLayout, /id="topmanModeToggle"/);
     assert.match(panelLayout, /id="mobileMenuTopmanMode"/);
   });
@@ -37,6 +38,9 @@ describe('TOPMAN Simple Mode wiring', () => {
     assert.match(simpleCss, /min-height:\s*44px/);
     assert.match(simpleCss, /overflow-x:\s*hidden/);
     assert.match(simpleCss, /grid-template-columns:\s*repeat\(3/);
+    assert.match(simpleCss, /#topmanSimpleModeBelow/);
+    assert.match(simpleCss, /topman-tour-spotlight/);
+    assert.match(simpleCss, /auth-widget-mount/);
   });
 
   it('renders executive summary, three cards, missions, and tour controls', () => {

@@ -25,7 +25,7 @@ import {
   type SimpleSummaryCard,
 } from '@/services/topman-simple-summary';
 import {
-  SIMPLE_MAP_CATEGORIES,
+  getSimpleMapCategories,
   buildSimpleMapLayers,
   describeSimpleMapLegend,
   getDefaultSimpleMapCategoryIds,
@@ -45,7 +45,6 @@ import { escapeHtml } from '@/utils/sanitize';
 import { setTrustedHtml, trustedHtml } from '@/utils/dom-utils';
 import type { MapLayers } from '@/types';
 
-// Re-export labels used by header toggle
 export function getTopmanUiModeLabel(mode: TopmanUiMode): { short: string; full: string } {
   if (mode === 'simple') {
     return {
@@ -60,20 +59,20 @@ export function getTopmanUiModeLabel(mode: TopmanUiMode): { short: string; full:
 }
 
 export interface TopmanSimpleModeCallbacks {
-  /** Apply a mission preset (existing engine path). */
   onApplyMission: (id: MissionPresetId) => void;
-  /** Apply simplified map layers for selected categories. */
   onApplySimpleLayers: (layers: MapLayers) => void;
-  /** Provide current base MapLayers template (all keys). */
   getBaseMapLayers: () => MapLayers;
-  /** Jump to advanced view focused on a card. */
   onOpenCardDetail: (cardId: SimpleSummaryCard['id']) => void;
-  /** Optional: active mission id for highlight. */
   getActiveMissionId?: () => string | null;
+  /** Optional: scroll / focus live map after category or detail actions */
+  onFocusMap?: () => void;
+  /** Optional: focus a named panel in advanced mode */
+  onFocusPanel?: (panelId: string) => void;
 }
 
 export class TopmanSimpleMode {
   private root: HTMLElement;
+  private belowRoot: HTMLElement | null;
   private callbacks: TopmanSimpleModeCallbacks;
   private mode: TopmanUiMode;
   private summary: SimpleExecutiveSummary | null = null;
@@ -85,20 +84,27 @@ export class TopmanSimpleMode {
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private boundModeListener: ((ev: Event) => void) | null = null;
   private boundRootClick: ((ev: MouseEvent) => void) | null = null;
+  private boundBelowClick: ((ev: MouseEvent) => void) | null = null;
+  private spotlightEl: HTMLElement | null = null;
 
-  constructor(root: HTMLElement, callbacks: TopmanSimpleModeCallbacks) {
+  constructor(root: HTMLElement, callbacks: TopmanSimpleModeCallbacks, belowRoot?: HTMLElement | null) {
     this.root = root;
+    this.belowRoot = belowRoot ?? document.getElementById('topmanSimpleModeBelow');
     this.callbacks = callbacks;
-    // Prefer storage over transient map URL params so late init (after URL
-    // rewrite) cannot flip Simple → Advanced just because layers= is present.
     this.mode = resolveTopmanUiMode();
     this.enabledCategories = loadStoredSimpleMapCategories() ?? getDefaultSimpleMapCategoryIds();
   }
 
   init(): void {
-    this.root.classList.add('topman-simple-mode');
+    this.root.classList.add('topman-simple-mode', 'topman-simple-mode--top');
     this.root.setAttribute('data-topman-simple-root', '1');
-    // Re-assert mode into document + URL after map URL sync may have rewritten the query.
+    this.root.hidden = false;
+    if (this.belowRoot) {
+      this.belowRoot.classList.add('topman-simple-mode', 'topman-simple-mode--below');
+      this.belowRoot.setAttribute('data-topman-simple-below', '1');
+      this.belowRoot.hidden = false;
+    }
+
     this.mode = setTopmanUiMode(this.mode, { updateUrl: true, dispatch: false });
     this.applyModeChrome();
     this.render();
@@ -113,7 +119,6 @@ export class TopmanSimpleMode {
       }, 1200);
     }
 
-    // Apply default simple layers once when starting in simple mode
     if (this.mode === 'simple') {
       this.pushSimpleLayers();
     }
@@ -128,7 +133,13 @@ export class TopmanSimpleMode {
     if (this.boundRootClick) {
       this.root.removeEventListener('click', this.boundRootClick);
     }
+    if (this.boundBelowClick && this.belowRoot) {
+      this.belowRoot.removeEventListener('click', this.boundBelowClick);
+    }
+    this.clearTourSpotlight();
     this.root.replaceChildren();
+    this.belowRoot?.replaceChildren();
+    if (this.belowRoot) this.belowRoot.hidden = true;
   }
 
   getMode(): TopmanUiMode {
@@ -142,6 +153,9 @@ export class TopmanSimpleMode {
     if (mode === 'simple') {
       this.pushSimpleLayers();
       void this.refreshData();
+    } else {
+      this.clearTourSpotlight();
+      this.tourOpen = false;
     }
     this.render();
     this.syncHeaderToggle();
@@ -149,6 +163,9 @@ export class TopmanSimpleMode {
 
   private applyModeChrome(): void {
     applyTopmanUiModeToDocument(this.mode);
+    if (this.belowRoot) {
+      this.belowRoot.hidden = this.mode !== 'simple';
+    }
   }
 
   private pushSimpleLayers(): void {
@@ -169,23 +186,28 @@ export class TopmanSimpleMode {
     };
     window.addEventListener(TOPMAN_UI_MODE_EVENT, this.boundModeListener);
 
-    this.boundRootClick = (ev: MouseEvent) => {
-      const target = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-action]');
-      if (!target) return;
-      const action = target.dataset.action;
-      if (!action) return;
-      ev.preventDefault();
-      this.handleAction(action, target);
-    };
+    this.boundRootClick = (ev: MouseEvent) => this.onDelegatedClick(ev);
     this.root.addEventListener('click', this.boundRootClick);
+    if (this.belowRoot) {
+      this.boundBelowClick = (ev: MouseEvent) => this.onDelegatedClick(ev);
+      this.belowRoot.addEventListener('click', this.boundBelowClick);
+    }
 
-    // Header toggle (outside root) — delegated once on document
     document.getElementById('topmanModeToggle')?.addEventListener('click', () => {
       this.setMode(this.mode === 'simple' ? 'advanced' : 'simple');
     });
     document.getElementById('mobileMenuTopmanMode')?.addEventListener('click', () => {
       this.setMode(this.mode === 'simple' ? 'advanced' : 'simple');
     });
+  }
+
+  private onDelegatedClick(ev: MouseEvent): void {
+    const target = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-action]');
+    if (!target) return;
+    const action = target.dataset.action;
+    if (!action) return;
+    ev.preventDefault();
+    this.handleAction(action, target);
   }
 
   private handleAction(action: string, el: HTMLElement): void {
@@ -198,6 +220,7 @@ export class TopmanSimpleMode {
         break;
       case 'start-tour':
         resetGuidedTour();
+        if (this.mode !== 'simple') this.setMode('simple');
         this.openTour(0);
         break;
       case 'tour-skip':
@@ -225,8 +248,12 @@ export class TopmanSimpleMode {
       }
       case 'apply-mission': {
         const id = el.dataset.missionId as MissionPresetId | undefined;
-        if (id) this.callbacks.onApplyMission(id);
-        this.render();
+        if (id) {
+          this.callbacks.onApplyMission(id);
+          // Mission applies advanced layer/panel sets — show the full desk.
+          this.setMode('advanced');
+          this.callbacks.onFocusMap?.();
+        }
         break;
       }
       case 'card-detail': {
@@ -234,9 +261,20 @@ export class TopmanSimpleMode {
         if (cardId) {
           this.callbacks.onOpenCardDetail(cardId);
           this.setMode('advanced');
+          // Defer focus until advanced chrome paints
+          window.setTimeout(() => {
+            if (cardId === 'world') this.callbacks.onFocusPanel?.('insights');
+            else if (cardId === 'asean') this.callbacks.onFocusPanel?.('live-news');
+            else this.callbacks.onFocusPanel?.('live-news');
+            this.callbacks.onFocusMap?.();
+          }, 80);
         }
         break;
       }
+      case 'scroll-to-map':
+        this.callbacks.onFocusMap?.();
+        document.getElementById('mapSection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        break;
       case 'refresh-summary':
         void this.refreshData(true);
         break;
@@ -248,29 +286,65 @@ export class TopmanSimpleMode {
   private toggleCategory(id: SimpleMapCategoryId): void {
     const set = new Set(this.enabledCategories);
     if (set.has(id)) {
-      if (set.size <= 1) return; // keep at least one
+      if (set.size <= 1) return;
       set.delete(id);
     } else {
       if (set.size >= 5) return;
       set.add(id);
     }
-    this.enabledCategories = SIMPLE_MAP_CATEGORIES
+    this.enabledCategories = getSimpleMapCategories()
       .map((c) => c.id)
       .filter((cid) => set.has(cid));
     saveSimpleMapCategories(this.enabledCategories);
     this.pushSimpleLayers();
     this.render();
+    this.callbacks.onFocusMap?.();
   }
 
   private openTour(step: number): void {
     this.tourOpen = true;
     this.tourStep = step;
     this.render();
+    this.applyTourSpotlight();
   }
 
   private closeTour(): void {
     this.tourOpen = false;
+    this.clearTourSpotlight();
     this.render();
+  }
+
+  private clearTourSpotlight(): void {
+    document.querySelectorAll('.topman-tour-spotlight-target').forEach((el) => {
+      el.classList.remove('topman-tour-spotlight-target');
+    });
+    this.spotlightEl?.remove();
+    this.spotlightEl = null;
+  }
+
+  private applyTourSpotlight(): void {
+    this.clearTourSpotlight();
+    if (!this.tourOpen) return;
+    const steps = getGuidedTourSteps();
+    const step = steps[this.tourStep];
+    if (!step?.targetSelector) return;
+
+    const target = document.querySelector<HTMLElement>(step.targetSelector);
+    if (!target) return;
+
+    target.classList.add('topman-tour-spotlight-target');
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+
+    const rect = target.getBoundingClientRect();
+    const ring = document.createElement('div');
+    ring.className = 'topman-tour-spotlight-ring';
+    ring.setAttribute('aria-hidden', 'true');
+    ring.style.top = `${Math.max(8, rect.top - 6 + window.scrollY)}px`;
+    ring.style.left = `${Math.max(8, rect.left - 6 + window.scrollX)}px`;
+    ring.style.width = `${rect.width + 12}px`;
+    ring.style.height = `${rect.height + 12}px`;
+    document.body.appendChild(ring);
+    this.spotlightEl = ring;
   }
 
   async refreshData(force = false): Promise<void> {
@@ -322,8 +396,11 @@ export class TopmanSimpleMode {
   private render(): void {
     if (this.destroyed) return;
 
-    // Advanced mode: keep a slim strip so users can return to simple
     if (this.mode === 'advanced') {
+      if (this.belowRoot) {
+        this.belowRoot.hidden = true;
+        this.belowRoot.replaceChildren();
+      }
       setTrustedHtml(this.root, trustedHtml(`
         <div class="topman-simple-advanced-strip" role="region" aria-label="${escapeHtml(topmanText('สลับโหมด', 'Mode switch'))}">
           <div class="topman-simple-advanced-strip__copy">
@@ -340,17 +417,24 @@ export class TopmanSimpleMode {
         ${this.tourOpen ? this.renderTourOverlay() : ''}
       `, 'Topman simple mode advanced strip'));
       this.syncHeaderToggle();
+      if (this.tourOpen) {
+        window.requestAnimationFrame(() => this.applyTourSpotlight());
+      }
       return;
     }
+
+    if (this.belowRoot) this.belowRoot.hidden = false;
 
     const summary = this.summary ?? buildSimpleExecutiveSummary({ insights: null, health: this.health });
     const statusLabel = formatSimpleDataStatusLabel(summary.status);
     const missions = getMissionPresetsForVariant(SITE_VARIANT);
     const activeMission = this.callbacks.getActiveMissionId?.() ?? null;
+    const categories = getSimpleMapCategories();
     const legend = describeSimpleMapLegend(this.enabledCategories);
 
+    // TOP: executive summary + cards + map category chips (above live map)
     setTrustedHtml(this.root, trustedHtml(`
-      <section class="topman-simple-shell" aria-label="${escapeHtml(topmanText('โหมดใช้ง่าย TOPMAN', 'TOPMAN Simple Mode'))}">
+      <section class="topman-simple-shell topman-simple-shell--top" aria-label="${escapeHtml(topmanText('โหมดใช้ง่าย TOPMAN', 'TOPMAN Simple Mode'))}">
         <header class="topman-simple-exec" data-tour="summary">
           <div class="topman-simple-exec__kicker">
             <span class="topman-simple-badge topman-simple-badge--${escapeHtml(summary.status)}">${escapeHtml(statusLabel)}</span>
@@ -378,11 +462,14 @@ export class TopmanSimpleMode {
           <div class="topman-simple-section-head">
             <div>
               <h2 id="topman-simple-map-title">${escapeHtml(topmanText('แผนที่แบบง่าย', 'Simple map'))}</h2>
-              <p>${escapeHtml(topmanText('เปิดได้ไม่เกิน 5 หมวด — แตะเพื่อดูคำอธิบาย', 'At most five categories — tap for explanations'))}</p>
+              <p>${escapeHtml(topmanText('เปิดได้ไม่เกิน 5 หมวด — แตะเพื่อดูคำอธิบาย แผนที่สดอยู่ถัดลงไป', 'At most five categories — live map is directly below'))}</p>
             </div>
+            <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="scroll-to-map">
+              ${escapeHtml(topmanText('ไปที่แผนที่', 'Go to map'))}
+            </button>
           </div>
           <div class="topman-simple-categories" data-tour="map-categories" role="group" aria-label="${escapeHtml(topmanText('หมวดแผนที่', 'Map categories'))}">
-            ${SIMPLE_MAP_CATEGORIES.map((cat) => {
+            ${categories.map((cat) => {
               const on = this.enabledCategories.includes(cat.id);
               return `
                 <button
@@ -411,61 +498,65 @@ export class TopmanSimpleMode {
               </li>
             `).join('')}
           </ul>
-          <p class="topman-simple-map-hint">
-            ${escapeHtml(topmanText(
-              'แผนที่จริงอยู่ด้านล่าง — เลื่อนลงเพื่อสำรวจจุดบนแผนที่',
-              'The live map is below — scroll to explore points on the map',
-            ))}
-          </p>
         </section>
-
-        <section class="topman-simple-missions" data-tour="missions" aria-labelledby="topman-simple-missions-title">
-          <div class="topman-simple-section-head">
-            <div>
-              <h2 id="topman-simple-missions-title">${escapeHtml(topmanText('ภารกิจสำเร็จรูป', 'Ready-made missions'))}</h2>
-              <p>${escapeHtml(topmanText('เลือกภารกิจแทนการเปิดเลเยอร์เอง', 'Pick a mission instead of choosing layers yourself'))}</p>
-            </div>
-          </div>
-          <div class="topman-simple-mission-grid">
-            ${missions.map((mission) => {
-              const selected = activeMission === mission.id;
-              return `
-                <button
-                  type="button"
-                  class="topman-simple-mission${selected ? ' is-selected' : ''}"
-                  data-action="apply-mission"
-                  data-mission-id="${escapeHtml(mission.id)}"
-                  aria-pressed="${selected ? 'true' : 'false'}"
-                >
-                  <span class="topman-simple-mission__icon">${escapeHtml(mission.icon)}</span>
-                  <span class="topman-simple-mission__body">
-                    <strong>${escapeHtml(mission.label)}</strong>
-                    <small>${escapeHtml(mission.description)}</small>
-                  </span>
-                </button>
-              `;
-            }).join('')}
-          </div>
-        </section>
-
-        <footer class="topman-simple-trust">
-          <p>
-            ${escapeHtml(topmanText(
-              'สถานะข้อมูลหลัก (TOPMAN Core) ไม่ใช่การยืนยันว่าระบบแหล่งข้อมูลทั้งหมดพร้อมสมบูรณ์',
-              'TOPMAN Core status does not mean every external source in the full system is healthy.',
-            ))}
-          </p>
-          <p class="topman-simple-attribution">
-            ${escapeHtml(topmanText('ขับเคลื่อนด้วย', 'Powered by'))}
-            <a href="https://github.com/koala73/worldmonitor" target="_blank" rel="noopener">World Monitor</a>
-            · AGPL-3.0 · TOPMANIDMB
-          </p>
-        </footer>
       </section>
       ${this.tourOpen ? this.renderTourOverlay() : ''}
-    `, 'Topman simple mode shell'));
+    `, 'Topman simple mode top shell'));
+
+    // BELOW map: missions + trust
+    if (this.belowRoot) {
+      setTrustedHtml(this.belowRoot, trustedHtml(`
+        <section class="topman-simple-shell topman-simple-shell--below">
+          <section class="topman-simple-missions" data-tour="missions" aria-labelledby="topman-simple-missions-title">
+            <div class="topman-simple-section-head">
+              <div>
+                <h2 id="topman-simple-missions-title">${escapeHtml(topmanText('ภารกิจสำเร็จรูป', 'Ready-made missions'))}</h2>
+                <p>${escapeHtml(topmanText('เลือกภารกิจแทนการเปิดเลเยอร์เอง — จะเปิดโหมดผู้เชี่ยวชาญให้อัตโนมัติ', 'Pick a mission instead of layers — opens Advanced Mode automatically'))}</p>
+              </div>
+            </div>
+            <div class="topman-simple-mission-grid">
+              ${missions.map((mission) => {
+                const selected = activeMission === mission.id;
+                return `
+                  <button
+                    type="button"
+                    class="topman-simple-mission${selected ? ' is-selected' : ''}"
+                    data-action="apply-mission"
+                    data-mission-id="${escapeHtml(mission.id)}"
+                    aria-pressed="${selected ? 'true' : 'false'}"
+                  >
+                    <span class="topman-simple-mission__icon">${escapeHtml(mission.icon)}</span>
+                    <span class="topman-simple-mission__body">
+                      <strong>${escapeHtml(mission.label)}</strong>
+                      <small>${escapeHtml(mission.description)}</small>
+                    </span>
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </section>
+
+          <footer class="topman-simple-trust">
+            <p>
+              ${escapeHtml(topmanText(
+                'สถานะข้อมูลหลัก (TOPMAN Core) ไม่ใช่การยืนยันว่าระบบแหล่งข้อมูลทั้งหมดพร้อมสมบูรณ์',
+                'TOPMAN Core status does not mean every external source in the full system is healthy.',
+              ))}
+            </p>
+            <p class="topman-simple-attribution">
+              ${escapeHtml(topmanText('ขับเคลื่อนด้วย', 'Powered by'))}
+              <a href="https://github.com/koala73/worldmonitor" target="_blank" rel="noopener">World Monitor</a>
+              · AGPL-3.0 · TOPMANIDMB
+            </p>
+          </footer>
+        </section>
+      `, 'Topman simple mode below-map shell'));
+    }
 
     this.syncHeaderToggle();
+    if (this.tourOpen) {
+      window.requestAnimationFrame(() => this.applyTourSpotlight());
+    }
   }
 
   private renderCard(card: SimpleSummaryCard): string {

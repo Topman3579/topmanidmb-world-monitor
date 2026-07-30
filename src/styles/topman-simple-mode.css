@@ -571,8 +571,22 @@ html.topman-ui-mode-simple .embed-link-btn,
 html.topman-ui-mode-simple .fullscreen-btn,
 html.topman-ui-mode-simple .region-selector,
 html.topman-ui-mode-simple .dashboard-tabs-mount,
-html.topman-ui-mode-simple .pro-banner-slot {
+html.topman-ui-mode-simple .pro-banner-slot,
+html.topman-ui-mode-simple .auth-widget-mount,
+html.topman-ui-mode-simple #unifiedSettingsMount,
+html.topman-ui-mode-simple .mobile-search-btn,
+html.topman-ui-mode-simple .mobile-settings-btn,
+html.topman-ui-mode-simple .github-link,
+html.topman-ui-mode-simple .topman-source-link,
+html.topman-ui-mode-simple .findings-badge,
+html.topman-ui-mode-simple .intelligence-gap-badge,
+html.topman-ui-mode-simple #searchMobileFab,
+html.topman-ui-mode-simple .search-mobile-fab {
   display: none !important;
+}
+
+html.topman-ui-mode-simple .header-right {
+  gap: 6px;
 }
 
 html.topman-ui-mode-simple .main-content {
@@ -583,37 +597,89 @@ html.topman-ui-mode-simple .main-content {
   overflow-x: hidden;
 }
 
+/* Order: summary/cards/chips → live map → missions → advanced panels */
 html.topman-ui-mode-simple #topmanSimpleModeRoot {
-  order: -2;
+  order: 1;
   flex: 0 0 auto;
   width: 100%;
 }
 
 html.topman-ui-mode-simple .main-content .map-section:not(.collapsed):not(.live-news-fullscreen) {
-  order: -1;
+  order: 2;
   width: 100% !important;
   max-width: 100%;
-  height: clamp(240px, 36dvh, 380px) !important;
-  min-height: 220px !important;
+  height: clamp(220px, 32dvh, 340px) !important;
+  min-height: 200px !important;
   flex: 0 0 auto;
+  border-top: 1px solid rgba(143, 208, 255, 0.14);
+  border-bottom: 1px solid rgba(143, 208, 255, 0.14);
+}
+
+html.topman-ui-mode-simple #topmanSimpleModeBelow {
+  order: 3;
+  flex: 0 0 auto;
+  width: 100%;
 }
 
 html.topman-ui-mode-simple .main-content .panels-grid {
-  order: 0;
+  order: 4;
   width: 100%;
   max-width: 100%;
-  /* Keep panels available but de-emphasized below the fold */
-  opacity: 0.96;
+  opacity: 0.92;
+  /* Keep available but clearly secondary under missions */
+  max-height: none;
 }
 
-html.topman-ui-mode-simple .map-width-resize-handle {
+html.topman-ui-mode-simple .map-width-resize-handle,
+html.topman-ui-mode-simple .map-resize-handle {
   display: none !important;
+}
+
+/* Reduce layer-picker noise on the simple map surface */
+html.topman-ui-mode-simple .map-section .layer-controls,
+html.topman-ui-mode-simple .map-section .layers-panel,
+html.topman-ui-mode-simple .map-section .map-layers-panel {
+  max-height: 40%;
+  opacity: 0.92;
 }
 
 html.topman-ui-mode-advanced #topmanSimpleModeRoot {
   order: -1;
   flex: 0 0 auto;
   width: 100%;
+}
+
+html.topman-ui-mode-advanced #topmanSimpleModeBelow {
+  display: none !important;
+}
+
+/* Tour spotlight */
+.topman-tour-spotlight-target {
+  position: relative;
+  z-index: 11050;
+  box-shadow: 0 0 0 2px rgba(255, 203, 45, 0.85), 0 0 0 8px rgba(255, 203, 45, 0.18) !important;
+  border-radius: 14px;
+}
+
+.topman-tour-spotlight-ring {
+  position: absolute;
+  z-index: 11040;
+  pointer-events: none;
+  border-radius: 16px;
+  border: 2px solid rgba(255, 203, 45, 0.9);
+  box-shadow: 0 0 0 9999px rgba(3, 8, 16, 0.45), 0 0 24px rgba(255, 203, 45, 0.35);
+  animation: topman-tour-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes topman-tour-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.72; }
+}
+
+.topman-simple-panel-focus {
+  outline: 2px solid rgba(255, 203, 45, 0.75);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgba(255, 203, 45, 0.18);
 }
 
 /* Mobile-first overrides */

@@ -1981,6 +1981,7 @@ export class App {
     void import('@/components/TopmanSimpleMode').then(({ TopmanSimpleMode }) => {
       if (this.state.isDestroyed || this.topmanSimpleMode) return;
       root.hidden = false;
+      const below = document.getElementById('topmanSimpleModeBelow');
       this.topmanSimpleMode = new TopmanSimpleMode(root, {
         onApplyMission: (id) => {
           this.eventHandlers.applyMissionPreset(id);
@@ -1990,7 +1991,6 @@ export class App {
           this.state.mapLayers = layers;
           saveToStorage(STORAGE_KEYS.mapLayers, layers);
           this.state.map?.setLayers(layers);
-          // Trigger data loads for newly enabled layers
           for (const key of Object.keys(layers) as Array<keyof MapLayers>) {
             if (layers[key] && !previous[key]) {
               void this.dataLoader.loadDataForLayer(key);
@@ -2011,7 +2011,6 @@ export class App {
             this.eventHandlers.applyMissionPreset('topman-news-conflict');
             return;
           }
-          // world → default insights / news context via news-conflict mission
           this.eventHandlers.applyMissionPreset('topman-news-conflict');
         },
         getActiveMissionId: () => {
@@ -2022,7 +2021,27 @@ export class App {
             return null;
           }
         },
-      });
+        onFocusMap: () => {
+          const mapSection = document.getElementById('mapSection');
+          mapSection?.classList.remove('collapsed');
+          mapSection?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          try {
+            this.state.map?.resize?.();
+          } catch {
+            // Map may not expose resize in all modes.
+          }
+        },
+        onFocusPanel: (panelId) => {
+          const panelEl = document.getElementById(`panel-${panelId}`)
+            ?? document.querySelector(`[data-panel-id="${panelId}"]`)
+            ?? this.state.panels[panelId]?.getElement?.();
+          if (panelEl instanceof HTMLElement) {
+            panelEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            panelEl.classList.add('topman-simple-panel-focus');
+            window.setTimeout(() => panelEl.classList.remove('topman-simple-panel-focus'), 2400);
+          }
+        },
+      }, below);
       this.topmanSimpleMode.init();
     }).catch((err) => {
       console.warn('[TopmanSimpleMode] init failed:', err);

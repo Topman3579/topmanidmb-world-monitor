@@ -25,73 +25,102 @@ export interface SimpleMapCategory {
   defaultEnabled: boolean;
 }
 
-export const SIMPLE_MAP_CATEGORIES: readonly SimpleMapCategory[] = [
+interface SimpleMapCategoryDef {
+  id: SimpleMapCategoryId;
+  labelTh: string;
+  labelEn: string;
+  shortTh: string;
+  shortEn: string;
+  descTh: string;
+  descEn: string;
+  color: string;
+  layers: Array<keyof MapLayers>;
+  defaultEnabled: boolean;
+}
+
+const SIMPLE_MAP_CATEGORY_DEFS: readonly SimpleMapCategoryDef[] = [
   {
     id: 'conflict',
-    label: topmanText('ความขัดแย้ง', 'Conflict'),
-    shortLabel: topmanText('ขัดแย้ง', 'Conflict'),
-    description: topmanText(
-      'จุดร้อน เหตุขัดแย้ง และการประท้วงจากแหล่งสาธารณะ',
-      'Hotspots, conflicts, and protests from public sources',
-    ),
+    labelTh: 'ความขัดแย้ง',
+    labelEn: 'Conflict',
+    shortTh: 'ขัดแย้ง',
+    shortEn: 'Conflict',
+    descTh: 'จุดร้อน เหตุขัดแย้ง และการประท้วงจากแหล่งสาธารณะ',
+    descEn: 'Hotspots, conflicts, and protests from public sources',
     color: '#ff8b83',
     layers: ['conflicts', 'hotspots', 'protests'],
     defaultEnabled: true,
   },
   {
     id: 'disaster',
-    label: topmanText('ภัยพิบัติ', 'Disasters'),
-    shortLabel: topmanText('ภัยพิบัติ', 'Disaster'),
-    description: topmanText(
-      'แผ่นดินไหว ไฟป่า และเหตุการณ์ธรรมชาติ',
-      'Earthquakes, wildfires, and natural events',
-    ),
+    labelTh: 'ภัยพิบัติ',
+    labelEn: 'Disasters',
+    shortTh: 'ภัยพิบัติ',
+    shortEn: 'Disaster',
+    descTh: 'แผ่นดินไหว ไฟป่า และเหตุการณ์ธรรมชาติ',
+    descEn: 'Earthquakes, wildfires, and natural events',
     color: '#f6a55c',
     layers: ['natural', 'fires'],
     defaultEnabled: true,
   },
   {
     id: 'weather',
-    label: topmanText('สภาพอากาศ', 'Weather'),
-    shortLabel: topmanText('อากาศ', 'Weather'),
-    description: topmanText(
-      'คำเตือนสภาพอากาศและความผิดปกติทางภูมิอากาศ',
-      'Weather alerts and climate anomalies',
-    ),
+    labelTh: 'สภาพอากาศ',
+    labelEn: 'Weather',
+    shortTh: 'อากาศ',
+    shortEn: 'Weather',
+    descTh: 'คำเตือนสภาพอากาศและความผิดปกติทางภูมิอากาศ',
+    descEn: 'Weather alerts and climate anomalies',
     color: '#8fd0ff',
     layers: ['weather', 'climate'],
     defaultEnabled: true,
   },
   {
     id: 'energy',
-    label: topmanText('พลังงานและสินค้าโภคภัณฑ์', 'Energy & Commodities'),
-    shortLabel: topmanText('พลังงาน', 'Energy'),
-    description: topmanText(
-      'ท่อส่ง เส้นทางค้า และจุดคอขวดพลังงาน',
-      'Pipelines, trade routes, and energy chokepoints',
-    ),
+    labelTh: 'พลังงานและสินค้าโภคภัณฑ์',
+    labelEn: 'Energy & Commodities',
+    shortTh: 'พลังงาน',
+    shortEn: 'Energy',
+    descTh: 'ท่อส่ง เส้นทางค้า และจุดคอขวดพลังงาน',
+    descEn: 'Pipelines, trade routes, and energy chokepoints',
     color: '#ffcb2d',
     layers: ['pipelines', 'tradeRoutes', 'waterways'],
     defaultEnabled: false,
   },
   {
     id: 'markets',
-    label: topmanText('ตลาดและเศรษฐกิจ', 'Markets & Economy'),
-    shortLabel: topmanText('ตลาด', 'Markets'),
-    description: topmanText(
-      'สัญญาณเศรษฐกิจและมาตรการคว่ำบาตรที่เกี่ยวข้อง',
-      'Economic signals and related sanctions pressure',
-    ),
+    labelTh: 'ตลาดและเศรษฐกิจ',
+    labelEn: 'Markets & Economy',
+    shortTh: 'ตลาด',
+    shortEn: 'Markets',
+    descTh: 'สัญญาณเศรษฐกิจและมาตรการคว่ำบาตรที่เกี่ยวข้อง',
+    descEn: 'Economic signals and related sanctions pressure',
     color: '#72d9be',
     layers: ['economic', 'sanctions'],
     defaultEnabled: false,
   },
 ];
 
+/** Live labels — call at render time so language mode stays correct. */
+export function getSimpleMapCategories(): readonly SimpleMapCategory[] {
+  return SIMPLE_MAP_CATEGORY_DEFS.map((def) => ({
+    id: def.id,
+    label: topmanText(def.labelTh, def.labelEn),
+    shortLabel: topmanText(def.shortTh, def.shortEn),
+    description: topmanText(def.descTh, def.descEn),
+    color: def.color,
+    layers: def.layers,
+    defaultEnabled: def.defaultEnabled,
+  }));
+}
+
+/** Static ids/layers for non-UI consumers (tests, layer building). */
+export const SIMPLE_MAP_CATEGORIES: readonly SimpleMapCategory[] = getSimpleMapCategories();
+
 export const SIMPLE_MAP_CATEGORY_STORAGE_KEY = 'topman-simple-map-categories-v1';
 
 export function getDefaultSimpleMapCategoryIds(): SimpleMapCategoryId[] {
-  return SIMPLE_MAP_CATEGORIES.filter((c) => c.defaultEnabled).map((c) => c.id);
+  return SIMPLE_MAP_CATEGORY_DEFS.filter((c) => c.defaultEnabled).map((c) => c.id);
 }
 
 export function loadStoredSimpleMapCategories(): SimpleMapCategoryId[] | null {
@@ -100,7 +129,7 @@ export function loadStoredSimpleMapCategories(): SimpleMapCategoryId[] | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return null;
-    const allowed = new Set(SIMPLE_MAP_CATEGORIES.map((c) => c.id));
+    const allowed = new Set(SIMPLE_MAP_CATEGORY_DEFS.map((c) => c.id));
     const ids = parsed.filter((id): id is SimpleMapCategoryId => typeof id === 'string' && allowed.has(id as SimpleMapCategoryId));
     return ids.length > 0 ? ids.slice(0, 5) : null;
   } catch {
@@ -127,11 +156,10 @@ export function buildSimpleMapLayers(
   }
 
   const enabled = new Set(enabledCategoryIds);
-  for (const category of SIMPLE_MAP_CATEGORIES) {
+  for (const category of SIMPLE_MAP_CATEGORY_DEFS) {
     if (!enabled.has(category.id)) continue;
     for (const layer of category.layers) {
       if (Object.prototype.hasOwnProperty.call(next, layer) || layer in next) {
-        // Optional energy/health layers may be absent on older MapLayers shapes.
         (next as unknown as Record<string, boolean>)[layer] = true;
       }
     }
@@ -147,7 +175,7 @@ export function describeSimpleMapLegend(enabledCategoryIds: readonly SimpleMapCa
   color: string;
 }> {
   const enabled = new Set(enabledCategoryIds);
-  return SIMPLE_MAP_CATEGORIES
+  return getSimpleMapCategories()
     .filter((c) => enabled.has(c.id))
     .map((c) => ({
       id: c.id,

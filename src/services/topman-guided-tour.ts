@@ -43,8 +43,8 @@ export function getGuidedTourSteps(): GuidedTourStep[] {
       id: 'map',
       title: topmanText('วิธีดูเหตุการณ์บนแผนที่', 'How to read the map'),
       body: topmanText(
-        'เปิดได้ไม่เกิน 5 หมวดหลัก แตะหมวดเพื่อเปิด/ปิด และดูคำอธิบายสีด้านล่างแผนที่',
-        'At most five simple categories. Tap to toggle and use the legend under the map.',
+        'เปิดได้ไม่เกิน 5 หมวดหลัก แตะหมวดเพื่อเปิด/ปิด แล้วดูแผนที่สดถัดลงไป — กด “ไปที่แผนที่” ได้ถ้าต้องการ',
+        'At most five categories. Toggle chips, then read the live map just below — or tap “Go to map”.',
       ),
       targetSelector: '[data-tour="map-categories"]',
     },

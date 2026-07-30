@@ -941,7 +941,7 @@ export class PanelLayoutManager implements AppModule {
       </div>
       <div class="dashboard-tabs-mount" id="panelTabsMount"></div>
       <main id="main" tabindex="-1" class="main-content${this.ctx.isDesktopApp ? ' desktop-grid' : ''}">
-        <div id="topmanSimpleModeRoot" class="topman-simple-mode" hidden></div>
+        <div id="topmanSimpleModeRoot" class="topman-simple-mode topman-simple-mode--top" hidden></div>
         <div class="map-section${mapStartsCollapsed ? ' collapsed' : ''}" id="mapSection">
           <div class="panel-header">
             <div class="panel-header-left">
@@ -969,6 +969,7 @@ export class PanelLayoutManager implements AppModule {
           <div class="map-bottom-grid" id="mapBottomGrid"></div>
         </div>
         <div class="map-width-resize-handle" id="mapWidthResizeHandle"></div>
+        <div id="topmanSimpleModeBelow" class="topman-simple-mode topman-simple-mode--below" hidden></div>
         <div class="panels-grid" id="panelsGrid" role="tabpanel"></div>
         <button class="search-mobile-fab" id="searchMobileFab" aria-label="Search">\u{1F50D}</button>
       </main>
