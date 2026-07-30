@@ -13,6 +13,10 @@ import {
 export {
   getTopmanBrandSubtitle,
   getTopmanLanguageMode,
+  getTopmanOpenDeskLabel,
+  getTopmanProductMission,
+  getTopmanProductName,
+  getTopmanWorkflowTag,
   topmanText,
   type TopmanLanguageMode,
 } from '@/services/topman-language-mode';

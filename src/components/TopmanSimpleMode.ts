@@ -10,7 +10,13 @@ import {
   fetchTopmanHealthSnapshot,
   type TopmanHealthSnapshot,
 } from '@/services/topman-health-status';
-import { topmanText } from '@/services/topman-language-mode';
+import {
+  getTopmanBrandSubtitle,
+  getTopmanProductMission,
+  getTopmanProductName,
+  getTopmanWorkflowTag,
+  topmanText,
+} from '@/services/topman-language-mode';
 import {
   applyTopmanUiModeToDocument,
   resolveTopmanUiMode,
@@ -433,12 +439,23 @@ export class TopmanSimpleMode {
     const legend = describeSimpleMapLegend(this.enabledCategories);
 
     // TOP: executive summary + cards + map category chips (above live map)
+    const productName = getTopmanProductName();
+    const productSubtitle = getTopmanBrandSubtitle();
+    const productMission = getTopmanProductMission();
+    const workflowTag = getTopmanWorkflowTag();
+
     setTrustedHtml(this.root, trustedHtml(`
-      <section class="topman-simple-shell topman-simple-shell--top" aria-label="${escapeHtml(topmanText('โหมดใช้ง่าย TOPMAN', 'TOPMAN Simple Mode'))}">
+      <section class="topman-simple-shell topman-simple-shell--top" aria-label="${escapeHtml(productName)}">
         <header class="topman-simple-exec" data-tour="summary">
+          <div class="topman-simple-product">
+            <div class="topman-simple-product__name">${escapeHtml(productName)}</div>
+            <div class="topman-simple-product__subtitle">${escapeHtml(productSubtitle)}</div>
+            <p class="topman-simple-product__mission">${escapeHtml(productMission)}</p>
+            <div class="topman-simple-product__workflow">${escapeHtml(workflowTag)}</div>
+          </div>
           <div class="topman-simple-exec__kicker">
             <span class="topman-simple-badge topman-simple-badge--${escapeHtml(summary.status)}">${escapeHtml(statusLabel)}</span>
-            <span class="topman-simple-kicker-text">${escapeHtml(topmanText('สรุปสำหรับผู้บริหาร', 'Executive summary'))}</span>
+            <span class="topman-simple-kicker-text">${escapeHtml(topmanText('สรุปสำหรับผู้บริหาร · สนับสนุนการสั่งการ', 'Executive brief · command support'))}</span>
           </div>
           <h1 class="topman-simple-exec__title">${escapeHtml(summary.headline)}</h1>
           <p class="topman-simple-exec__body">${escapeHtml(summary.body)}</p>

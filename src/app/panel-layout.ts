@@ -39,7 +39,7 @@ import {
 import { resolveNewsCategories, enabledNewsCategoryKeys } from '@/config/feed-resolution';
 import { BETA_MODE } from '@/config/beta';
 import { getTopmanBrandSubtitle, t } from '@/services/i18n';
-import { topmanText } from '@/services/topman-language-mode';
+import { getTopmanProductName, topmanText } from '@/services/topman-language-mode';
 import {
   getInitialTopmanHealthPresentation,
   getTopmanSourceHref,
@@ -799,10 +799,10 @@ export class PanelLayoutManager implements AppModule {
               <span class="variant-label">Good News</span>
             </a>`;
       })()}</div>
-          <span class="topman-brand-lockup" aria-label="TOPMANIDMB ${escapeHtml(getTopmanBrandSubtitle())}">
+          <span class="topman-brand-lockup" aria-label="${escapeHtml(getTopmanProductName())} · ${escapeHtml(getTopmanBrandSubtitle())}">
             <img class="topman-brand-mark" src="/brand/topmanidmb-orbit-emblem.png" alt="" width="27" height="27">
             <span class="topman-brand-copy">
-              <span class="topman-brand-name">TOPMANIDMB</span>
+              <span class="topman-brand-name">${escapeHtml(getTopmanProductName())}</span>
               <span class="topman-brand-subtitle">${escapeHtml(getTopmanBrandSubtitle())}</span>
             </span>
           </span>
@@ -859,7 +859,7 @@ export class PanelLayoutManager implements AppModule {
       <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
       <nav class="mobile-menu" id="mobileMenu">
         <div class="mobile-menu-header">
-          <span class="mobile-menu-title">TOPMANIDMB · WORLD INTELLIGENCE</span>
+          <span class="mobile-menu-title">TOPMAN NEWS ROOM · โฟกัสไทย</span>
           <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Close menu">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>

@@ -26,6 +26,44 @@
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
 }
 
+.topman-simple-product {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(143, 208, 255, 0.14);
+}
+
+.topman-simple-product__name {
+  color: var(--topman-gold, #ffcb2d);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.topman-simple-product__subtitle {
+  margin-top: 4px;
+  color: var(--topman-ivory, #f7f3ea);
+  font-size: 1.05rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.topman-simple-product__mission {
+  margin: 8px 0 0;
+  max-width: 72ch;
+  color: var(--text-secondary, #d9e8f7);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.topman-simple-product__workflow {
+  margin-top: 8px;
+  color: var(--topman-cyan, #8fd0ff);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
 .topman-simple-exec__kicker {
   display: flex;
   flex-wrap: wrap;
