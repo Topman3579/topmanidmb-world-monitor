@@ -12,6 +12,7 @@ import { installOptionalRuntimeChunkWarmup } from '@/bootstrap/pwa-optional-chun
 import { initPwaInstallExperience } from '@/services/pwa-install';
 import { App } from './App';
 import { installUtmInterceptor } from './utils/utm';
+import { initTopmanUiMode } from '@/services/topman-ui-mode';
 
 if (SITE_VARIANT === 'happy') {
   // Keeps happy-theme.css off other variants' eager CSS graph. On happy, the
@@ -38,6 +39,9 @@ function activateDeferredDashboardStyles(): void {
 }
 
 activateDeferredDashboardStyles();
+// Apply Simple/Advanced class before first layout paint so progressive
+// disclosure CSS does not flash the dense chrome for new TOPMAN users.
+initTopmanUiMode();
 installLcpAttributionDebug();
 initPwaInstallExperience();
 

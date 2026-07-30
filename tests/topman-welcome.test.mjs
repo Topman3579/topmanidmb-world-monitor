@@ -111,7 +111,7 @@ describe('TOPMAN Thai-first welcome landing', () => {
       /ศูนย์บัญชาการสถานการณ์โลก[\s\S]*สำหรับประเทศไทยและอาเซียน/
     );
     assert.match(welcomeHtml, /src="\/brand\/topmanidmb-orbit-emblem\.png"/);
-    assert.match(welcomeHtml, /href="\/dashboard"/);
+    assert.match(welcomeHtml, /href="\/dashboard(?:\?mode=simple)?"/);
   });
 
   it('shows honest health states from the dedicated TOPMAN core endpoint', () => {

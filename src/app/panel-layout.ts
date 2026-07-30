@@ -39,6 +39,7 @@ import {
 import { resolveNewsCategories, enabledNewsCategoryKeys } from '@/config/feed-resolution';
 import { BETA_MODE } from '@/config/beta';
 import { getTopmanBrandSubtitle, t } from '@/services/i18n';
+import { topmanText } from '@/services/topman-language-mode';
 import {
   getInitialTopmanHealthPresentation,
   getTopmanSourceHref,
@@ -838,6 +839,9 @@ export class PanelLayoutManager implements AppModule {
             </select>
           </div>
           <span id="missionPresetMount" class="mission-preset-mount"></span>
+          <button type="button" class="topman-mode-toggle" id="topmanModeToggle" data-mode="simple" title="${escapeHtml(topmanText('สลับโหมดใช้ง่าย/ผู้เชี่ยวชาญ', 'Toggle Simple/Advanced Mode'))}" aria-label="${escapeHtml(topmanText('สลับโหมดใช้ง่าย/ผู้เชี่ยวชาญ', 'Toggle Simple/Advanced Mode'))}">
+            ${escapeHtml(topmanText('โหมดผู้เชี่ยวชาญ', 'Advanced Mode'))}
+          </button>
           <button class="mobile-search-btn" id="mobileSearchBtn" aria-label="${t('header.search')}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
@@ -889,6 +893,10 @@ export class PanelLayoutManager implements AppModule {
           <span class="mobile-menu-item-label">Mission</span>
           <span class="mobile-menu-chevron">▸</span>
         </button>
+        <button class="mobile-menu-item" id="mobileMenuTopmanMode">
+          <span class="mobile-menu-item-icon">◎</span>
+          <span class="mobile-menu-item-label">${escapeHtml(topmanText('โหมดผู้เชี่ยวชาญ', 'Advanced Mode'))}</span>
+        </button>
         <div class="mobile-menu-divider"></div>
         <button class="mobile-menu-item" id="mobileMenuSettings">
           <span class="mobile-menu-item-icon">⚙️</span>
@@ -933,6 +941,7 @@ export class PanelLayoutManager implements AppModule {
       </div>
       <div class="dashboard-tabs-mount" id="panelTabsMount"></div>
       <main id="main" tabindex="-1" class="main-content${this.ctx.isDesktopApp ? ' desktop-grid' : ''}">
+        <div id="topmanSimpleModeRoot" class="topman-simple-mode" hidden></div>
         <div class="map-section${mapStartsCollapsed ? ' collapsed' : ''}" id="mapSection">
           <div class="panel-header">
             <div class="panel-header-left">

@@ -156,6 +156,7 @@ export class App {
   private panelLayout: PanelLayoutManager;
   private dataLoader: DataLoaderManager;
   private eventHandlers: EventHandlerManager;
+  private topmanSimpleMode: import('@/components/TopmanSimpleMode').TopmanSimpleMode | null = null;
   private searchManager: SearchManager | null = null;
   private searchManagerLoad: Promise<SearchManager> | null = null;
   private signalModalLoad: Promise<SignalModalInstance> | null = null;
@@ -1581,6 +1582,7 @@ export class App {
 
     // Phase 5: Event listeners + URL sync
     this.eventHandlers.init();
+    this.initTopmanSimpleMode();
     // Capture deep link params BEFORE URL sync overwrites them
     const initState = parseMapUrlState(window.location.search, this.state.mapLayers);
     this.pendingDeepLinkCountry = initState.country ?? null;
@@ -1824,6 +1826,8 @@ export class App {
     this.unsubFreeTier?.();
     this.unsubEntitlementPremiumLoaders?.();
     mlWorker.terminate();
+    this.topmanSimpleMode?.destroy();
+    this.topmanSimpleMode = null;
     this.state.findingsBadge?.destroy();
     this.state.findingsBadge = null;
     this.state.breakingBanner?.destroy();
@@ -1965,6 +1969,64 @@ export class App {
     } finally {
       if (timer !== null) clearTimeout(timer);
     }
+  }
+
+  private initTopmanSimpleMode(): void {
+    // Simple Mode is a progressive-disclosure shell for the full variant (TOPMAN).
+    // Other variants keep the classic dashboard only.
+    if (SITE_VARIANT !== 'full') return;
+    const root = document.getElementById('topmanSimpleModeRoot');
+    if (!root) return;
+
+    void import('@/components/TopmanSimpleMode').then(({ TopmanSimpleMode }) => {
+      if (this.state.isDestroyed || this.topmanSimpleMode) return;
+      root.hidden = false;
+      this.topmanSimpleMode = new TopmanSimpleMode(root, {
+        onApplyMission: (id) => {
+          this.eventHandlers.applyMissionPreset(id);
+        },
+        onApplySimpleLayers: (layers) => {
+          const previous = { ...this.state.mapLayers };
+          this.state.mapLayers = layers;
+          saveToStorage(STORAGE_KEYS.mapLayers, layers);
+          this.state.map?.setLayers(layers);
+          // Trigger data loads for newly enabled layers
+          for (const key of Object.keys(layers) as Array<keyof MapLayers>) {
+            if (layers[key] && !previous[key]) {
+              void this.dataLoader.loadDataForLayer(key);
+            }
+          }
+          this.dataLoader.syncDataFreshnessWithLayers();
+        },
+        getBaseMapLayers: () => {
+          const base = this.state.isMobile ? MOBILE_DEFAULT_MAP_LAYERS : DEFAULT_MAP_LAYERS;
+          return { ...base };
+        },
+        onOpenCardDetail: (cardId) => {
+          if (cardId === 'asean') {
+            this.eventHandlers.applyMissionPreset('topman-thailand-asean');
+            return;
+          }
+          if (cardId === 'watch') {
+            this.eventHandlers.applyMissionPreset('topman-news-conflict');
+            return;
+          }
+          // world → default insights / news context via news-conflict mission
+          this.eventHandlers.applyMissionPreset('topman-news-conflict');
+        },
+        getActiveMissionId: () => {
+          try {
+            return localStorage.getItem('worldmonitor-mission-preset-v2')
+              ?? localStorage.getItem('worldmonitor-mission-preset-v1');
+          } catch {
+            return null;
+          }
+        },
+      });
+      this.topmanSimpleMode.init();
+    }).catch((err) => {
+      console.warn('[TopmanSimpleMode] init failed:', err);
+    });
   }
 
   private handleDeepLinks(): void {
