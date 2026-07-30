@@ -4,12 +4,14 @@
 > Owner session: Grok Build · machine rose · verified live
 
 ## What this product is
+
 - **TOPMAN News Room** — fork of World Monitor (AGPL) for executive Thai-first briefing
 - Subtitle: ภาพรวมสถานการณ์ · โฟกัสไทย
 - Public Vercel (no Tailscale, no site-wide password)
 - Progressive disclosure: Simple vs Advanced (`?mode=simple|advanced`)
 
 ## Paths
+
 | Item | Path / URL |
 |------|------------|
 | Local repo | `~/topmanidmb-local/projects/topmanidmb-world-monitor` |
@@ -21,11 +23,13 @@
 | In-repo handoff | `docs/dev-artifacts/CURSOR-HANDOFF-20260730.md` |
 
 ## HEAD / deploys (verified)
+
 - `main` @ `7857ba7c` (PR #15 merge) · `git status` clean vs origin
 - Vercel project `topmanidmb/topmanidmb-world-monitor` · Production Ready
 - PRs: #12 News Room · #13 Earth links · #14 Pro desks · #15 seed_desks
 
 ## Features already shipped
+
 1. Simple Mode UI + missions + guided tour
 2. Map popup → Google Earth + Maps (outbound only)
 3. Four Pro desks (tabs) from mission presets
@@ -34,6 +38,7 @@
 6. Rose Claude Desktop: `mcpServers.worldmonitor` → `https://worldmonitor.app/mcp` (needs restart + OAuth)
 
 ## User-pending (NOT done — Cursor cannot fake these)
+
 1. On **worldmonitor.app**: click green **ตั้งค่าให้เสร็จสมบูรณ์** with email that paid Business $49.99
 2. Open once: https://topmanidmb-world-monitor.vercel.app/dashboard?mode=advanced&seed_desks=1 → confirm 4 tabs
 3. **Quit/reopen Claude Desktop** → OAuth World Monitor MCP (same Pro account)
@@ -41,6 +46,7 @@
 5. Pause buying more data packs until briefing gaps are clear
 
 ## Recommended Cursor next work (pick with user)
+
 | Priority | Task | Notes |
 |----------|------|-------|
 | P0 | Confirm user completed Pro banner + desks + MCP OAuth | Manual verify |
@@ -51,6 +57,7 @@
 | P3 | E2E for seed_desks deep link | Playwright |
 
 ### Cursor P1 session note (2026-07-30)
+
 - Branch: `cursor/p1-core-health-thai-ui`
 - Badge copy: `ข้อมูลหลักพร้อม/บางส่วน/...` (never generic “พร้อม”)
 - Simple Mode shows Core 6 counts + Full-system `ok/total` strip
@@ -60,6 +67,7 @@
 - Release gate: commit + push + PR (await ผู้การ) · then Vercel preview verify
 
 ## Key code map
+
 ```
 src/components/TopmanSimpleMode.ts   # Simple shell + install desks button
 src/services/topman-pro-desks.ts     # desk defs + build + localStorage flag
@@ -72,6 +80,7 @@ tests/topman-pro-desks.test.mts
 ```
 
 ## Guardrails for Cursor
+
 - AGPL — keep attribution; no strip license
 - Public site = **sanitized only** (no raw PII / case evidence)
 - Edge `api/*.js` cannot import `src/` or `server/`
@@ -81,6 +90,7 @@ tests/topman-pro-desks.test.mts
 - Vercel closeout: `vercel-arch-closeout <dir> --label "…" --vis public` or `--sync-registry-only` if PII scan false-positive on local env
 
 ## Verify commands
+
 ```bash
 cd ~/topmanidmb-local/projects/topmanidmb-world-monitor
 git log --oneline -5
@@ -91,4 +101,5 @@ curl -sI https://worldmonitor.app/mcp | head -8
 ```
 
 ## Doctrine
+
 รวบรวม → เรียบเรียง → วิเคราะห์ → นำเสนอ · ไทย-first · verification-first
