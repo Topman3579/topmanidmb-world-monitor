@@ -84,10 +84,36 @@
         ใช้คู่กับบัญชี World Monitor ที่สมัคร Pro Business แล้ว
       </p>
       <p>
-        <a class="cta" href="/dashboard?mode=simple">เปิด News Room</a>
+        <a class="cta" href="/dashboard?mode=advanced&amp;seed_desks=1">ติดตั้งโต๊ะ Pro 4 ใบ (1 คลิก)</a>
+        <a class="cta ghost" href="/dashboard?mode=simple">เปิด News Room</a>
         <a class="cta ghost" href="https://www.worldmonitor.app/dashboard" target="_blank" rel="noopener">Sign in World Monitor</a>
         <a class="cta ghost" href="https://www.worldmonitor.app/pro" target="_blank" rel="noopener">Billing / Pro</a>
       </p>
+
+      <div class="card">
+        <h2 style="margin-top:0">⚡ ทำเลย — checklist ตั้งค่าให้จบ</h2>
+        <ol>
+          <li>
+            <strong>บน worldmonitor.app</strong> (บัญชีที่จ่าย $49.99): กดปุ่มเขียว
+            <em>「ตั้งค่าให้เสร็จสมบูรณ์」</em> ในแบนเนอร์ Pro setup — ต้อง login เองในเบราว์เซอร์
+            (agent เข้าบัญชีแทนไม่ได้) · ใช้ <strong>อีเมลเดียวกับที่สมัคร Business</strong>
+          </li>
+          <li>
+            <strong>บน TOPMAN News Room</strong>: กดปุ่มทองด้านบน
+            <a href="/dashboard?mode=advanced&amp;seed_desks=1">ติดตั้งโต๊ะ Pro 4 ใบ</a>
+            — เปิด Advanced + แท็บ 01–04 อัตโนมัติ
+          </li>
+          <li>
+            <strong>MCP บน Claude Desktop (เครื่องนี้)</strong>: ใส่
+            <code>mcpServers.worldmonitor → https://worldmonitor.app/mcp</code> แล้ว —
+            <strong class="ok">ปิดแล้วเปิด Claude Desktop ใหม่</strong> → แชทใหม่ → อนุญาต OAuth ด้วยบัญชี Pro เดียวกัน
+          </li>
+        </ol>
+        <p style="margin-bottom:0">ลิงก์ deep-link โต๊ะ:
+          <code>/dashboard?mode=advanced&amp;seed_desks=1</code>
+          หรือ <code>&amp;complete_pro=1</code>
+        </p>
+      </div>
 
       <div class="card">
         <h2 style="margin-top:0">สิ่งที่ได้ใน Business (รีดให้ครบ)</h2>
@@ -113,7 +139,8 @@
       <h2>2) ติดตั้งโต๊ะ 4 ใบในแอป (1 คลิก)</h2>
       <div class="card">
         <p>
-          ใน <strong>โหมดใช้ง่าย</strong> เลื่อนลงใต้แผนที่ → ปุ่ม
+          <a class="cta" href="/dashboard?mode=advanced&amp;seed_desks=1">เปิดลิงก์ติดตั้งอัตโนมัติ</a>
+          หรือใน <strong>โหมดใช้ง่าย</strong> เลื่อนลงใต้แผนที่ → ปุ่ม
           <strong class="ok">「ติดตั้งโต๊ะ Pro 4 ใบ」</strong>
         </p>
         <ol>
@@ -127,6 +154,7 @@
 
       <h2>3) MCP 250 calls — Claude Desktop (macOS)</h2>
       <p>ไฟล์: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></p>
+      <p class="ok">✅ เครื่อง rose นี้ใส่ <code>mcpServers.worldmonitor</code> ให้แล้ว (2026-07-30) — เหลือ restart Claude + OAuth</p>
       <pre>{
   "mcpServers": {
     "worldmonitor": {
@@ -135,7 +163,7 @@
   }
 }</pre>
       <ol>
-        <li>บันทึกไฟล์ → ปิดแล้วเปิด Claude Desktop ใหม่</li>
+        <li>ปิดแล้วเปิด Claude Desktop ใหม่</li>
         <li>แชทใหม่ แล้วให้ Claude ใช้ World Monitor (OAuth ครั้งแรก)</li>
         <li>Sign in ด้วยบัญชี Pro Business เดียวกัน</li>
       </ol>
@@ -175,6 +203,7 @@
 
       <h2>ลิงก์ด่วน</h2>
       <p>
+        <a href="/dashboard?mode=advanced&amp;seed_desks=1">ติดตั้งโต๊ะ 4 ใบ</a> ·
         <a href="/dashboard?mode=simple">News Room Simple</a> ·
         <a href="/dashboard?mode=advanced">Advanced</a> ·
         <a href="https://www.worldmonitor.app/docs/mcp-quickstart" target="_blank" rel="noopener">MCP docs</a> ·

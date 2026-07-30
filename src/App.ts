@@ -151,6 +151,8 @@ export class App {
   private pendingDeepLinkExpanded = false;
   private pendingDeepLinkStoryCode: string | null = null;
   private pendingDeepLinkChokepoint: string | null = null;
+  /** One-shot Pro desks install from ?seed_desks=1 or ?complete_pro=1 */
+  private pendingDeepLinkSeedDesks = false;
   private chokepointDeepLinkTimer: number | null = null;
 
   private panelLayout: PanelLayoutManager;
@@ -1590,6 +1592,9 @@ export class App {
     this.pendingDeepLinkChokepoint = initState.chokepoint ?? null;
     const earlyParams = new URLSearchParams(window.location.search);
     this.pendingDeepLinkStoryCode = earlyParams.get('c') ?? null;
+    // Capture before URL sync rebuilds the query string (seed_desks is not a map state key).
+    const seedFlag = earlyParams.get('seed_desks') ?? earlyParams.get('complete_pro');
+    this.pendingDeepLinkSeedDesks = seedFlag === '1' || seedFlag === 'true' || seedFlag === 'yes';
     this.eventHandlers.setupUrlStateSync();
     if (import.meta.env.VITE_E2E === '1') {
       document.documentElement.dataset.wmEventHandlersReady = 'true';
@@ -2115,6 +2120,31 @@ export class App {
         this.state.map?.enableLayer('waterways');
         this.state.map?.openChokepoint(deepLinkChokepoint);
         this.eventHandlers.syncUrlState();
+      }, DEEP_LINK_INITIAL_DELAY_MS);
+    }
+
+    // Pro Business one-shot: install 4 TOPMAN command desks (tabs).
+    // URL: /dashboard?mode=advanced&seed_desks=1  or  &complete_pro=1
+    const seedDesks = this.pendingDeepLinkSeedDesks;
+    this.pendingDeepLinkSeedDesks = false;
+    if (seedDesks) {
+      trackDeeplinkOpened('seed_desks', 'topman-pro-desks');
+      window.setTimeout(() => {
+        if (this.state.isDestroyed) return;
+        const ok = this.panelLayout.installTopmanProDesks();
+        if (ok) {
+          void this.dataLoader.loadAllData();
+          // Drop one-shot flags so refresh does not reinstall.
+          try {
+            const clean = new URL(window.location.href);
+            clean.searchParams.delete('seed_desks');
+            clean.searchParams.delete('complete_pro');
+            if (!clean.searchParams.get('mode')) clean.searchParams.set('mode', 'advanced');
+            window.history.replaceState({}, '', clean.toString());
+          } catch {
+            // ignore URL cleanup failures
+          }
+        }
       }, DEEP_LINK_INITIAL_DELAY_MS);
     }
   }
