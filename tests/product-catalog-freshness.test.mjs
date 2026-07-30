@@ -20,6 +20,7 @@ const PRODUCT_ID_ALLOWED_EXTENSIONS = ['.ts', '.tsx', '.mjs', '.js'];
 const PRODUCT_ID_EXCLUDE_PATTERNS = [
   'node_modules',
   'dist/',
+  '.vercel/',
   '.git',
   '.claude/worktrees/',
   'convex/_generated/',
@@ -473,13 +474,12 @@ describe('Product ID guard', () => {
 
   it('ignores generated build artifacts', () => {
     const distDir = join(ROOT, 'dist');
-    const builtAsset = join(distDir, 'panel.js');
+    const vercelDir = join(ROOT, '.vercel');
     const results = collectRawProductIds(ROOT, {
-      readdir: (path) => path === ROOT ? ['dist'] : ['panel.js'],
-      stat: (path) => ({ isDirectory: () => path === distDir }),
-      readFile: (path) => {
-        assert.equal(path, builtAsset);
-        return "const productId = 'pdt_built_artifact';";
+      readdir: (path) => path === ROOT ? ['dist', '.vercel'] : ['panel.js'],
+      stat: (path) => ({ isDirectory: () => path === distDir || path === vercelDir }),
+      readFile: () => {
+        assert.fail('generated build directories must be skipped before reading their assets');
       },
     });
 

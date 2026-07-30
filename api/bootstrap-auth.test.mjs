@@ -4,7 +4,7 @@ import handler from './bootstrap.js';
 import { issueSessionToken } from './_session.js';
 
 const ENTERPRISE_KEY = 'enterprise-bootstrap-test-key';
-const USER_KEY = 'wm_0123456789abcdef0123456789abcdef01234567';
+const USER_KEY = `wm_${'0123456789abcdef'.repeat(2)}01234567`;
 
 function snapshotEnv(names) {
   const values = new Map();
@@ -450,6 +450,154 @@ test('anonymous weather-only bootstrap (no key header) keeps the shared public c
     assert.match(resp.headers.get('cache-control') || '', /\bpublic\b/);
     assert.match(resp.headers.get('cache-control') || '', /s-maxage/);
     assert.ok(resp.headers.get('cdn-cache-control'));
+  });
+});
+
+test('TOPMAN focused weather data hydrates the existing logical contract when usable', async () => {
+  const focusedWeather = {
+    alerts: [{
+      id: 'topman-alert',
+      event: 'Storm',
+      severity: 'Severe',
+      headline: 'Focused warning',
+      description: '',
+      areaDesc: 'Bangkok',
+      onset: '2026-07-30T00:00:00Z',
+      expires: '2026-07-30T03:00:00Z',
+      coordinates: [],
+    }],
+  };
+  await withMockedBootstrapAuth({
+    entitlement: activeApiEntitlement(),
+    bootstrapPipelineBody: [
+      { result: null },
+      {
+        result: JSON.stringify({
+          _seed: {
+            fetchedAt: Date.now(),
+            recordCount: 1,
+            sourceVersion: 'topman-weather-test',
+            schemaVersion: 1,
+            state: 'OK',
+          },
+          data: focusedWeather,
+        }),
+      },
+    ],
+  }, async () => {
+    const resp = await handler(makeWeatherBootstrapRequest());
+    const body = await resp.json();
+
+    assert.equal(resp.status, 200);
+    assert.deepEqual(body, { data: { weatherAlerts: focusedWeather }, missing: [] });
+  });
+});
+
+test('TOPMAN focused weather replaces an older canonical projection on the branded fork', async () => {
+  const canonicalWeather = { alerts: [{ id: 'canonical-alert' }] };
+  const focusedWeather = { alerts: [{ id: 'topman-alert' }] };
+  await withMockedBootstrapAuth({
+    entitlement: activeApiEntitlement(),
+    bootstrapPipelineBody: [
+      {
+        result: JSON.stringify({
+          _seed: {
+            fetchedAt: Date.now() - 60_000,
+            recordCount: 1,
+            sourceVersion: 'canonical-weather-test',
+            schemaVersion: 1,
+            state: 'OK',
+          },
+          data: canonicalWeather,
+        }),
+      },
+      {
+        result: JSON.stringify({
+          _seed: {
+            fetchedAt: Date.now(),
+            recordCount: 1,
+            sourceVersion: 'topman-weather-test',
+            schemaVersion: 1,
+            state: 'OK',
+          },
+          data: focusedWeather,
+        }),
+      },
+    ],
+  }, async () => {
+    const resp = await handler(makeWeatherBootstrapRequest());
+    const body = await resp.json();
+
+    assert.deepEqual(body.data.weatherAlerts, {
+      alerts: [
+        { id: 'topman-alert' },
+        { id: 'canonical-alert' },
+      ],
+    });
+    assert.deepEqual(body.missing, []);
+  });
+});
+
+test('stale TOPMAN focused weather never replaces a canonical projection', async () => {
+  const canonicalWeather = { alerts: [{ id: 'canonical-alert' }] };
+  await withMockedBootstrapAuth({
+    entitlement: activeApiEntitlement(),
+    bootstrapPipelineBody: [
+      { result: JSON.stringify(canonicalWeather) },
+      {
+        result: JSON.stringify({
+          _seed: {
+            fetchedAt: Date.now() - 46 * 60_000,
+            recordCount: 1,
+            sourceVersion: 'stale-topman-weather-test',
+            schemaVersion: 1,
+            state: 'OK',
+          },
+          data: { alerts: [{ id: 'stale-topman-alert' }] },
+        }),
+      },
+    ],
+  }, async () => {
+    const resp = await handler(makeWeatherBootstrapRequest());
+    const body = await resp.json();
+
+    assert.deepEqual(body.data.weatherAlerts, canonicalWeather);
+    assert.deepEqual(body.missing, []);
+  });
+});
+
+test('malformed TOPMAN focused data never displaces a usable canonical projection', async () => {
+  const canonicalWeather = { alerts: [{ id: 'canonical-alert' }] };
+  await withMockedBootstrapAuth({
+    entitlement: activeApiEntitlement(),
+    bootstrapPipelineBody: [
+      { result: JSON.stringify(canonicalWeather) },
+      { result: JSON.stringify({ _seed: { fetchedAt: Date.now() }, data: { rows: [] } }) },
+    ],
+  }, async () => {
+    const resp = await handler(makeWeatherBootstrapRequest());
+    const body = await resp.json();
+
+    assert.deepEqual(body.data.weatherAlerts, canonicalWeather);
+    assert.deepEqual(body.missing, []);
+  });
+});
+
+test('optional TOPMAN Redis read errors fall back to canonical data without failing bootstrap', async () => {
+  const canonicalWeather = { alerts: [{ id: 'canonical-alert' }] };
+  await withMockedBootstrapAuth({
+    entitlement: activeApiEntitlement(),
+    bootstrapPipelineBody: [
+      { result: JSON.stringify(canonicalWeather) },
+      { error: 'optional TOPMAN key unavailable' },
+    ],
+  }, async () => {
+    const resp = await handler(makeWeatherBootstrapRequest());
+    const body = await resp.json();
+
+    assert.equal(resp.status, 200);
+    assert.deepEqual(body.data.weatherAlerts, canonicalWeather);
+    assert.deepEqual(body.missing, []);
   });
 });
 

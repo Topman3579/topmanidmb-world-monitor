@@ -37,7 +37,8 @@ const dockerignoreSource = readFileSync(resolve(__dirname, '../.dockerignore'), 
 const vercelIgnoreSource = readFileSync(resolve(__dirname, '../scripts/vercel-ignore.sh'), 'utf-8');
 const SPA_HTML_CACHE_SOURCE = '/((?!api|mcp|a2a|ask|oauth|assets|blog|docs|countries|chokepoints|reference|changelog|embed|embed\\.html|favico|map-styles|data|textures|pro|sw\\.js|workbox-[a-f0-9]+\\.js|manifest\\.webmanifest|offline\\.html|robots\\.txt|sitemap\\.xml|llms\\.txt|llms-full\\.txt|openapi\\.yaml|openapi\\.json|auth\\.md|pricing\\.md|support\\.md|ai-search\\.md|agents\\.md|developers\\.md|mcp-server\\.md|openapi\\.md|sdks\\.md|agent\\.txt|\\.well-known|wm-widget-sandbox\\.html|mcp-grant\\.html|mcp-grant).*)';
 const GLOBAL_SECURITY_HEADER_SOURCE = '/((?!docs|embed|embed\\.html).*)';
-const APP_ROOT_HOST_PATTERN = '^(?:(?:www|tech|finance|commodity|happy|energy)\\.)?worldmonitor\\.app$';
+const UPSTREAM_APP_ROOT_HOST_PATTERN = '^(?:(?:www|tech|finance|commodity|happy|energy)\\.)?worldmonitor\\.app$';
+const TOPMAN_APP_ROOT_HOST_PATTERN = '^topmanidmb-world-monitor\\.vercel\\.app$';
 const GLOBAL_CSP_INLINE_SCRIPT_HTML_FILES = [
   'index.html',
   'settings.html',
@@ -46,6 +47,7 @@ const GLOBAL_CSP_INLINE_SCRIPT_HTML_FILES = [
   'public/offline.html',
   'public/pro/index.html',
   'public/pro/welcome.html',
+  'public/topman-welcome.html',
 ];
 const GLOBAL_CSP_EXTERNAL_SCRIPT_HTML_FILES = [
   'index.html',
@@ -485,42 +487,50 @@ describe('deploy/cache configuration guardrails', () => {
 
 const DASHBOARD_HTML_DESTINATION = '/dashboard.html';
 
-// Root marketing landing page — a second HTML entry in the pro-test bundle
-// (vite rollupOptions.input), served from public/pro/welcome.html on the full
-// site and app variant roots. Variant dashboards live at /dashboard so the root
-// welcome route is consistent across worldmonitor.app, finance.worldmonitor.app,
-// tech.worldmonitor.app, commodity.worldmonitor.app, happy.worldmonitor.app, and
-// energy.worldmonitor.app.
+// Root marketing landing pages are host-specific. Upstream worldmonitor.app
+// hosts keep the pro-test welcome page, while the TOPMAN Vercel host gets its
+// Thai-first static landing page. Variant dashboards remain at /dashboard.
 // The dashboard source template remains index.html, but the web build renames
 // its output to dashboard.html so Vercel's filesystem cannot shadow the /
 // rewrite. /welcome and /index.html redirect to root so crawlers and humans do
 // not see duplicate landing URLs.
 describe('welcome landing page routing', () => {
   // A `/` rewrite gated on a query condition (e.g. /?mode=agent →
-  // /agent-view.json) never matches a plain navigation, so the app-root
-  // welcome rewrite is the first `/` rule WITHOUT a query condition.
-  const getRootRewrite = () =>
-    vercelConfig.rewrites.find(
+  // /agent-view.json) never matches a plain navigation.
+  const getRootRewrites = () =>
+    vercelConfig.rewrites.filter(
       (r) => r.source === '/' && !(r.has ?? []).some((condition) => condition.type === 'query')
     );
+  const getRootRewriteForDestination = (destination) =>
+    getRootRewrites().find((rewrite) => rewrite.destination === destination);
   const getSpaCatchAllRewrite = () => vercelConfig.rewrites.find((r) =>
     r.destination === DASHBOARD_HTML_DESTINATION && r.source.startsWith('/((?!')
   );
   const rootDestinationForHost = (host) => {
-    const rewrite = getRootRewrite();
-    assert.ok(rewrite, 'expected a rewrite for /');
-    const hostCondition = rewrite.has?.find((condition) => condition.type === 'host');
-    if (!hostCondition || new RegExp(hostCondition.value).test(host)) return rewrite.destination;
+    const rewrites = getRootRewrites();
+    assert.ok(rewrites.length > 0, 'expected at least one rewrite for /');
+    for (const rewrite of rewrites) {
+      const hostCondition = rewrite.has?.find((condition) => condition.type === 'host');
+      if (!hostCondition || new RegExp(hostCondition.value).test(host)) return rewrite.destination;
+    }
     return getSpaCatchAllRewrite()?.destination ?? null;
   };
 
-  it('declares / as the app-root welcome rewrite after moving dashboard HTML off root index', () => {
-    const rewrite = getRootRewrite();
-    assert.ok(rewrite, 'expected a rewrite for /');
-    assert.equal(rewrite.destination, '/pro/welcome.html');
-    assert.deepEqual(rewrite.has, [
-      { type: 'host', value: APP_ROOT_HOST_PATTERN },
+  it('declares host-specific root welcome rewrites after moving dashboard HTML off root index', () => {
+    const topmanRewrite = getRootRewriteForDestination('/topman-welcome.html');
+    const upstreamRewrite = getRootRewriteForDestination('/pro/welcome.html');
+    assert.ok(topmanRewrite, 'expected a TOPMAN rewrite for /');
+    assert.ok(upstreamRewrite, 'expected an upstream rewrite for /');
+    assert.deepEqual(topmanRewrite.has, [
+      { type: 'host', value: TOPMAN_APP_ROOT_HOST_PATTERN },
     ]);
+    assert.deepEqual(upstreamRewrite.has, [
+      { type: 'host', value: UPSTREAM_APP_ROOT_HOST_PATTERN },
+    ]);
+    assert.ok(
+      vercelConfig.rewrites.indexOf(topmanRewrite) < vercelConfig.rewrites.indexOf(upstreamRewrite),
+      'TOPMAN host rewrite must be evaluated before the upstream host rewrite'
+    );
   });
 
   // #4825: public/index.md became Vercel's DIRECTORY INDEX for `/` — filesystem
@@ -547,11 +557,14 @@ describe('welcome landing page routing', () => {
   });
 
   it('routes app roots to welcome and leaves non-app roots on the dashboard catch-all', () => {
+    assert.equal(rootDestinationForHost('topmanidmb-world-monitor.vercel.app'), '/topman-welcome.html');
     assert.equal(rootDestinationForHost('worldmonitor.app'), '/pro/welcome.html');
     assert.equal(rootDestinationForHost('www.worldmonitor.app'), '/pro/welcome.html');
     assert.equal(rootDestinationForHost('worldmonitor.app.evil.example'), DASHBOARD_HTML_DESTINATION);
 
-    const variantHosts = getVariantHosts().filter((host) => host !== 'www.worldmonitor.app');
+    const variantHosts = getVariantHosts().filter(
+      (host) => host !== 'www.worldmonitor.app' && host !== 'topmanidmb-world-monitor.vercel.app'
+    );
     for (const host of variantHosts) {
       assert.equal(
         rootDestinationForHost(host),
@@ -563,7 +576,7 @@ describe('welcome landing page routing', () => {
 
   it('keeps variant canonicals aligned with the /dashboard routing strategy', () => {
     const variantUrls = getVariantUrls();
-    assert.equal(variantUrls.full, 'https://www.worldmonitor.app/dashboard');
+    assert.equal(variantUrls.full, 'https://topmanidmb-world-monitor.vercel.app/dashboard');
 
     const nonFullUrls = Object.entries(variantUrls).filter(([variant]) => variant !== 'full');
     assert.ok(nonFullUrls.length >= 5, 'expected non-full variant metadata entries');
@@ -748,7 +761,7 @@ describe('welcome landing page routing', () => {
       'generated welcome HTML must launch the dashboard at /dashboard'
     );
     assert.ok(
-      dashboardHtml.includes('<link rel="canonical" href="https://www.worldmonitor.app/dashboard" />'),
+      dashboardHtml.includes('<link rel="canonical" href="https://topmanidmb-world-monitor.vercel.app/dashboard" />'),
       'dashboard shell must canonicalize to /dashboard'
     );
   });
@@ -1824,7 +1837,7 @@ describe('agent readiness: MCP/OAuth origin alignment', () => {
   });
 
   // The Host header is client-controlled; both discovery handlers derive their
-  // origin through the shared allowlist (api/_agent-metadata.ts) so a spoofed
+  // origin through the shared allowlist (api/_agent-metadata.js) so a spoofed
   // Host cannot be reflected into issuer/resource/endpoints. They also guard the
   // HTTP method (read-only docs).
   it('discovery handlers reject spoofed Host (apex fallback) and non-GET methods', async () => {

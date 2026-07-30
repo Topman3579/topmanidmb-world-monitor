@@ -18632,6 +18632,19 @@ a.prediction-link:hover {
   border-color: var(--text-dim);
 }
 
+.topman-language-heading {
+  margin-top: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent, #d4af37) 34%, var(--border));
+  border-radius: 8px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--accent, #d4af37) 7%, transparent);
+}
+
+.topman-language-select {
+  border-color: color-mix(in srgb, var(--accent, #d4af37) 42%, var(--border));
+  font-weight: 600;
+}
+
 /* Responsive grids */
 @media (max-width: 500px) {
 
@@ -26170,4 +26183,240 @@ body.map-width-resizing {
 .markers-settled .dark-vessel-indicator,
 .markers-settled .tech-event-marker.upcoming-soon::after {
   animation: none;
+}
+
+/* ==========================================================================
+   Mobile Commander Lite
+
+   Keep the boot skeleton's full-height reservation unchanged for CLS parity,
+   then switch the hydrated dashboard to a compact, map-led command view. The
+   category rail is promoted ahead of the map so users can see the available
+   intelligence lanes immediately; real panel content remains directly below
+   the map in DOM order.
+   ========================================================================== */
+@media (max-width: 768px) {
+  html.wm-layout-hydrated .main-content .mobile-panel-nav {
+    order: -1;
+    min-height: 52px;
+    padding-block: 4px;
+  }
+
+  html.wm-layout-hydrated .main-content .map-section:not(.collapsed):not(.live-news-fullscreen) {
+    height: clamp(300px, 45vh, 460px) !important;
+    height: clamp(300px, 45dvh, 460px) !important;
+    min-height: 300px !important;
+    max-height: 460px !important;
+  }
+
+  /* Interactive controls visible in the commander flow meet the 44px mobile
+   * target without globally inflating every dense data-table control. */
+  .hamburger-btn,
+  .mobile-menu-close,
+  .mission-preset-reset,
+  .mission-preset-close,
+  .mobile-panel-nav-chip,
+  .map-collapse-btn,
+  .map-dim-btn,
+  .map-pin-btn#mapFullscreenBtn,
+  .time-btn,
+  .dashboard-tab-label,
+  .dashboard-tab-close,
+  .dashboard-tab-add,
+  .pro-banner-cta,
+  .pro-banner-close,
+  .update-toast-action,
+  .update-toast-dismiss,
+  .panel-error-retry-btn,
+  .config-error-settings-btn,
+  .panel-header .icon-btn,
+  .live-mute-btn,
+  .live-channel-btn,
+  .live-news-settings-btn,
+  .offline-retry,
+  .critical-posture-banner .banner-view,
+  .critical-posture-banner .banner-dismiss,
+  .breaking-alert-dismiss {
+    box-sizing: border-box;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .mobile-panel-nav-chip {
+    padding-inline: 16px;
+  }
+
+  .map-dim-btn {
+    padding-inline: 10px;
+  }
+
+  .map-pin-btn#mapFullscreenBtn {
+    height: 44px;
+  }
+
+  /* Pro remains discoverable, but the promotion no longer dominates the
+   * command surface. The single-line message and CTA preserve its meaning. */
+  .pro-banner {
+    min-height: 52px;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 4px 48px 4px 8px;
+  }
+
+  .pro-banner-badge {
+    padding-inline: 6px;
+  }
+
+  .pro-banner-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pro-banner-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 10px;
+  }
+
+  .pro-banner-close {
+    right: 2px;
+    padding: 0;
+  }
+
+  /* Update and error states retain their actionable truth while shedding
+   * decorative detail on the small viewport. */
+  .update-toast {
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    right: 8px;
+    left: 8px;
+    max-width: none;
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .update-toast-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .update-toast-detail {
+    display: none;
+  }
+
+  .update-toast-action {
+    padding-inline: 10px;
+  }
+
+  .update-toast-dismiss {
+    padding: 0;
+  }
+
+  .panel-error-state {
+    min-height: 96px;
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .panel-error-radar {
+    display: none;
+  }
+
+  .panel-error-msg {
+    max-width: min(260px, 90%);
+  }
+
+  .panel-error-retry-btn,
+  .config-error-settings-btn {
+    margin-top: 2px;
+    padding: 8px 14px;
+  }
+
+  .live-news-toolbar {
+    align-items: center;
+  }
+
+  .live-channel-btn,
+  .live-news-settings-btn,
+  .offline-retry {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* pwa-install.css is imported later in the same cascade layer. Hydration
+   * scoping intentionally raises specificity so its smaller desktop control
+   * dimensions cannot shrink the mobile install actions. */
+  html.wm-layout-hydrated .topman-pwa-install__action,
+  html.wm-layout-hydrated .topman-pwa-install__close {
+    box-sizing: border-box;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  html.wm-layout-hydrated .topman-pwa-install__close {
+    top: -16px;
+    right: -8px;
+    width: 44px;
+    height: 44px;
+  }
+
+  /* The footer is always outside the dashboard scrollport. Keep attribution
+   * available, but turn it into one compact, horizontally scrollable app bar
+   * so the first panel receives materially more of the viewport. */
+  html.wm-layout-hydrated .site-footer {
+    min-height: 56px;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 4px 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    text-align: start;
+    scrollbar-width: none;
+  }
+
+  html.wm-layout-hydrated .site-footer::-webkit-scrollbar {
+    display: none;
+  }
+
+  html.wm-layout-hydrated .site-footer-brand,
+  html.wm-layout-hydrated .site-footer-copy {
+    flex: 0 0 auto;
+  }
+
+  html.wm-layout-hydrated .site-footer nav {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  html.wm-layout-hydrated .site-footer a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 44px;
+    min-height: 44px;
+    padding-inline: 6px;
+  }
+
+  .wm-toast,
+  .toast-notification {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    text-align: center;
+    transform: none;
+  }
+
+  .toast-notification {
+    transform: translateY(20px);
+  }
+
+  .toast-notification.visible {
+    transform: translateY(0);
+  }
 }

@@ -108,7 +108,7 @@ export function renderVariantDashboardHtml(fullDashboardHtml: string, variant: s
   // preserve the ?lang= suffix per entry.
   html = replaceCounted(
     html,
-    /(<link rel="alternate" hreflang="[^"]+" href=")https:\/\/www\.worldmonitor\.app\/dashboard((?:\?[^"]*)?" \/>)/g,
+    /(<link rel="alternate" hreflang="[^"]+" href=")[^"]+\/dashboard((?:\?[^"]*)?" \/>)/g,
     (_m, a, b) => `${a}${escHtml(meta.url)}${b}`,
     { min: 1, max: 80 },
     'hreflang alternates',
@@ -122,6 +122,13 @@ export function renderVariantDashboardHtml(fullDashboardHtml: string, variant: s
     (_m, a, b) => `${a}${escHtml(ogImage)}${b}`,
     TWO,
     'og/twitter image',
+  );
+  html = replaceCounted(
+    html,
+    /(<meta (?:property="og:image:alt"|name="twitter:image:alt") content=")[^"]*(" \/>)/g,
+    (_m, a, b) => `${a}${escHtml(meta.imageAlt)}${b}`,
+    TWO,
+    'og/twitter image alt',
   );
 
   // WebApplication JSON-LD block: name, url, screenshot, featureList.

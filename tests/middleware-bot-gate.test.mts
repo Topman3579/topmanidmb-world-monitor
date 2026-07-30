@@ -157,10 +157,11 @@ describe('middleware bot gate / carousel allowlist', () => {
   });
 });
 
-// ── PUBLIC_API_PATHS allowlist (secret-authed internal endpoints) ────────────
+// ── PUBLIC_API_PATHS allowlist (public or self-authenticated endpoints) ───────
 // The middleware's "no UA or suspiciously short" 403 guard (middleware.ts:
 // ~L183) blocks Node/undici default-UA callers. Internal endpoints that carry
-// their own Bearer-auth must be in PUBLIC_API_PATHS to bypass the gate.
+// their own Bearer-auth, plus intentionally public monitoring endpoints, must
+// be in PUBLIC_API_PATHS to bypass the gate.
 //
 // History:
 //   - /api/seed-contract-probe hit this 2026-04-15 (UptimeRobot + ops curl).
@@ -168,12 +169,15 @@ describe('middleware bot gate / carousel allowlist', () => {
 //     PR #3248 merge — every Railway cron call returned 403 and silently
 //     fell back to legacy Gemini. No functional breakage (3-layer fallback
 //     absorbed it) but the new feature never ran in prod.
+//   - /api/topman-core-refresh is invoked by Vercel Cron and owns the exact
+//     CRON_SECRET Bearer check in-handler. /api/topman-core-status is the
+//     intentionally public read-only health surface consumed by web/iOS.
 //
 // These tests pin the allowlist so a future middleware refactor (e.g. the
 // BOT_UA regex being narrowed, or PUBLIC_API_PATHS being reorganized) can't
 // silently drop an entry.
 
-describe('middleware PUBLIC_API_PATHS — secret-authed internal endpoints bypass UA gate', () => {
+describe('middleware PUBLIC_API_PATHS — public or self-authenticated endpoints bypass UA gate', () => {
   // UAs that would normally 403 on any other API route.
   const EMPTY_UA = '';
   const UNDICI_UA = 'undici';          // Too short (<10 chars) — triggers short-UA 403.
@@ -192,6 +196,8 @@ describe('middleware PUBLIC_API_PATHS — secret-authed internal endpoints bypas
     '/api/internal/brief-why-matters',
     '/api/llms.txt',
     '/api/product-catalog',
+    '/api/topman-core-status',
+    '/api/topman-core-refresh',
   ];
 
   for (const path of ALLOWED_PATHS) {
@@ -212,6 +218,8 @@ describe('middleware PUBLIC_API_PATHS — secret-authed internal endpoints bypas
     '/api/internal/brief-why-matters-v2',     // near-miss suffix
     '/api/internal/',                          // directory only
     '/api/internal/other',                     // different leaf
+    '/api/topman-core-status-v2',              // exact status path only
+    '/api/topman-core-refresh-now',             // exact cron path only
   ];
 
   for (const path of SIBLING_PATHS) {

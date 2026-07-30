@@ -115,6 +115,8 @@ jobs:
           node-version: '24'
           cache: 'npm'
       - run: npm ci
+      - name: Install scripts workspace dependencies for compatibility guards
+        run: npm ci --prefix scripts --ignore-scripts
       - name: Build dashboard artifacts for built-output tests
         run: VITE_VARIANT=full ./node_modules/.bin/vite build
       - run: npm run test:data
@@ -133,7 +135,7 @@ jobs:
           # api/*.ts the way we do api/*.js. Add a new entry to this list
           # ONLY after confirming `npx esbuild <file> --bundle --format=esm
           # --platform=browser --outfile=/dev/null` succeeds locally.
-          for f in api/mcp.ts; do
+          for f in api/mcp.ts api/topman-core-refresh.ts; do
             npx esbuild "$f" --bundle --format=esm --platform=browser --outfile=/dev/null || {
               echo "ERROR: esbuild failed to bundle $f"
               exit 1

@@ -3,6 +3,19 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 import { enqueueSentryCall } from '@/bootstrap/sentry-defer';
 import { readQueryLanguage, stripQueryLanguage } from '@/utils/i18n-url';
+import {
+  TOPMAN_LANGUAGE_MODE_KEY,
+  readRequestedTopmanLanguageModeFromUrl,
+  storedTopmanLanguageMode,
+  type TopmanLanguageMode,
+} from '@/services/topman-language-mode';
+
+export {
+  getTopmanBrandSubtitle,
+  getTopmanLanguageMode,
+  topmanText,
+  type TopmanLanguageMode,
+} from '@/services/topman-language-mode';
 
 // Keep only first-paint English strings in the entry chunk. The full English
 // dictionary is loaded through localeModules so it can split like other locales.
@@ -157,6 +170,17 @@ export async function initI18n(): Promise<void> {
   // (`wm-locale-explicit`) is preserved untouched.
   try { localStorage.removeItem('i18nextLng'); } catch { /* private mode */ }
 
+  // The native app passes its selected TOPMANIDMB mode in the launch URL.
+  // Persist it before the dashboard normalizes query parameters so internal
+  // navigation and reloads keep the same language choice.
+  const requestedTopmanMode = readRequestedTopmanLanguageModeFromUrl();
+  if (requestedTopmanMode) {
+    try {
+      localStorage.setItem(TOPMAN_LANGUAGE_MODE_KEY, requestedTopmanMode);
+      localStorage.setItem(EXPLICIT_LOCALE_KEY, requestedTopmanMode === 'en' ? 'en' : 'th');
+    } catch { /* private mode */ }
+  }
+
   // Custom detectors:
   // - wmQuery honors shareable/SEO language URLs such as /dashboard?lang=fa.
   // - wmExplicit reads ONLY the explicit-choice key. Returns undefined when
@@ -178,6 +202,24 @@ export async function initI18n(): Promise<void> {
     },
     cacheUserLanguage: () => { /* writes go through explicit changeLanguage() */ },
   });
+  detector.addDetector({
+    name: 'wmTopman',
+    lookup: () => {
+      const requested = readRequestedTopmanLanguageModeFromUrl();
+      if (requested) return requested === 'en' ? 'en' : 'th';
+
+      const stored = storedTopmanLanguageMode();
+      if (stored) return stored === 'en' ? 'en' : 'th';
+
+      // Respect existing explicit choices in any of the upstream languages.
+      // New TOPMANIDMB visitors default to bilingual Thai-first mode.
+      try {
+        if (localStorage.getItem(EXPLICIT_LOCALE_KEY)) return undefined;
+      } catch { /* private mode */ }
+      return 'th';
+    },
+    cacheUserLanguage: () => { /* writes go through setTopmanLanguageMode() */ },
+  });
 
   await i18next
     .use(detector)
@@ -193,7 +235,7 @@ export async function initI18n(): Promise<void> {
         escapeValue: false, // not needed for these simple strings
       },
       detection: {
-        order: ['wmQuery', 'wmExplicit', 'navigator'],
+        order: ['wmQuery', 'wmTopman', 'wmExplicit', 'navigator'],
         caches: [], // never auto-write — only changeLanguage() persists
       },
     });
@@ -228,6 +270,7 @@ export function t(key: string, options?: Record<string, unknown>): string {
 // We deliberately don't ship that helper now since no UI consumes it.
 export async function changeLanguage(lng: string): Promise<void> {
   const normalized = await ensureLanguageLoaded(lng);
+  try { localStorage.removeItem(TOPMAN_LANGUAGE_MODE_KEY); } catch { /* private mode */ }
   try { localStorage.setItem(EXPLICIT_LOCALE_KEY, normalized); } catch { /* private mode */ }
   await i18next.changeLanguage(normalized);
   applyDocumentDirection(normalized);
@@ -241,6 +284,24 @@ export async function changeLanguage(lng: string): Promise<void> {
     }
   } catch { /* history unavailable */ }
   window.location.reload(); // Simple reload to update all components for now
+}
+
+export async function setTopmanLanguageMode(mode: TopmanLanguageMode): Promise<void> {
+  const language = mode === 'en' ? 'en' : 'th';
+  const normalized = await ensureLanguageLoaded(language);
+  try {
+    localStorage.setItem(TOPMAN_LANGUAGE_MODE_KEY, mode);
+    localStorage.setItem(EXPLICIT_LOCALE_KEY, normalized);
+  } catch { /* private mode */ }
+  await i18next.changeLanguage(normalized);
+  applyDocumentDirection(normalized);
+
+  try {
+    const url = new URL(stripQueryLanguage(window.location.href));
+    url.searchParams.delete('topmanMode');
+    window.history.replaceState(window.history.state, '', url.toString());
+  } catch { /* history unavailable */ }
+  window.location.reload();
 }
 
 // Helper to get current language (normalized to short code)

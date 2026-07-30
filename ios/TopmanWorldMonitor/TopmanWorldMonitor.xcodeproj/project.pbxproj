@@ -1,0 +1,504 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0EFEA0AE6B38C684F1C2DABF /* HealthPayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E89DB0535BA9FC6E8F19E87 /* HealthPayloadTests.swift */; };
+		2421524A96D01E51905754D9 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 857594CC02626D28F844EF3D /* AboutView.swift */; };
+		60D6B30AE3F5204706DB9892 /* AppLanguageMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2915F5C4C0ED8D76F0BD0A /* AppLanguageMode.swift */; };
+		6C17552ADFDDB76DE352B237 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 82CDB3CD510FBF0A9812CF0D /* Assets.xcassets */; };
+		6E78D93BE14FE56D180A8941 /* HealthMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3005CB2176A8328BE0AC6F16 /* HealthMonitor.swift */; };
+		7DA56ACB382CB3810012ACBE /* MonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A41A88B5F0AEA5732E20271 /* MonitorView.swift */; };
+		A554A8873779308B5F40EEA1 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070DC777DD3936FB2B3D6067 /* NetworkMonitor.swift */; };
+		B442A4E2EA349BF8A9CB008B /* TopmanWorldMonitorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2FAF2A6EC20B8BE0CB01DA6 /* TopmanWorldMonitorApp.swift */; };
+		C20D3B7A7EFAE73F04E996B8 /* WorldMonitorWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDBF729E1A260DD09B72F063 /* WorldMonitorWebView.swift */; };
+		D5E5770F20F332B29A452C21 /* HealthStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BD6B6B2BB4EAD33C363AF49 /* HealthStatusView.swift */; };
+		F865DB81B73BCF684D568AD4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 63C98058EB33F5BCBB1B53E4 /* PrivacyInfo.xcprivacy */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5F4152806AD5BD98F529F89B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 20774FF81CCB470555BC9AC2 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4A6FA119DE7F57B11BE2FAC0;
+			remoteInfo = TopmanWorldMonitor;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		070DC777DD3936FB2B3D6067 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		3005CB2176A8328BE0AC6F16 /* HealthMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthMonitor.swift; sourceTree = "<group>"; };
+		5A41A88B5F0AEA5732E20271 /* MonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorView.swift; sourceTree = "<group>"; };
+		63C98058EB33F5BCBB1B53E4 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		702259F2FC815DA0FA6F6BDA /* TopmanWorldMonitorTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TopmanWorldMonitorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7B2915F5C4C0ED8D76F0BD0A /* AppLanguageMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguageMode.swift; sourceTree = "<group>"; };
+		7E89DB0535BA9FC6E8F19E87 /* HealthPayloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthPayloadTests.swift; sourceTree = "<group>"; };
+		82CDB3CD510FBF0A9812CF0D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		857594CC02626D28F844EF3D /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		9BD6B6B2BB4EAD33C363AF49 /* HealthStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthStatusView.swift; sourceTree = "<group>"; };
+		C394525BFF271AB8144925D4 /* TopmanWorldMonitor.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TopmanWorldMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CDBF729E1A260DD09B72F063 /* WorldMonitorWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldMonitorWebView.swift; sourceTree = "<group>"; };
+		F2FAF2A6EC20B8BE0CB01DA6 /* TopmanWorldMonitorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopmanWorldMonitorApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0256148AA4017B72D7AFE063 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				8E3630DA4864A0B3969D8E57 /* App */,
+				97102953766C226EF42E5D0D /* Services */,
+				046B6478B81E25A5854BF5C8 /* Settings */,
+				7E92740651F66B43B71C6E97 /* Views */,
+				C72BD563B5F1B14C11109DAE /* Web */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		046B6478B81E25A5854BF5C8 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				7B2915F5C4C0ED8D76F0BD0A /* AppLanguageMode.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		1BFABB90E5359354F18468CF = {
+			isa = PBXGroup;
+			children = (
+				DABF267EA6233F15C81AF5DD /* Resources */,
+				0256148AA4017B72D7AFE063 /* Sources */,
+				A914D7AACC54E3D27BD168C6 /* Tests */,
+				EA3F3B6B4672AA5333ED4CDE /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7E92740651F66B43B71C6E97 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				857594CC02626D28F844EF3D /* AboutView.swift */,
+				9BD6B6B2BB4EAD33C363AF49 /* HealthStatusView.swift */,
+				5A41A88B5F0AEA5732E20271 /* MonitorView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		8E3630DA4864A0B3969D8E57 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				F2FAF2A6EC20B8BE0CB01DA6 /* TopmanWorldMonitorApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		97102953766C226EF42E5D0D /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				3005CB2176A8328BE0AC6F16 /* HealthMonitor.swift */,
+				070DC777DD3936FB2B3D6067 /* NetworkMonitor.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A914D7AACC54E3D27BD168C6 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				7E89DB0535BA9FC6E8F19E87 /* HealthPayloadTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		C72BD563B5F1B14C11109DAE /* Web */ = {
+			isa = PBXGroup;
+			children = (
+				CDBF729E1A260DD09B72F063 /* WorldMonitorWebView.swift */,
+			);
+			path = Web;
+			sourceTree = "<group>";
+		};
+		DABF267EA6233F15C81AF5DD /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				82CDB3CD510FBF0A9812CF0D /* Assets.xcassets */,
+				63C98058EB33F5BCBB1B53E4 /* PrivacyInfo.xcprivacy */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		EA3F3B6B4672AA5333ED4CDE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C394525BFF271AB8144925D4 /* TopmanWorldMonitor.app */,
+				702259F2FC815DA0FA6F6BDA /* TopmanWorldMonitorTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4A6FA119DE7F57B11BE2FAC0 /* TopmanWorldMonitor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 58D81348D4413587F8726950 /* Build configuration list for PBXNativeTarget "TopmanWorldMonitor" */;
+			buildPhases = (
+				7D6D47AD4DD925664E58BB26 /* Sources */,
+				1551406B70FA154A2A539BDD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TopmanWorldMonitor;
+			packageProductDependencies = (
+			);
+			productName = TopmanWorldMonitor;
+			productReference = C394525BFF271AB8144925D4 /* TopmanWorldMonitor.app */;
+			productType = "com.apple.product-type.application";
+		};
+		5BAF93CA6AFE6DCD9120F8C0 /* TopmanWorldMonitorTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BA40416A4CBB801DBE5C46C1 /* Build configuration list for PBXNativeTarget "TopmanWorldMonitorTests" */;
+			buildPhases = (
+				1BB22E649CBFD6173D783423 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				583115B41BEE175BE1DA4A19 /* PBXTargetDependency */,
+			);
+			name = TopmanWorldMonitorTests;
+			packageProductDependencies = (
+			);
+			productName = TopmanWorldMonitorTests;
+			productReference = 702259F2FC815DA0FA6F6BDA /* TopmanWorldMonitorTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		20774FF81CCB470555BC9AC2 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					4A6FA119DE7F57B11BE2FAC0 = {
+						DevelopmentTeam = PV32ZHE46M;
+						ProvisioningStyle = Automatic;
+					};
+					5BAF93CA6AFE6DCD9120F8C0 = {
+						DevelopmentTeam = PV32ZHE46M;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = DD80081A4BFC83B0BF324567 /* Build configuration list for PBXProject "TopmanWorldMonitor" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1BFABB90E5359354F18468CF;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = EA3F3B6B4672AA5333ED4CDE /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				4A6FA119DE7F57B11BE2FAC0 /* TopmanWorldMonitor */,
+				5BAF93CA6AFE6DCD9120F8C0 /* TopmanWorldMonitorTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1551406B70FA154A2A539BDD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6C17552ADFDDB76DE352B237 /* Assets.xcassets in Resources */,
+				F865DB81B73BCF684D568AD4 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1BB22E649CBFD6173D783423 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0EFEA0AE6B38C684F1C2DABF /* HealthPayloadTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7D6D47AD4DD925664E58BB26 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2421524A96D01E51905754D9 /* AboutView.swift in Sources */,
+				60D6B30AE3F5204706DB9892 /* AppLanguageMode.swift in Sources */,
+				6E78D93BE14FE56D180A8941 /* HealthMonitor.swift in Sources */,
+				D5E5770F20F332B29A452C21 /* HealthStatusView.swift in Sources */,
+				7DA56ACB382CB3810012ACBE /* MonitorView.swift in Sources */,
+				A554A8873779308B5F40EEA1 /* NetworkMonitor.swift in Sources */,
+				B442A4E2EA349BF8A9CB008B /* TopmanWorldMonitorApp.swift in Sources */,
+				C20D3B7A7EFAE73F04E996B8 /* WorldMonitorWebView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		583115B41BEE175BE1DA4A19 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4A6FA119DE7F57B11BE2FAC0 /* TopmanWorldMonitor */;
+			targetProxy = 5F4152806AD5BD98F529F89B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		30E3D664D476781DA8EB6D97 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = net.topmanidmb.worldmonitorTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TopmanWorldMonitor.app/TopmanWorldMonitor";
+			};
+			name = Debug;
+		};
+		5DFC106EE1D2706EE455F34B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 3;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = PV32ZHE46M;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		77DB54E1982E8B4AF60CA52C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 3;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = PV32ZHE46M;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		898742B4475CFF546949F4A0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = net.topmanidmb.worldmonitorTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TopmanWorldMonitor.app/TopmanWorldMonitor";
+			};
+			name = Release;
+		};
+		EFE79ED8C2C7BE7DA4B8952C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = net.topmanidmb.worldmonitor;
+				PRODUCT_NAME = TopmanWorldMonitor;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F85856131D90DAC172282458 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				ENABLE_BITCODE = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = net.topmanidmb.worldmonitor;
+				PRODUCT_NAME = TopmanWorldMonitor;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		58D81348D4413587F8726950 /* Build configuration list for PBXNativeTarget "TopmanWorldMonitor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EFE79ED8C2C7BE7DA4B8952C /* Debug */,
+				F85856131D90DAC172282458 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BA40416A4CBB801DBE5C46C1 /* Build configuration list for PBXNativeTarget "TopmanWorldMonitorTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				30E3D664D476781DA8EB6D97 /* Debug */,
+				898742B4475CFF546949F4A0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DD80081A4BFC83B0BF324567 /* Build configuration list for PBXProject "TopmanWorldMonitor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5DFC106EE1D2706EE455F34B /* Debug */,
+				77DB54E1982E8B4AF60CA52C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 20774FF81CCB470555BC9AC2 /* Project object */;
+}

@@ -31,12 +31,14 @@ const fixture = `<!doctype html>
     <meta property="og:title" content="${FULL.title}" />
     <meta property="og:description" content="${FULL.description}" />
     <meta property="og:image" content="https://www.worldmonitor.app/favico/og-image.png" />
+    <meta property="og:image:alt" content="${FULL.imageAlt}" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:site_name" content="World Monitor" />
     <meta name="twitter:url" content="${FULL.url}" />
     <meta name="twitter:title" content="${FULL.title}" />
     <meta name="twitter:description" content="${FULL.description}" />
     <meta name="twitter:image" content="https://www.worldmonitor.app/favico/og-image.png" />
+    <meta name="twitter:image:alt" content="${FULL.imageAlt}" />
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -87,6 +89,14 @@ describe('renderVariantDashboardHtml (#4996)', () => {
       assert.ok(html.includes(`<meta property="og:url" content="${meta.url}" />`), `${variant}: og:url`);
       assert.ok(html.includes(`<meta name="twitter:url" content="${meta.url}" />`), `${variant}: twitter:url`);
       assert.ok(
+        html.includes(`<meta property="og:image:alt" content="${escHtml(meta.imageAlt)}" />`),
+        `${variant}: og:image:alt`,
+      );
+      assert.ok(
+        html.includes(`<meta name="twitter:image:alt" content="${escHtml(meta.imageAlt)}" />`),
+        `${variant}: twitter:image:alt`,
+      );
+      assert.ok(
         !html.includes(`<link rel="canonical" href="${FULL.url}" />`),
         `${variant}: must not keep the www canonical`,
       );
@@ -112,6 +122,10 @@ describe('renderVariantDashboardHtml (#4996)', () => {
     assert.ok(
       html.includes('content="https://tech.worldmonitor.app/favico/tech/og-image.png"'),
       'og/twitter image points at the variant OG asset',
+    );
+    assert.ok(
+      html.includes(`<meta property="og:image:alt" content="${escHtml(tech.imageAlt)}" />`),
+      'og:image:alt matches the variant brand',
     );
     assert.ok(html.includes('<meta property="og:image:width" content="1200" />'), 'og:image:width untouched');
     assert.ok(html.includes(`<h1 class="app-heading">${escHtml(tech.title)}</h1>`), 'h1');

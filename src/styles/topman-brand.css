@@ -150,6 +150,55 @@ body {
   box-shadow: 0 0 8px rgba(143, 208, 255, 0.72);
 }
 
+.status-indicator--topman-health {
+  font-weight: 700;
+  letter-spacing: 0.35px;
+}
+
+.status-indicator--topman-health.status-indicator--health-healthy {
+  color: var(--topman-cyan);
+}
+
+.status-indicator--topman-health.status-indicator--health-healthy .status-dot {
+  background: var(--topman-cyan);
+  box-shadow: 0 0 8px rgba(143, 208, 255, 0.72);
+}
+
+.status-indicator--topman-health.status-indicator--health-partial {
+  color: var(--topman-gold);
+}
+
+.status-indicator--topman-health.status-indicator--health-partial .status-dot {
+  background: var(--topman-gold);
+  box-shadow: 0 0 8px rgba(255, 203, 45, 0.72);
+  animation: none;
+}
+
+.status-indicator--topman-health.status-indicator--health-stale {
+  color: #ff9b57;
+}
+
+.status-indicator--topman-health.status-indicator--health-stale .status-dot {
+  background: #ff9b57;
+  box-shadow: 0 0 8px rgba(255, 155, 87, 0.7);
+  animation: none;
+}
+
+.status-indicator--topman-health.status-indicator--health-unavailable {
+  color: #ff6b6b;
+}
+
+.status-indicator--topman-health.status-indicator--health-unavailable .status-dot {
+  background: #ff6b6b;
+  box-shadow: 0 0 8px rgba(255, 107, 107, 0.7);
+  animation: none;
+}
+
+.topman-source-link:hover,
+.topman-source-link:focus-visible {
+  color: var(--topman-gold);
+}
+
 @media (max-width: 1180px) {
   .topman-brand-subtitle,
   .powered-by-link {

@@ -19,6 +19,14 @@ target/
 # Common local artifacts
 .DS_Store
 
+# Native iOS source and local release artifacts are published through
+# App Store Connect/TestFlight, not the Vercel web deployment.
+ios/
+
+# Local-only environment overrides must never enter a Vercel upload bundle.
+.env.local
+.env.*.local
+
 # Never deploy api test files: every non-underscore file under api/ becomes a
 # live serverless function, and a deployed *.test.mjs executes its whole
 # node:test suite (production env + Sentry) on every request (WORLDMONITOR-VD).
