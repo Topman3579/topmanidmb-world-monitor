@@ -465,3 +465,166 @@ export function getTopmanSourceTitle(
     mode,
   );
 }
+
+/** Compact full-system health (232+ checks) — separate from TOPMAN Core 6. */
+export type SystemHealthState = 'healthy' | 'partial' | 'unavailable';
+
+export interface SystemHealthBrief {
+  state: SystemHealthState;
+  sourceStatus: string | null;
+  ok: number;
+  total: number;
+  crit: number;
+  checkedAtMs: number | null;
+}
+
+const SYSTEM_HEALTH_ENDPOINT = '/api/health?compact=1';
+
+function unavailableSystemBrief(): SystemHealthBrief {
+  return {
+    state: 'unavailable',
+    sourceStatus: null,
+    ok: 0,
+    total: 0,
+    crit: 0,
+    checkedAtMs: null,
+  };
+}
+
+export function classifyCompactSystemHealth(
+  payload: unknown,
+  nowMs = Date.now(),
+): SystemHealthBrief {
+  if (!isObject(payload) || typeof payload.status !== 'string') {
+    return unavailableSystemBrief();
+  }
+
+  const checkedAtMs = typeof payload.checkedAt === 'string'
+    ? Date.parse(payload.checkedAt)
+    : NaN;
+  if (!Number.isFinite(checkedAtMs) || checkedAtMs > nowMs + 60_000) {
+    return unavailableSystemBrief();
+  }
+
+  const summary = isObject(payload.summary) ? payload.summary : null;
+  const total = summary ? readNonNegativeInteger(summary.total) : null;
+  const ok = summary ? readNonNegativeInteger(summary.ok) : null;
+  const crit = summary ? readNonNegativeInteger(summary.crit) : null;
+  if (total === null || total < 1 || ok === null || crit === null) {
+    return unavailableSystemBrief();
+  }
+
+  const sourceStatus = payload.status.toUpperCase();
+  let state: SystemHealthState;
+  if (sourceStatus === 'HEALTHY' && crit === 0 && ok === total) {
+    state = 'healthy';
+  } else if (sourceStatus === 'WARNING' || sourceStatus === 'UNHEALTHY' || crit > 0 || ok < total) {
+    state = 'partial';
+  } else {
+    return unavailableSystemBrief();
+  }
+
+  return {
+    state,
+    sourceStatus,
+    ok,
+    total,
+    crit,
+    checkedAtMs,
+  };
+}
+
+export function formatSystemHealthBrief(
+  brief: SystemHealthBrief,
+  mode: TopmanLanguageMode = getTopmanLanguageMode(),
+): string {
+  if (brief.state === 'unavailable' || brief.total < 1) {
+    return bilingualText(
+      'ระบบเต็ม: ยังยืนยันไม่ได้',
+      'Full system: not verified',
+      mode,
+    );
+  }
+
+  const thaiState = brief.state === 'healthy'
+    ? 'พร้อม'
+    : brief.crit > 0
+      ? 'ไม่พร้อม'
+      : 'พร้อมบางส่วน';
+  const enState = brief.state === 'healthy'
+    ? 'ready'
+    : brief.crit > 0
+      ? 'not ready'
+      : 'partial';
+
+  return bilingualText(
+    `ระบบเต็ม: ${thaiState} ${brief.ok}/${brief.total}${brief.crit > 0 ? ` · วิกฤต ${brief.crit}` : ''}`,
+    `Full system: ${enState} ${brief.ok}/${brief.total}${brief.crit > 0 ? ` · critical ${brief.crit}` : ''}`,
+    mode,
+  );
+}
+
+export async function fetchCompactSystemHealthBrief(
+  options: FetchTopmanHealthOptions = {},
+): Promise<SystemHealthBrief> {
+  const fetchFn = options.fetchFn ?? globalThis.fetch;
+  const now = options.now ?? Date.now;
+  if (typeof fetchFn !== 'function') return unavailableSystemBrief();
+
+  const requestController = new AbortController();
+  const abortFromCaller = (): void => requestController.abort(options.signal?.reason);
+  if (options.signal?.aborted) {
+    abortFromCaller();
+  } else {
+    options.signal?.addEventListener('abort', abortFromCaller, { once: true });
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    const request = async (): Promise<SystemHealthBrief> => {
+      const response = await fetchFn(options.endpoint ?? SYSTEM_HEALTH_ENDPOINT, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        credentials: 'same-origin',
+        signal: requestController.signal,
+      });
+      if (!response.ok) return unavailableSystemBrief();
+      const payload = await response.json();
+      return classifyCompactSystemHealth(payload, now());
+    };
+
+    const timeout = new Promise<SystemHealthBrief>((resolve) => {
+      timeoutId = setTimeout(() => {
+        requestController.abort(new DOMException('System health request timed out', 'TimeoutError'));
+        resolve(unavailableSystemBrief());
+      }, Math.max(1, options.timeoutMs ?? HEALTH_REQUEST_TIMEOUT_MS));
+    });
+
+    return await Promise.race([request(), timeout]);
+  } catch {
+    return unavailableSystemBrief();
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', abortFromCaller);
+  }
+}
+
+export function formatCoreHealthStrip(
+  snapshot: TopmanHealthSnapshot | null | undefined,
+  mode: TopmanLanguageMode = getTopmanLanguageMode(),
+): string {
+  if (!snapshot || snapshot.summary.total < 1) {
+    return bilingualText(
+      'ข้อมูลหลัก TOPMAN: ยังยืนยันไม่ได้',
+      'TOPMAN Core: not verified',
+      mode,
+    );
+  }
+  const { ok, total, warn, crit } = snapshot.summary;
+  return bilingualText(
+    `ข้อมูลหลัก TOPMAN: ${ok}/${total} · เตือน ${warn} · วิกฤต ${crit}`,
+    `TOPMAN Core: ${ok}/${total} · warnings ${warn} · critical ${crit}`,
+    mode,
+  );
+}

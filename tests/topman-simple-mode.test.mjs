@@ -72,5 +72,8 @@ describe('TOPMAN Simple Mode wiring', () => {
       simpleModeTs,
       /ไม่ใช่การยืนยันว่าระบบแหล่งข้อมูลทั้งหมดพร้อมสมบูรณ์|does not mean every external source/,
     );
+    assert.match(simpleModeTs, /data-tour="health-strip"/);
+    assert.match(simpleModeTs, /fetchCompactSystemHealthBrief/);
+    assert.match(simpleCss, /topman-simple-health-strip/);
   });
 });

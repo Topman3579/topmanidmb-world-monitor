@@ -44,11 +44,20 @@
 | Priority | Task | Notes |
 |----------|------|-------|
 | P0 | Confirm user completed Pro banner + desks + MCP OAuth | Manual verify |
-| P1 | Thai-primary UI pass (labels, toasts, Simple Mode copy) | i18n / topman-language-mode |
-| P1 | Fix/clarify Core health vs system health in Simple summary | Avoid false "all green" |
+| P1 ✅ | Thai-primary UI pass (labels, toasts, Simple Mode copy) | Done on `cursor/p1-core-health-thai-ui` — Core-scoped badges + Thai source labels |
+| P1 ✅ | Fix/clarify Core health vs system health in Simple summary | Done — health strip Core vs Full system; no false all-green when compact system is degraded |
 | P2 | Entitlement parity fork vs upstream | Clerk/Dodo may not unlock Pro on fork |
 | P2 | Export briefing workflow (PDF/CSV) into desk playbook | Business ROI |
 | P3 | E2E for seed_desks deep link | Playwright |
+
+### Cursor P1 session note (2026-07-30)
+- Branch: `cursor/p1-core-health-thai-ui`
+- Badge copy: `ข้อมูลหลักพร้อม/บางส่วน/...` (never generic “พร้อม”)
+- Simple Mode shows Core 6 counts + Full-system `ok/total` strip
+- If Core healthy but `/api/health?compact=1` degraded → executive status forced to `partial`
+- Guided tour adds Core vs full-system step
+- Focused tests: simple-summary / simple-mode / health-status — 27/27 pass
+- Release gate: commit + push + PR (await ผู้การ) · then Vercel preview verify
 
 ## Key code map
 ```

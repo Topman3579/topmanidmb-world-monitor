@@ -4,10 +4,14 @@ import {
   assertSummaryIsDataBacked,
   buildSimpleExecutiveSummary,
   formatSimpleDataStatusLabel,
+  formatSimpleGeneratedFromLabel,
   mapHealthToSimpleStatus,
 } from '../src/services/topman-simple-summary.ts';
 import type { ServerInsights } from '../src/services/insights-loader.ts';
-import type { TopmanHealthSnapshot } from '../src/services/topman-health-status.ts';
+import type {
+  SystemHealthBrief,
+  TopmanHealthSnapshot,
+} from '../src/services/topman-health-status.ts';
 
 const healthy: TopmanHealthSnapshot = {
   state: 'healthy',
@@ -20,6 +24,24 @@ const partialUnhealthy: TopmanHealthSnapshot = {
   state: 'partial',
   sourceStatus: 'UNHEALTHY',
   summary: { total: 6, ok: 4, warn: 0, onDemandWarn: 0, staleContent: 0, crit: 2 },
+  checkedAtMs: Date.now(),
+};
+
+const systemHealthy: SystemHealthBrief = {
+  state: 'healthy',
+  sourceStatus: 'HEALTHY',
+  ok: 232,
+  total: 232,
+  crit: 0,
+  checkedAtMs: Date.now(),
+};
+
+const systemUnhealthy: SystemHealthBrief = {
+  state: 'partial',
+  sourceStatus: 'UNHEALTHY',
+  ok: 17,
+  total: 232,
+  crit: 165,
   checkedAtMs: Date.now(),
 };
 
@@ -82,13 +104,16 @@ describe('topman-simple-summary', () => {
     assert.equal(mapHealthToSimpleStatus(healthy), 'ready');
     assert.equal(mapHealthToSimpleStatus(partialUnhealthy), 'partial');
     assert.equal(mapHealthToSimpleStatus(null), 'unavailable');
-    assert.match(formatSimpleDataStatusLabel('partial'), /พร้อมบางส่วน|Partially ready|partial/i);
+    assert.match(formatSimpleDataStatusLabel('ready'), /ข้อมูลหลักพร้อม|Core ready/);
+    assert.match(formatSimpleDataStatusLabel('partial'), /ข้อมูลหลักบางส่วน|Core partial/);
+    assert.match(formatSimpleGeneratedFromLabel('topman-core-status'), /ข้อมูลหลัก|Core/);
   });
 
   it('builds three cards from verified insights only', () => {
     const summary = buildSimpleExecutiveSummary({
       insights: sampleInsights(),
       health: healthy,
+      systemHealth: systemHealthy,
     });
     assert.equal(summary.cards.length, 3);
     assert.equal(summary.cards[0]!.id, 'world');
@@ -98,6 +123,10 @@ describe('topman-simple-summary', () => {
     assert.match(summary.cards[1]!.summary, /Thailand|ไทย|ASEAN|อาเซียน/i);
     assert.match(summary.cards[2]!.summary, /conflict|chokepoint|Multi-source/i);
     assert.ok(summary.generatedFrom.includes('server-insights'));
+    assert.equal(summary.generatedFromLabels.length, summary.generatedFrom.length);
+    assert.match(summary.coreStrip, /6|TOPMAN/);
+    assert.match(summary.systemStrip, /232|ระบบเต็ม|Full system/);
+    assert.match(summary.healthScopeNote, /คนละชั้น|separate layers/);
     assert.ok(assertSummaryIsDataBacked(summary));
   });
 
@@ -121,6 +150,7 @@ describe('topman-simple-summary', () => {
         ],
       }),
       health: healthy,
+      systemHealth: systemHealthy,
     });
     assert.match(summary.cards[1]!.summary, /ยังไม่พบ|no items clearly|not|ไม่มี/i);
     assert.equal(summary.cards[1]!.level, 'unknown');
@@ -130,6 +160,7 @@ describe('topman-simple-summary', () => {
     const summary = buildSimpleExecutiveSummary({
       insights: null,
       health: partialUnhealthy,
+      systemHealth: systemUnhealthy,
     });
     assert.equal(summary.status, 'partial');
     assert.ok(summary.cards.every((c) => c.level === 'unknown'));
@@ -140,7 +171,18 @@ describe('topman-simple-summary', () => {
     const summary = buildSimpleExecutiveSummary({
       insights: sampleInsights(),
       health: partialUnhealthy,
+      systemHealth: systemHealthy,
     });
     assert.equal(summary.status, 'partial');
+  });
+
+  it('downgrades Core-ready badge when full-system compact health is degraded', () => {
+    const summary = buildSimpleExecutiveSummary({
+      insights: sampleInsights(),
+      health: healthy,
+      systemHealth: systemUnhealthy,
+    });
+    assert.equal(summary.status, 'partial');
+    assert.match(summary.systemStrip, /17\/232|ไม่พร้อม|not ready|critical/);
   });
 });

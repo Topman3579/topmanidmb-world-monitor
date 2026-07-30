@@ -7,7 +7,9 @@ import {
 } from '@/services/insights-loader';
 import {
   classifyTopmanHealthPayload,
+  fetchCompactSystemHealthBrief,
   fetchTopmanHealthSnapshot,
+  type SystemHealthBrief,
   type TopmanHealthSnapshot,
 } from '@/services/topman-health-status';
 import {
@@ -85,6 +87,7 @@ export class TopmanSimpleMode {
   private mode: TopmanUiMode;
   private summary: SimpleExecutiveSummary | null = null;
   private health: TopmanHealthSnapshot | null = null;
+  private systemHealth: SystemHealthBrief | null = null;
   private enabledCategories: SimpleMapCategoryId[];
   private tourOpen = false;
   private tourStep = 0;
@@ -376,9 +379,16 @@ export class TopmanSimpleMode {
       this.health = classifyTopmanHealthPayload(null);
     }
 
+    try {
+      this.systemHealth = await fetchCompactSystemHealthBrief();
+    } catch {
+      this.systemHealth = null;
+    }
+
     this.summary = buildSimpleExecutiveSummary({
       insights,
       health: this.health,
+      systemHealth: this.systemHealth,
     });
 
     if (!this.destroyed) {
@@ -440,8 +450,15 @@ export class TopmanSimpleMode {
 
     if (this.belowRoot) this.belowRoot.hidden = false;
 
-    const summary = this.summary ?? buildSimpleExecutiveSummary({ insights: null, health: this.health });
+    const summary = this.summary ?? buildSimpleExecutiveSummary({
+      insights: null,
+      health: this.health,
+      systemHealth: this.systemHealth,
+    });
     const statusLabel = formatSimpleDataStatusLabel(summary.status);
+    const sourceLabels = summary.generatedFromLabels.length
+      ? summary.generatedFromLabels.join(' · ')
+      : topmanText('ยังไม่มี', 'None yet');
     const missions = getMissionPresetsForVariant(SITE_VARIANT);
     const activeMission = this.callbacks.getActiveMissionId?.() ?? null;
     const categories = getSimpleMapCategories();
@@ -466,10 +483,16 @@ export class TopmanSimpleMode {
             <span class="topman-simple-badge topman-simple-badge--${escapeHtml(summary.status)}">${escapeHtml(statusLabel)}</span>
             <span class="topman-simple-kicker-text">${escapeHtml(topmanText('สรุปสำหรับผู้บริหาร · สนับสนุนการสั่งการ', 'Executive brief · command support'))}</span>
           </div>
+          <div class="topman-simple-health-strip" data-tour="health-strip" role="status" aria-live="polite">
+            <span class="topman-simple-health-strip__core">${escapeHtml(summary.coreStrip)}</span>
+            <span class="topman-simple-health-strip__sep" aria-hidden="true">·</span>
+            <span class="topman-simple-health-strip__system">${escapeHtml(summary.systemStrip)}</span>
+            <span class="topman-simple-health-strip__note">${escapeHtml(summary.healthScopeNote)}</span>
+          </div>
           <h1 class="topman-simple-exec__title">${escapeHtml(summary.headline)}</h1>
           <p class="topman-simple-exec__body">${escapeHtml(summary.body)}</p>
           <div class="topman-simple-exec__meta">
-            <span>${escapeHtml(topmanText('แหล่งที่ใช้อ้างอิง', 'Sources used'))}: ${escapeHtml(summary.generatedFrom.length ? summary.generatedFrom.join(', ') : topmanText('ยังไม่มี', 'None yet'))}</span>
+            <span>${escapeHtml(topmanText('แหล่งที่ใช้อ้างอิง', 'Sources used'))}: ${escapeHtml(sourceLabels)}</span>
             <div class="topman-simple-exec__actions">
               <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="refresh-summary">${escapeHtml(topmanText('รีเฟรชสรุป', 'Refresh'))}</button>
               <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="start-tour">${escapeHtml(topmanText('พาชมระบบ 60 วินาที', '60s tour'))}</button>
@@ -565,8 +588,8 @@ export class TopmanSimpleMode {
           <footer class="topman-simple-trust">
             <p>
               ${escapeHtml(topmanText(
-                'สถานะข้อมูลหลัก (TOPMAN Core) ไม่ใช่การยืนยันว่าระบบแหล่งข้อมูลทั้งหมดพร้อมสมบูรณ์',
-                'TOPMAN Core status does not mean every external source in the full system is healthy.',
+                'สถานะข้อมูลหลัก (TOPMAN Core 6 ชุด) ไม่ใช่การยืนยันว่าระบบแหล่งข้อมูลทั้งหมดพร้อมสมบูรณ์ — ดูแถบ “ข้อมูลหลัก / ระบบเต็ม” ด้านบนสรุป',
+                'TOPMAN Core (6 lanes) does not mean every external source is healthy — see the Core / Full-system strip above the brief.',
               ))}
             </p>
             <div class="topman-simple-pro-actions">
