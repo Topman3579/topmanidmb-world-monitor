@@ -1,0 +1,1944 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050b17" />
+    <meta
+      name="description"
+      content="TOPMANIDMB World Intelligence ศูนย์บัญชาการสถานการณ์โลกสำหรับประเทศไทยและอาเซียน พร้อมตรวจสอบสถานะและความสดของข้อมูลก่อนเข้าสู่แดชบอร์ด"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="th_TH" />
+    <meta property="og:title" content="TOPMANIDMB World Intelligence" />
+    <meta
+      property="og:description"
+      content="รู้ก่อนข่าว เข้าใจก่อนเหตุการณ์ — มุมมองสถานการณ์โลกสำหรับประเทศไทยและอาเซียน"
+    />
+    <meta property="og:url" content="https://topmanidmb-world-monitor.vercel.app/" />
+    <meta
+      property="og:image"
+      content="https://topmanidmb-world-monitor.vercel.app/brand/topmanidmb-orbit-emblem.png"
+    />
+    <meta name="twitter:card" content="summary" />
+    <link rel="canonical" href="https://topmanidmb-world-monitor.vercel.app/" />
+    <link rel="icon" type="image/png" href="/brand/topmanidmb-orbit-emblem.png" />
+    <title>TOPMANIDMB World Intelligence — ศูนย์บัญชาการสถานการณ์โลก</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #050b17;
+        --ink-deep: #03070f;
+        --surface: #09162a;
+        --surface-soft: #0d1d35;
+        --line: rgba(150, 196, 235, 0.19);
+        --line-strong: rgba(150, 196, 235, 0.38);
+        --text: #f3f8fc;
+        --muted: #9fb3c9;
+        --cyan: #83ccf7;
+        --cyan-soft: #c9ebff;
+        --gold: #f6c94a;
+        --gold-soft: #ffe799;
+        --good: #72d9be;
+        --warn: #f6c94a;
+        --danger: #ff8b83;
+        --paper: #e8f1f7;
+        --paper-ink: #0a1b2d;
+        --shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+        --radius-lg: 28px;
+        --radius-md: 18px;
+        --container: 1180px;
+        --header-height: 84px;
+        font-family:
+          "Noto Sans Thai", "Leelawadee UI", Tahoma, system-ui, -apple-system,
+          BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+        background: var(--ink);
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 78% 8%, rgba(43, 108, 158, 0.17), transparent 29rem),
+          radial-gradient(circle at 20% 24%, rgba(246, 201, 74, 0.06), transparent 26rem),
+          var(--ink);
+        font-size: 16px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      button,
+      a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      button {
+        font: inherit;
+      }
+
+      img,
+      svg {
+        display: block;
+        max-width: 100%;
+      }
+
+      .skip-link {
+        position: fixed;
+        z-index: 100;
+        top: 12px;
+        left: 12px;
+        padding: 10px 16px;
+        color: var(--ink);
+        background: var(--gold);
+        border-radius: 10px;
+        transform: translateY(-160%);
+        transition: transform 160ms ease;
+      }
+
+      .skip-link:focus {
+        transform: translateY(0);
+      }
+
+      :focus-visible {
+        outline: 3px solid var(--cyan);
+        outline-offset: 4px;
+      }
+
+      .container {
+        width: min(calc(100% - 40px), var(--container));
+        margin-inline: auto;
+      }
+
+      .site-header {
+        position: sticky;
+        z-index: 50;
+        top: 0;
+        min-height: var(--header-height);
+        border-bottom: 1px solid rgba(150, 196, 235, 0.12);
+        background: rgba(5, 11, 23, 0.88);
+        backdrop-filter: blur(18px);
+      }
+
+      .header-inner {
+        min-height: var(--header-height);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 28px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 13px;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        box-shadow: 0 0 28px rgba(131, 204, 247, 0.14);
+      }
+
+      .brand-copy {
+        display: grid;
+        line-height: 1.1;
+      }
+
+      .brand-copy strong {
+        color: var(--gold);
+        font-size: 0.98rem;
+        letter-spacing: 0.16em;
+      }
+
+      .brand-copy span {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.68rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .site-nav {
+        display: flex;
+        align-items: center;
+        gap: 26px;
+      }
+
+      .site-nav a {
+        color: var(--muted);
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: color 160ms ease;
+      }
+
+      .site-nav a:hover {
+        color: var(--text);
+      }
+
+      .nav-cta {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 19px;
+        color: var(--ink) !important;
+        background: var(--gold);
+        border-radius: 999px;
+      }
+
+      main {
+        overflow: hidden;
+      }
+
+      .hero {
+        position: relative;
+        min-height: calc(100svh - var(--header-height));
+        display: grid;
+        align-items: center;
+        padding: 74px 0 86px;
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.28;
+        background-image:
+          linear-gradient(rgba(131, 204, 247, 0.055) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(131, 204, 247, 0.055) 1px, transparent 1px);
+        background-size: 52px 52px;
+        mask-image: linear-gradient(to bottom, black, transparent 84%);
+      }
+
+      .hero-grid {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(320px, 0.84fr) minmax(420px, 1.16fr);
+        align-items: center;
+        gap: clamp(32px, 5vw, 74px);
+      }
+
+      .hero-copy {
+        max-width: 650px;
+      }
+
+      .hero h1 {
+        max-width: 720px;
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(3rem, 5.8vw, 6.5rem);
+        font-weight: 780;
+        line-height: 0.98;
+        letter-spacing: -0.055em;
+        text-wrap: balance;
+      }
+
+      .hero h1 span {
+        display: block;
+        margin-top: 14px;
+        color: var(--gold);
+      }
+
+      .hero-lead {
+        max-width: 610px;
+        margin: 28px 0 0;
+        color: var(--cyan-soft);
+        font-size: clamp(1.08rem, 1.8vw, 1.35rem);
+        line-height: 1.75;
+      }
+
+      .hero-lead small {
+        display: block;
+        margin-top: 7px;
+        color: var(--muted);
+        font-size: 0.85rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        margin-top: 34px;
+      }
+
+      .button {
+        min-height: 52px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 13px 22px;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        font-size: 0.98rem;
+        font-weight: 750;
+        text-decoration: none;
+        transition:
+          transform 160ms ease,
+          box-shadow 160ms ease,
+          border-color 160ms ease;
+      }
+
+      .button:hover {
+        transform: translateY(-2px);
+      }
+
+      .button-primary {
+        color: var(--ink);
+        background: var(--gold);
+        box-shadow: 0 12px 34px rgba(246, 201, 74, 0.17);
+      }
+
+      .button-secondary {
+        color: var(--cyan-soft);
+        background: rgba(9, 22, 42, 0.62);
+        border-color: var(--line-strong);
+      }
+
+      .button svg,
+      .source-link svg {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 auto;
+      }
+
+      .hero-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        max-width: 580px;
+        margin: 25px 0 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .hero-note svg {
+        width: 17px;
+        margin-top: 4px;
+        flex: 0 0 auto;
+        color: var(--cyan);
+      }
+
+      .situation-console {
+        position: relative;
+        min-height: 570px;
+        padding: 22px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        background:
+          linear-gradient(155deg, rgba(15, 39, 68, 0.9), rgba(5, 13, 26, 0.96)),
+          var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .situation-console::after {
+        content: "";
+        position: absolute;
+        z-index: 0;
+        inset: 20% -25% -35% 24%;
+        border: 1px solid rgba(131, 204, 247, 0.16);
+        border-radius: 50%;
+        box-shadow:
+          0 0 0 72px rgba(131, 204, 247, 0.018),
+          0 0 0 144px rgba(131, 204, 247, 0.012);
+      }
+
+      .console-head {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+
+      .console-title {
+        display: grid;
+        gap: 4px;
+      }
+
+      .console-title strong {
+        font-size: 0.87rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .console-title span {
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .console-lights {
+        display: flex;
+        gap: 7px;
+      }
+
+      .console-lights span {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: rgba(159, 179, 201, 0.5);
+      }
+
+      .console-lights span:first-child {
+        background: var(--gold);
+      }
+
+      .region-visual {
+        position: relative;
+        z-index: 1;
+        min-height: 330px;
+        display: grid;
+        place-items: center;
+        margin: 10px 0 0;
+      }
+
+      .region-visual svg {
+        width: min(100%, 470px);
+        overflow: visible;
+        filter: drop-shadow(0 0 18px rgba(131, 204, 247, 0.2));
+      }
+
+      .map-grid {
+        stroke: rgba(131, 204, 247, 0.15);
+        stroke-width: 1;
+        fill: none;
+      }
+
+      .map-land {
+        fill: rgba(70, 133, 180, 0.16);
+        stroke: rgba(156, 214, 250, 0.55);
+        stroke-width: 1.5;
+      }
+
+      .map-thailand {
+        fill: var(--gold);
+        stroke: var(--gold-soft);
+        stroke-width: 2;
+      }
+
+      .map-route {
+        fill: none;
+        stroke: rgba(246, 201, 74, 0.58);
+        stroke-width: 1.4;
+        stroke-dasharray: 5 8;
+      }
+
+      .map-node {
+        fill: var(--cyan);
+      }
+
+      .map-pulse {
+        fill: none;
+        stroke: var(--gold);
+        stroke-width: 1.4;
+        transform-origin: center;
+        animation: map-pulse 2.6s ease-out infinite;
+      }
+
+      @keyframes map-pulse {
+        0% {
+          opacity: 0.75;
+          transform: scale(0.65);
+        }
+        100% {
+          opacity: 0;
+          transform: scale(1.65);
+        }
+      }
+
+      .region-label {
+        position: absolute;
+        top: 52%;
+        left: 52%;
+        display: grid;
+        padding-left: 14px;
+        border-left: 2px solid var(--gold);
+        transform: translate(8px, -6px);
+      }
+
+      .region-label strong {
+        color: var(--gold);
+        font-size: 0.82rem;
+        letter-spacing: 0.12em;
+      }
+
+      .region-label span {
+        color: var(--muted);
+        font-size: 0.7rem;
+      }
+
+      .health-card {
+        position: relative;
+        z-index: 3;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 14px;
+        padding: 17px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: rgba(3, 9, 18, 0.8);
+      }
+
+      .health-dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--muted);
+        box-shadow: 0 0 0 5px rgba(159, 179, 201, 0.1);
+      }
+
+      .health-card[data-state="checking"] .health-dot {
+        background: var(--cyan);
+        box-shadow: 0 0 0 5px rgba(131, 204, 247, 0.12);
+        animation: status-breathe 1.5s ease-in-out infinite;
+      }
+
+      .health-card[data-state="ready"] .health-dot {
+        background: var(--good);
+        box-shadow: 0 0 0 5px rgba(114, 217, 190, 0.12);
+      }
+
+      .health-card[data-state="partial"] .health-dot,
+      .health-card[data-state="delayed"] .health-dot {
+        background: var(--warn);
+        box-shadow: 0 0 0 5px rgba(246, 201, 74, 0.12);
+      }
+
+      .health-card[data-state="unavailable"] .health-dot {
+        background: var(--danger);
+        box-shadow: 0 0 0 5px rgba(255, 139, 131, 0.12);
+      }
+
+      @keyframes status-breathe {
+        50% {
+          opacity: 0.38;
+        }
+      }
+
+      .health-copy {
+        min-width: 0;
+      }
+
+      .health-topline {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .health-topline strong {
+        font-size: 0.94rem;
+      }
+
+      .health-topline span {
+        color: var(--muted);
+        font-size: 0.74rem;
+      }
+
+      .health-detail {
+        margin: 3px 0 0;
+        color: var(--cyan-soft);
+        font-size: 0.78rem;
+      }
+
+      .health-counts {
+        margin: 2px 0 0;
+        color: var(--muted);
+        font-size: 0.7rem;
+      }
+
+      .health-refresh {
+        min-width: 44px;
+        min-height: 44px;
+        display: inline-grid;
+        place-items: center;
+        padding: 0;
+        color: var(--cyan);
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        background: rgba(13, 29, 53, 0.9);
+        cursor: pointer;
+      }
+
+      .health-refresh svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .health-refresh[aria-busy="true"] svg {
+        animation: spin 900ms linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .watch-areas {
+        position: relative;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .watch-area {
+        padding: 10px 11px;
+        border: 1px solid rgba(150, 196, 235, 0.12);
+        border-radius: 12px;
+        background: rgba(8, 21, 39, 0.72);
+      }
+
+      .watch-area strong {
+        display: block;
+        color: var(--text);
+        font-size: 0.72rem;
+      }
+
+      .watch-area span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 0.62rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .workflow {
+        position: relative;
+        padding: 86px 0 96px;
+        border-top: 1px solid rgba(150, 196, 235, 0.11);
+        border-bottom: 1px solid rgba(150, 196, 235, 0.11);
+        background: rgba(3, 8, 17, 0.54);
+      }
+
+      .section-intro {
+        max-width: 700px;
+        margin-inline: auto;
+        text-align: center;
+      }
+
+      .section-intro h2 {
+        margin: 0;
+        font-size: clamp(2.2rem, 4vw, 3.8rem);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+      }
+
+      .section-intro p {
+        max-width: 610px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 1.02rem;
+      }
+
+      .workflow-steps {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-top: 55px;
+        counter-reset: workflow;
+      }
+
+      .workflow-step {
+        position: relative;
+        min-height: 230px;
+        padding: 12px 34px 24px;
+        border-left: 1px solid var(--line);
+        counter-increment: workflow;
+      }
+
+      .workflow-step:last-child {
+        border-right: 1px solid var(--line);
+      }
+
+      .workflow-step::before {
+        content: "0" counter(workflow);
+        display: block;
+        margin-bottom: 50px;
+        color: var(--gold);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+      }
+
+      .workflow-step h3 {
+        max-width: 280px;
+        margin: 0;
+        font-size: clamp(1.25rem, 2vw, 1.68rem);
+        line-height: 1.35;
+      }
+
+      .workflow-step p {
+        margin: 13px 0 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .missions {
+        position: relative;
+        padding: 110px 0;
+      }
+
+      .missions::after {
+        content: "";
+        position: absolute;
+        top: 24%;
+        right: -180px;
+        width: 480px;
+        height: 480px;
+        border: 1px solid rgba(131, 204, 247, 0.12);
+        border-radius: 50%;
+        box-shadow:
+          0 0 0 72px rgba(131, 204, 247, 0.02),
+          0 0 0 144px rgba(131, 204, 247, 0.014);
+        pointer-events: none;
+      }
+
+      .mission-layout {
+        position: relative;
+        z-index: 1;
+        display: block;
+      }
+
+      .mission-copy {
+        max-width: 680px;
+        margin: 0 auto 52px;
+        text-align: center;
+      }
+
+      .mission-copy h2 {
+        margin: 0;
+        font-size: clamp(2.4rem, 4.6vw, 4.5rem);
+        line-height: 1.05;
+        letter-spacing: -0.045em;
+      }
+
+      .mission-copy p {
+        margin: 22px 0 0;
+        color: var(--muted);
+      }
+
+      .mission-list {
+        display: grid;
+        border-top: 1px solid var(--line);
+        border-right: 1px solid var(--line);
+        border-left: 1px solid var(--line);
+      }
+
+      .mission-item {
+        display: grid;
+        grid-template-columns: 50px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 18px;
+        min-height: 92px;
+        padding: 20px 26px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .mission-icon {
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        color: var(--cyan);
+        border: 1px solid var(--line);
+        border-radius: 50%;
+      }
+
+      .mission-icon svg {
+        width: 20px;
+        height: 20px;
+      }
+
+      .mission-item h3 {
+        margin: 0;
+        font-size: 1.02rem;
+      }
+
+      .mission-item p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 0.83rem;
+      }
+
+      .mission-item > span:last-child {
+        color: var(--muted);
+        font-size: 0.67rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .data-trust {
+        padding: 105px 0;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 50% 12%, rgba(52, 119, 166, 0.12), transparent 30rem),
+          #071323;
+      }
+
+      .trust-header {
+        max-width: 820px;
+        margin-inline: auto;
+        text-align: center;
+      }
+
+      .trust-header h2 {
+        margin: 0;
+        font-size: clamp(2.5rem, 5vw, 5rem);
+        line-height: 0.98;
+        letter-spacing: -0.055em;
+      }
+
+      .trust-header p {
+        max-width: 600px;
+        margin: 22px auto 0;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+
+      .trust-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-top: 64px;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .trust-item {
+        min-height: 205px;
+        padding: 30px 25px 28px;
+        border-left: 1px solid var(--line);
+      }
+
+      .trust-item:last-child {
+        border-right: 1px solid var(--line);
+      }
+
+      .trust-item span {
+        color: var(--cyan);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .trust-item h3 {
+        margin: 38px 0 0;
+        font-size: 1.18rem;
+      }
+
+      .trust-item p {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .trust-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        margin: 26px 0 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .trust-note svg {
+        width: 19px;
+        flex: 0 0 auto;
+        margin-top: 4px;
+      }
+
+      .source {
+        padding: 88px 0;
+        background: var(--ink-deep);
+      }
+
+      .source-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 0.8fr) minmax(350px, 1.2fr);
+        gap: clamp(46px, 9vw, 112px);
+        align-items: start;
+      }
+
+      .source h2 {
+        margin: 0;
+        color: var(--gold);
+        font-size: clamp(2.2rem, 4vw, 3.5rem);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+      }
+
+      .source-copy > p {
+        margin: 18px 0 0;
+        color: var(--muted);
+      }
+
+      .source-links {
+        display: grid;
+        border-top: 1px solid var(--line);
+      }
+
+      .source-link {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 18px;
+        min-height: 92px;
+        padding: 18px 4px;
+        border-bottom: 1px solid var(--line);
+        text-decoration: none;
+      }
+
+      .source-link strong {
+        display: block;
+        font-size: 1rem;
+      }
+
+      .source-link span {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.72rem;
+        overflow-wrap: anywhere;
+      }
+
+      .source-link:hover svg {
+        color: var(--gold);
+        transform: translate(2px, -2px);
+      }
+
+      .source-link svg {
+        color: var(--cyan);
+        transition:
+          color 160ms ease,
+          transform 160ms ease;
+      }
+
+      .site-footer {
+        padding: 32px 0 38px;
+        border-top: 1px solid rgba(150, 196, 235, 0.1);
+        background: var(--ink-deep);
+      }
+
+      .footer-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 30px;
+      }
+
+      .footer-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .footer-brand img {
+        width: 36px;
+        height: 36px;
+        border-radius: 11px;
+      }
+
+      .footer-brand strong {
+        display: block;
+        color: var(--gold);
+        font-size: 0.83rem;
+        letter-spacing: 0.1em;
+      }
+
+      .footer-brand span,
+      .footer-meta {
+        color: var(--muted);
+        font-size: 0.74rem;
+      }
+
+      .footer-meta {
+        max-width: 610px;
+        margin: 0;
+        text-align: right;
+      }
+
+      .footer-meta a {
+        color: var(--cyan);
+        text-underline-offset: 3px;
+      }
+
+      @media (max-width: 820px) {
+        .site-nav a:not(.nav-cta) {
+          display: none;
+        }
+
+        .hero {
+          min-height: auto;
+        }
+
+        .hero-grid,
+        .mission-layout,
+        .trust-header,
+        .source-layout {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-grid {
+          gap: 62px;
+        }
+
+        .hero-copy {
+          max-width: 780px;
+        }
+
+        .hero h1 {
+          max-width: 820px;
+        }
+
+        .situation-console {
+          min-height: 540px;
+        }
+
+        .mission-copy {
+          position: static;
+        }
+
+        .trust-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .trust-item:nth-child(2) {
+          border-right: 1px solid var(--line);
+        }
+
+        .trust-item:nth-child(-n + 2) {
+          border-bottom: 1px solid var(--line);
+        }
+      }
+
+      @media (max-width: 720px) {
+        :root {
+          --header-height: 72px;
+        }
+
+        .container {
+          width: min(calc(100% - 28px), var(--container));
+        }
+
+        .site-header,
+        .header-inner {
+          min-height: var(--header-height);
+        }
+
+        .brand-mark {
+          width: 42px;
+          height: 42px;
+          border-radius: 12px;
+        }
+
+        .brand-copy strong {
+          font-size: 0.82rem;
+        }
+
+        .brand-copy span {
+          font-size: 0.56rem;
+        }
+
+        .site-nav .nav-cta {
+          min-width: 44px;
+          width: 44px;
+          padding-inline: 0;
+          overflow: hidden;
+          font-size: 0;
+        }
+
+        .nav-cta::after {
+          content: "→";
+          font-size: 1.1rem;
+        }
+
+        .hero {
+          padding: 54px 0 68px;
+        }
+
+        .hero h1 {
+          font-size: clamp(3rem, 16vw, 5.1rem);
+        }
+
+        .hero-lead {
+          font-size: 1rem;
+        }
+
+        .button {
+          width: 100%;
+        }
+
+        .situation-console {
+          min-height: 510px;
+          padding: 17px;
+          border-radius: 22px;
+        }
+
+        .region-visual {
+          min-height: 280px;
+        }
+
+        .health-card {
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          gap: 11px;
+          padding: 14px;
+        }
+
+        .watch-areas {
+          grid-template-columns: 1fr;
+        }
+
+        .watch-area {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .workflow,
+        .missions,
+        .data-trust,
+        .source {
+          padding-block: 72px;
+        }
+
+        .workflow-steps {
+          grid-template-columns: 1fr;
+          margin-top: 42px;
+        }
+
+        .workflow-step {
+          min-height: auto;
+          padding: 30px 12px 34px 28px;
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+
+        .workflow-step:last-child {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .workflow-step::before {
+          margin-bottom: 24px;
+        }
+
+        .mission-layout {
+          gap: 44px;
+        }
+
+        .mission-item {
+          grid-template-columns: 44px minmax(0, 1fr);
+        }
+
+        .mission-item > span:last-child {
+          display: none;
+        }
+
+        .trust-grid {
+          grid-template-columns: 1fr;
+          margin-top: 44px;
+        }
+
+        .trust-item,
+        .trust-item:nth-child(2),
+        .trust-item:last-child {
+          min-height: auto;
+          padding: 27px 12px 28px;
+          border-right: 0;
+          border-left: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .trust-item h3 {
+          margin-top: 22px;
+        }
+
+        .source-layout {
+          gap: 42px;
+        }
+
+        .footer-inner {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .footer-meta {
+          text-align: left;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+    <script type="application/ld+json" nonce="wm-static-bootstrap">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "TOPMANIDMB World Intelligence",
+        "alternateName": "TOPMANIDMB ศูนย์บัญชาการสถานการณ์โลก",
+        "url": "https://topmanidmb-world-monitor.vercel.app/",
+        "applicationCategory": "NewsApplication",
+        "operatingSystem": "Web",
+        "inLanguage": ["th", "en"],
+        "isBasedOn": "https://github.com/koala73/worldmonitor",
+        "license": "https://www.gnu.org/licenses/agpl-3.0.html"
+      }
+    </script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">ข้ามไปยังเนื้อหาหลัก</a>
+
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="/" aria-label="TOPMANIDMB World Intelligence หน้าแรก">
+          <img
+            class="brand-mark"
+            src="/brand/topmanidmb-orbit-emblem.png"
+            alt="สัญลักษณ์วงโคจร TOPMANIDMB"
+            width="48"
+            height="48"
+          />
+          <span class="brand-copy">
+            <strong>TOPMANIDMB</strong>
+            <span>World Intelligence</span>
+          </span>
+        </a>
+
+        <nav class="site-nav" aria-label="เมนูหลัก">
+          <a href="#overview">ภาพรวม</a>
+          <a href="#missions">ภารกิจ</a>
+          <a href="#source">แหล่งข้อมูล</a>
+          <a class="nav-cta" href="/dashboard" aria-label="เปิดศูนย์บัญชาการ">
+            เปิดศูนย์บัญชาการ
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" id="overview" aria-labelledby="hero-title">
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <h1 id="hero-title">รู้ก่อนข่าว<span>เข้าใจก่อนเหตุการณ์</span></h1>
+            <p class="hero-lead">
+              ศูนย์บัญชาการสถานการณ์โลก<br />
+              สำหรับประเทศไทยและอาเซียน
+              <small>Global situational awareness for Thailand and ASEAN</small>
+            </p>
+
+            <div class="hero-actions">
+              <a class="button button-primary" href="/dashboard">
+                เปิดศูนย์บัญชาการ
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M5 12h14m-5-5 5 5-5 5"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </a>
+              <a class="button button-secondary" href="#data-trust">ตรวจสถานะข้อมูล</a>
+            </div>
+
+            <p class="hero-note">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M12 3 4.5 6v5.4c0 4.5 3.2 8.7 7.5 9.6 4.3-.9 7.5-5.1 7.5-9.6V6L12 3Z"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="m9.2 12 1.8 1.8 3.8-4"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span>
+                หน้าแรกจะแสดงผลตรวจสุขภาพระบบล่าสุดจาก API โดยตรง
+                และระบุให้ชัดเมื่อข้อมูลพร้อมเพียงบางส่วน ล่าช้า หรือตรวจสอบไม่ได้
+              </span>
+            </p>
+          </div>
+
+          <div class="situation-console" aria-label="มุมมองสถานการณ์ประเทศไทยและอาเซียน">
+            <div class="console-head">
+              <span class="console-title">
+                <strong>ภาพรวมสถานการณ์ · ไทยและอาเซียน</strong>
+                <span>ASEAN SITUATION VIEW</span>
+              </span>
+              <span class="console-lights" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </span>
+            </div>
+
+            <div class="region-visual" aria-hidden="true">
+              <svg viewBox="0 0 520 340" fill="none" aria-hidden="true">
+                <ellipse class="map-grid" cx="260" cy="170" rx="225" ry="128" />
+                <ellipse class="map-grid" cx="260" cy="170" rx="225" ry="74" />
+                <path class="map-grid" d="M35 170h450M260 42c-42 48-67 88-67 128s25 80 67 128" />
+                <path class="map-grid" d="M260 42c42 48 67 88 67 128s-25 80-67 128" />
+                <path
+                  class="map-land"
+                  d="m96 111 26-29 42-10 22 13 28-9 22 18-10 22-34 7-17 20-39-6-25 15-31-10 16-31Z"
+                />
+                <path
+                  class="map-land"
+                  d="m288 79 31-20 46 8 21 24 39 13 20 28-15 21-42-10-24 11-35-18-20 10-19-27 18-40Z"
+                />
+                <path
+                  class="map-land"
+                  d="m306 147 22-11 20 14 11 28 28 13-4 24-30 5-14 28-17-5-6-35-24-22 14-39Z"
+                />
+                <path
+                  class="map-land"
+                  d="m357 232 29-9 25 12 8 25-27 18-29-6-17-20 11-20Z"
+                />
+                <path
+                  class="map-land"
+                  d="m228 153 18-18 21 8 5 22-17 20 9 20-12 29-16-8-5-33-17-15 14-25Z"
+                />
+                <path
+                  class="map-thailand"
+                  d="m267 151 9 5-2 14 8 11-6 13-3 24-7 13-6-9 4-21-6-14 5-14-3-12 7-10Z"
+                />
+                <path class="map-route" d="M270 177C214 131 162 126 119 118" />
+                <path class="map-route" d="M270 177c45-41 87-54 139-46" />
+                <path class="map-route" d="M270 177c50 38 84 57 119 73" />
+                <circle class="map-node" cx="119" cy="118" r="3.5" />
+                <circle class="map-node" cx="409" cy="131" r="3.5" />
+                <circle class="map-node" cx="389" cy="250" r="3.5" />
+                <circle class="map-pulse" cx="270" cy="177" r="18" />
+                <circle fill="#f6c94a" cx="270" cy="177" r="4.5" />
+              </svg>
+              <span class="region-label">
+                <strong>THAILAND</strong>
+                <span>Regional focus</span>
+              </span>
+            </div>
+
+            <div
+              class="health-card"
+              id="health-card"
+              data-state="checking"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              <span class="health-dot" aria-hidden="true"></span>
+              <div class="health-copy">
+                <div class="health-topline">
+                  <strong id="health-label">กำลังตรวจสอบ</strong>
+                  <span id="health-time">รอผลตรวจล่าสุด</span>
+                </div>
+                <p class="health-detail" id="health-detail">กำลังอ่านสถานะจากระบบ</p>
+                <p class="health-counts" id="health-counts">ยังไม่มีผลสรุป</p>
+              </div>
+              <button
+                class="health-refresh"
+                id="health-refresh"
+                type="button"
+                aria-label="ตรวจสถานะข้อมูลอีกครั้ง"
+                aria-busy="true"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M20 11a8 8 0 0 0-14.9-4M4 5v5h5m-5 3a8 8 0 0 0 14.9 4M20 19v-5h-5"
+                    stroke="currentColor"
+                    stroke-width="1.9"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div class="watch-areas" aria-label="ขอบเขตการติดตาม">
+              <div class="watch-area">
+                <strong>ภูมิรัฐศาสตร์</strong>
+                <span>Geopolitics</span>
+              </div>
+              <div class="watch-area">
+                <strong>เศรษฐกิจ</strong>
+                <span>Economy</span>
+              </div>
+              <div class="watch-area">
+                <strong>ภัยพิบัติ</strong>
+                <span>Disasters</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="workflow" aria-labelledby="workflow-title">
+        <div class="container">
+          <div class="section-intro">
+            <h2 id="workflow-title">กระบวนการทำงานของศูนย์บัญชาการ</h2>
+            <p>
+              จัดลำดับการอ่านสถานการณ์ให้สั้นและชัด:
+              เริ่มจากเหตุการณ์ เชื่อมผลกระทบต่อไทย แล้วกำหนดประเด็นที่ต้องติดตามต่อ
+            </p>
+          </div>
+
+          <div class="workflow-steps">
+            <article class="workflow-step">
+              <h3>เกิดอะไรขึ้น</h3>
+              <p>มองเหตุการณ์สำคัญและบริบทจากหลายมิติในหน้าเดียว</p>
+            </article>
+            <article class="workflow-step">
+              <h3>กระทบไทยอย่างไร</h3>
+              <p>เชื่อมสัญญาณระดับโลกกับประเทศไทย อาเซียน เศรษฐกิจ และพลังงาน</p>
+            </article>
+            <article class="workflow-step">
+              <h3>ต้องเฝ้าระวังอะไรต่อ</h3>
+              <p>ใช้ Dashboard สำรวจแหล่งข้อมูล รายละเอียด และทิศทางที่เกี่ยวข้องต่อไป</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="missions" id="missions" aria-labelledby="missions-title">
+        <div class="container mission-layout">
+          <div class="mission-copy">
+            <h2 id="missions-title">ภารกิจหลักของเรา</h2>
+            <p>
+              เลือกสำรวจตามภารกิจได้จาก Dashboard
+              โดยสถานะความพร้อมของข้อมูลอาจต่างกันในแต่ละช่วงเวลา
+            </p>
+          </div>
+
+          <div class="mission-list">
+            <article class="mission-item">
+              <span class="mission-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4 19V8l8-4 8 4v11M8 11h8M8 15h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+              </span>
+              <div>
+                <h3>ประเทศไทยและอาเซียน</h3>
+                <p>วางภูมิภาคของเราไว้เป็นจุดตั้งต้นของการอ่านสถานการณ์</p>
+              </div>
+              <span>Regional</span>
+            </article>
+            <article class="mission-item">
+              <span class="mission-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 3 4 7v5c0 4.6 3.3 8 8 9 4.7-1 8-4.4 8-9V7l-8-4Z" stroke="currentColor" stroke-width="1.7" />
+                </svg>
+              </span>
+              <div>
+                <h3>ข่าวและความขัดแย้ง</h3>
+                <p>ติดตามข่าวสำคัญ สัญญาณภูมิรัฐศาสตร์ และเหตุการณ์ความมั่นคง</p>
+              </div>
+              <span>Conflict</span>
+            </article>
+            <article class="mission-item">
+              <span class="mission-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M5 17h13a4 4 0 0 0 0-8 6 6 0 0 0-11.3-2A5 5 0 0 0 5 17Z" stroke="currentColor" stroke-width="1.7" />
+                </svg>
+              </span>
+              <div>
+                <h3>ภัยพิบัติและอากาศ</h3>
+                <p>สำรวจเหตุการณ์ธรรมชาติและข้อมูลแวดล้อมที่ระบบรวบรวมได้</p>
+              </div>
+              <span>Disaster</span>
+            </article>
+            <article class="mission-item">
+              <span class="mission-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4 18V9m5 9V5m6 13v-7m5 7V7M3 20h18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+              </span>
+              <div>
+                <h3>ตลาดการเงิน</h3>
+                <p>ดูภาพรวมตลาดและตัวชี้วัดที่มีอยู่ในระบบเพื่อประกอบการวิเคราะห์</p>
+              </div>
+              <span>Finance</span>
+            </article>
+            <article class="mission-item">
+              <span class="mission-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M13 3 6 13h5l-1 8 8-12h-5V3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <div>
+                <h3>พลังงานและสินค้าโภคภัณฑ์</h3>
+                <p>ติดตามสัญญาณด้านพลังงาน วัตถุดิบ และความเชื่อมโยงทางเศรษฐกิจ</p>
+              </div>
+              <span>Energy</span>
+            </article>
+            <article class="mission-item">
+              <span class="mission-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="m3 14 8-2V5.5a1.5 1.5 0 0 1 3 0V11l6-1.5v3L14 15v4l2 1v1l-3.5-.5L9 21v-1l2-1v-3l-8 1v-3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+                </svg>
+              </span>
+              <div>
+                <h3>การบิน</h3>
+                <p>สำรวจภาพการเคลื่อนไหวของเที่ยวบินและบริบทที่เกี่ยวข้อง</p>
+              </div>
+              <span>Aviation</span>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="data-trust" id="data-trust" aria-labelledby="trust-title">
+        <div class="container">
+          <div class="trust-header">
+            <h2 id="trust-title">ข้อมูลหลัก TOPMAN 6 ชุดต้องสดก่อนเรียกว่าล่าสุด</h2>
+            <p>
+              หน้านี้แสดงผลตรวจเฉพาะข้อมูลหลัก TOPMAN 6 ชุดอย่างตรงไปตรงมา
+              “พร้อมบางส่วน” หมายถึงบางแหล่งอาจล่าช้าหรือไม่พร้อม
+              ไม่ใช่สถานะของระบบ World Monitor ทั้งหมด
+              จึงควรเปิดดูรายละเอียดและแหล่งอ้างอิงก่อนนำไปตัดสินใจ
+            </p>
+          </div>
+
+          <div class="trust-grid">
+            <article class="trust-item">
+              <span>Source</span>
+              <h3>แหล่งที่มา</h3>
+              <p>ตรวจสอบที่มาของข้อมูลในแต่ละมุมมองภายใน Dashboard</p>
+            </article>
+            <article class="trust-item">
+              <span>Checked at</span>
+              <h3>เวลาที่ตรวจล่าสุด</h3>
+              <p>หน้าแรกแสดงเวลาจากผลตรวจระบบ ไม่ใช้เวลาที่สร้างขึ้นเอง</p>
+            </article>
+            <article class="trust-item">
+              <span>Freshness</span>
+              <h3>ความสดของข้อมูล</h3>
+              <p>หากผลตรวจเก่ากว่าเกณฑ์ หน้าจอจะระบุว่า “ข้อมูลล่าช้า”</p>
+            </article>
+            <article class="trust-item">
+              <span>Availability</span>
+              <h3>ความพร้อมใช้งาน</h3>
+              <p>แยกสถานะพร้อม พร้อมบางส่วน ไม่พร้อม และตรวจสอบไม่ได้</p>
+            </article>
+          </div>
+
+          <p class="trust-note">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7" />
+              <path d="M12 11v5m0-8v.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
+            </svg>
+            <span>
+              สถานะจาก <code>/api/topman-core-status</code> ครอบคลุมเฉพาะข้อมูลหลัก
+              TOPMAN 6 ชุด ไม่ใช่คำรับรองสถานะของแหล่งข้อมูลทั้งหมดในระบบต้นทาง
+            </span>
+          </p>
+        </div>
+      </section>
+
+      <section class="source" id="source" aria-labelledby="source-title">
+        <div class="container source-layout">
+          <div class="source-copy">
+            <h2 id="source-title">Open source.<br />ตรวจสอบย้อนกลับได้</h2>
+            <p>
+              TOPMANIDMB World Intelligence พัฒนาต่อยอดบน World Monitor
+              และเปิดลิงก์ซอร์สของเวอร์ชันที่ใช้งานอยู่ให้ตรวจสอบได้โดยตรง
+            </p>
+          </div>
+
+          <div class="source-links">
+            <a
+              id="topman-source-link"
+              class="source-link"
+              href="https://github.com/Topman3579/topmanidmb-world-monitor"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>
+                <strong>ซอร์สของเวอร์ชันนี้</strong>
+                <span id="topman-source-revision">กำลังยืนยัน revision ที่เผยแพร่</span>
+              </span>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path d="M8 16 16 8m-6 0h6v6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </a>
+            <a
+              class="source-link"
+              href="https://github.com/koala73/worldmonitor"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span>
+                <strong>World Monitor ต้นฉบับ</strong>
+                <span>koala73/worldmonitor</span>
+              </span>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path d="M8 16 16 8m-6 0h6v6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </a>
+            <a class="source-link" href="/api/topman-core-status">
+              <span>
+                <strong>ผลตรวจข้อมูลหลัก TOPMAN 6 ชุด (JSON)</strong>
+                <span>/api/topman-core-status</span>
+              </span>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path d="M8 16 16 8m-6 0h6v6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </a>
+            <a class="source-link" href="/api/health?compact=1">
+              <span>
+                <strong>ผลตรวจระบบต้นทางทั้งหมด (JSON)</strong>
+                <span>/api/health?compact=1</span>
+              </span>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path d="M8 16 16 8m-6 0h6v6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div class="footer-brand">
+          <img
+            src="/brand/topmanidmb-orbit-emblem.png"
+            alt=""
+            width="36"
+            height="36"
+          />
+          <span>
+            <strong>TOPMANIDMB</strong>
+            <span>World Intelligence</span>
+          </span>
+        </div>
+        <p class="footer-meta">
+          Based on
+          <a href="https://github.com/koala73/worldmonitor">World Monitor</a>
+          · Licensed under
+          <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a>
+          · ข้อมูลเพื่อการรับรู้สถานการณ์ ควรตรวจสอบแหล่งอ้างอิงก่อนตัดสินใจ
+        </p>
+      </div>
+    </footer>
+
+    <script src="/topman-welcome-source.js" defer nonce="wm-static-bootstrap"></script>
+    <script nonce="wm-static-bootstrap">
+      (() => {
+        "use strict";
+
+        const HEALTH_URL = "/api/topman-core-status";
+        const HEALTH_CHECK_MAX_AGE_MS = 5 * 60 * 1000;
+        const HEALTH_CHECK_FUTURE_TOLERANCE_MS = 60 * 1000;
+        const HEALTH_REQUEST_TIMEOUT_MS = 10 * 1000;
+        const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+        const EMPTY_SUMMARY = Object.freeze({
+          total: 0,
+          ok: 0,
+          warn: 0,
+          onDemandWarn: 0,
+          staleContent: 0,
+          crit: 0,
+        });
+
+        const card = document.getElementById("health-card");
+        const label = document.getElementById("health-label");
+        const detail = document.getElementById("health-detail");
+        const time = document.getElementById("health-time");
+        const counts = document.getElementById("health-counts");
+        const refreshButton = document.getElementById("health-refresh");
+        let activeHealthController = null;
+        let healthRequestGeneration = 0;
+
+        const unavailableSnapshot = (sourceStatus = null, checkedAtMs = null) => ({
+          state: "unavailable",
+          sourceStatus,
+          summary: { ...EMPTY_SUMMARY },
+          checkedAtMs,
+        });
+
+        const isObject = (value) =>
+          typeof value === "object" && value !== null && !Array.isArray(value);
+
+        const readNonNegativeInteger = (value) =>
+          Number.isInteger(value) && value >= 0 ? value : null;
+
+        const parseSummary = (value) => {
+          if (!isObject(value)) return null;
+
+          const summary = {
+            total: readNonNegativeInteger(value.total),
+            ok: readNonNegativeInteger(value.ok),
+            warn: readNonNegativeInteger(value.warn),
+            onDemandWarn: readNonNegativeInteger(value.onDemandWarn),
+            staleContent: readNonNegativeInteger(value.staleContent),
+            crit: readNonNegativeInteger(value.crit),
+          };
+
+          if (
+            summary.total === null ||
+            summary.total !== 6 ||
+            summary.ok === null ||
+            summary.warn === null ||
+            summary.onDemandWarn === null ||
+            summary.staleContent === null ||
+            summary.crit === null
+          ) {
+            return null;
+          }
+
+          if (
+            summary.ok + summary.warn + summary.onDemandWarn + summary.crit !==
+              summary.total ||
+            summary.staleContent > summary.warn
+          ) {
+            return null;
+          }
+
+          return summary;
+        };
+
+        const classifyHealthPayload = (payload, nowMs = Date.now()) => {
+          if (!isObject(payload) || typeof payload.status !== "string") {
+            return unavailableSnapshot();
+          }
+
+          const checkedAtMs =
+            typeof payload.checkedAt === "string"
+              ? Date.parse(payload.checkedAt)
+              : Number.NaN;
+          if (
+            !Number.isFinite(checkedAtMs) ||
+            checkedAtMs > nowMs + HEALTH_CHECK_FUTURE_TOLERANCE_MS
+          ) {
+            return unavailableSnapshot();
+          }
+
+          const sourceStatus = payload.status.toUpperCase();
+          if (sourceStatus === "REDIS_DOWN") {
+            return unavailableSnapshot(sourceStatus, checkedAtMs);
+          }
+
+          const summary = parseSummary(payload.summary);
+          if (!summary) return unavailableSnapshot();
+
+          const statusMatchesSummary =
+            sourceStatus === "HEALTHY"
+              ? summary.ok === summary.total &&
+                summary.warn === 0 &&
+                summary.onDemandWarn === 0 &&
+                summary.staleContent === 0 &&
+                summary.crit === 0
+              : sourceStatus === "WARNING"
+                ? summary.warn > 0 &&
+                  summary.onDemandWarn === 0 &&
+                  summary.crit === 0
+                : sourceStatus === "UNHEALTHY"
+                  ? summary.onDemandWarn === 0 && summary.crit > 0
+                  : false;
+          if (!statusMatchesSummary) return unavailableSnapshot();
+
+          let state;
+          if (nowMs - checkedAtMs > HEALTH_CHECK_MAX_AGE_MS) {
+            state = "stale";
+          } else if (sourceStatus === "UNHEALTHY") {
+            state = summary.ok > 0 ? "partial" : "unavailable";
+          } else if (sourceStatus === "HEALTHY") {
+            state = "healthy";
+          } else if (sourceStatus === "WARNING") {
+            state = summary.staleContent > 0 ? "stale" : "partial";
+          } else {
+            return unavailableSnapshot();
+          }
+
+          return { state, sourceStatus, summary, checkedAtMs };
+        };
+
+        const formatCheckedAt = (checkedAtMs) => {
+          if (!Number.isFinite(checkedAtMs)) return null;
+          const checkedAt = new Date(checkedAtMs);
+          if (Number.isNaN(checkedAt.getTime())) return null;
+
+          return {
+            date: checkedAt,
+            text: new Intl.DateTimeFormat("th-TH", {
+              dateStyle: "medium",
+              timeStyle: "short",
+              timeZone: "Asia/Bangkok",
+            }).format(checkedAt),
+          };
+        };
+
+        const setHealthView = (state, title, message, checkedText, summaryText) => {
+          card.dataset.state = state;
+          label.textContent = title;
+          detail.textContent = message;
+          time.textContent = checkedText;
+          counts.textContent = summaryText;
+        };
+
+        const renderHealthSnapshot = (snapshot) => {
+          const { summary } = snapshot;
+          const total = summary.total;
+          const ok = summary.ok;
+          const warn = summary.warn + summary.onDemandWarn;
+          const critical = summary.crit;
+          const checked = formatCheckedAt(snapshot.checkedAtMs);
+          const checkedText = checked
+            ? `ตรวจล่าสุด ${checked.text} น.`
+            : "ไม่พบเวลาที่ตรวจล่าสุด";
+          const summaryText = total
+            ? `TOPMAN Core ${total} ชุด · ผ่าน ${ok}/${total} · เตือน ${warn} · วิกฤต ${critical}`
+            : "ระบบไม่ส่งจำนวนข้อมูลหลักกลับมา";
+
+          if (snapshot.state === "healthy") {
+            setHealthView(
+              "ready",
+              "ข้อมูลหลัก 6 ชุดพร้อม",
+              "ผลตรวจล่าสุดไม่พบคำเตือนในข้อมูลหลัก TOPMAN 6 ชุด",
+              checkedText,
+              summaryText,
+            );
+            return;
+          }
+
+          if (snapshot.state === "stale") {
+            setHealthView(
+              "delayed",
+              "ข้อมูลหลักล่าช้า",
+              "ผลตรวจหรือข้อมูลหลักบางชุดเก่ากว่าเกณฑ์ที่กำหนด",
+              checkedText,
+              summaryText,
+            );
+            return;
+          }
+
+          if (snapshot.state === "partial") {
+            setHealthView(
+              "partial",
+              "ข้อมูลหลักพร้อมบางส่วน",
+              "ข้อมูลหลักบางชุดอาจล่าช้าหรือไม่พร้อม กรุณาตรวจรายละเอียดก่อนใช้งาน",
+              checkedText,
+              summaryText,
+            );
+            return;
+          }
+
+          if (snapshot.state === "unavailable") {
+            setHealthView(
+              "unavailable",
+              "ข้อมูลหลักไม่พร้อม",
+              "ยังยืนยันความพร้อมของข้อมูลหลัก 6 ชุดไม่ได้ กรุณาลองตรวจอีกครั้งภายหลัง",
+              checkedText,
+              summaryText,
+            );
+            return;
+          }
+        };
+
+        const refreshHealth = async () => {
+          const generation = ++healthRequestGeneration;
+          activeHealthController?.abort();
+          const controller = new AbortController();
+          activeHealthController = controller;
+          const timeoutId = window.setTimeout(
+            () => controller.abort(new DOMException("Health request timed out", "TimeoutError")),
+            HEALTH_REQUEST_TIMEOUT_MS,
+          );
+          refreshButton.setAttribute("aria-busy", "true");
+          setHealthView(
+            "checking",
+            "กำลังตรวจสอบ",
+            "กำลังอ่านสถานะข้อมูลหลัก TOPMAN 6 ชุด",
+            "รอผลตรวจล่าสุด",
+            "ยังไม่มีผลสรุป",
+          );
+
+          try {
+            const response = await fetch(HEALTH_URL, {
+              cache: "no-store",
+              headers: { Accept: "application/json" },
+              signal: controller.signal,
+            });
+            const payload = await response.json();
+            if (generation !== healthRequestGeneration) return;
+            const snapshot = classifyHealthPayload(payload);
+            if (!response.ok && snapshot.sourceStatus !== "REDIS_DOWN") {
+              renderHealthSnapshot(unavailableSnapshot());
+              return;
+            }
+            renderHealthSnapshot(snapshot);
+          } catch (error) {
+            if (generation !== healthRequestGeneration) return;
+            setHealthView(
+              "unknown",
+              "ตรวจสอบไม่ได้",
+              error?.name === "TimeoutError"
+                ? "การตรวจข้อมูลหลักใช้เวลานานเกิน 10 วินาที"
+                : "เชื่อมต่อผลตรวจข้อมูลหลักไม่สำเร็จ",
+              "ยังยืนยันเวลาล่าสุดไม่ได้",
+              "กดปุ่มด้านขวาเพื่อลองใหม่",
+            );
+          } finally {
+            window.clearTimeout(timeoutId);
+            if (generation === healthRequestGeneration) {
+              activeHealthController = null;
+              refreshButton.setAttribute("aria-busy", "false");
+            }
+          }
+        };
+
+        refreshButton.addEventListener("click", refreshHealth);
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") refreshHealth();
+        });
+
+        refreshHealth();
+        window.setInterval(refreshHealth, REFRESH_INTERVAL_MS);
+      })();
+    </script>
+  </body>
+</html>

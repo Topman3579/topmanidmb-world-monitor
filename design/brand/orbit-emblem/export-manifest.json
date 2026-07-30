@@ -1,0 +1,63 @@
+{
+  "brand": "TOPMANIDMB",
+  "concept": "04 - Orbit Emblem",
+  "sourceMode": "generated-raster-selected-by-user",
+  "exportMode": "deterministic-imagemagick-resize",
+  "colorSpace": "sRGB",
+  "alpha": false,
+  "source": "orbit-emblem-master-1254.png",
+  "master": "orbit-emblem-1024.png",
+  "preview": "orbit-emblem-export-preview.png",
+  "targets": [
+    {
+      "path": "public/brand/topmanidmb-orbit-emblem.png",
+      "size": "256x256",
+      "usage": "web header"
+    },
+    {
+      "path": "public/favico/worldmonitor-icon-1024.png",
+      "size": "1024x1024",
+      "usage": "web master and story renderer"
+    },
+    {
+      "path": "public/favico/android-chrome-512x512.png",
+      "size": "512x512",
+      "usage": "PWA and maskable icon"
+    },
+    {
+      "path": "public/favico/android-chrome-192x192.png",
+      "size": "192x192",
+      "usage": "PWA icon"
+    },
+    {
+      "path": "public/favico/android-chrome-96x96.png",
+      "size": "96x96",
+      "usage": "web footer and compact icon"
+    },
+    {
+      "path": "public/favico/apple-touch-icon.png",
+      "size": "180x180",
+      "usage": "Apple touch icon"
+    },
+    {
+      "path": "public/favico/favicon-32x32.png",
+      "size": "32x32",
+      "usage": "browser favicon"
+    },
+    {
+      "path": "public/favico/favicon-16x16.png",
+      "size": "16x16",
+      "usage": "browser favicon"
+    },
+    {
+      "path": "ios/TopmanWorldMonitor/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+      "size": "1024x1024",
+      "usage": "iOS App Store icon"
+    },
+    {
+      "path": "ios/TopmanWorldMonitor/Resources/Assets.xcassets/LaunchLogo.imageset/LaunchLogo.png",
+      "size": "512x512",
+      "usage": "iOS launch and About logo"
+    }
+  ]
+}

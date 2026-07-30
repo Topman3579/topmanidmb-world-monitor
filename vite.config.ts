@@ -227,16 +227,26 @@ function htmlVariantPlugin(activeMeta: VariantMeta, activeVariant: string, isDes
         .replace(/<meta property="og:url" content=".*?" \/>/, `<meta property="og:url" content="${activeMeta.url}" />`)
         .replace(/<meta property="og:title" content=".*?" \/>/, `<meta property="og:title" content="${activeMeta.title}" />`)
         .replace(/<meta property="og:description" content=".*?" \/>/, `<meta property="og:description" content="${activeMeta.description}" />`)
+        .replace(/<meta property="og:image:alt" content=".*?" \/>/, `<meta property="og:image:alt" content="${activeMeta.imageAlt}" />`)
         .replace(/<meta property="og:site_name" content=".*?" \/>/, `<meta property="og:site_name" content="${activeMeta.siteName}" />`)
         .replace(/<meta name="subject" content=".*?" \/>/, `<meta name="subject" content="${activeMeta.subject}" />`)
         .replace(/<meta name="classification" content=".*?" \/>/, `<meta name="classification" content="${activeMeta.classification}" />`)
         .replace(/<meta name="twitter:url" content=".*?" \/>/, `<meta name="twitter:url" content="${activeMeta.url}" />`)
         .replace(/<meta name="twitter:title" content=".*?" \/>/, `<meta name="twitter:title" content="${activeMeta.title}" />`)
         .replace(/<meta name="twitter:description" content=".*?" \/>/, `<meta name="twitter:description" content="${activeMeta.description}" />`)
-        .replace(/"name": "World Monitor"/, `"name": "${activeMeta.siteName}"`)
-        .replace(/"alternateName": "WorldMonitor"/, `"alternateName": "${activeMeta.siteName.replace(' ', '')}"`)
-        .replace(/"url": "https:\/\/worldmonitor\.app\/"/, `"url": "${activeMeta.url}"`)
-        .replace(/"description": "Real-time global intelligence dashboard with live news, markets, military tracking, infrastructure monitoring, and geopolitical data."/, `"description": "${activeMeta.description}"`)
+        .replace(/<meta name="twitter:image:alt" content=".*?" \/>/, `<meta name="twitter:image:alt" content="${activeMeta.imageAlt}" />`)
+        .replace(
+          /("@type": "WebApplication",\s*"name": )"[^"]*"/,
+          `$1${JSON.stringify(activeMeta.siteName)}`,
+        )
+        .replace(
+          /("@type": "WebApplication",[\s\S]{0,600}?"url": )"[^"]*"/,
+          `$1${JSON.stringify(activeMeta.url)}`,
+        )
+        .replace(
+          /("@type": "WebApplication",[\s\S]{0,800}?"description": )"[^"]*"/,
+          `$1${JSON.stringify(activeMeta.description)}`,
+        )
         .replace(/"featureList": \[[\s\S]*?\]/, `"featureList": ${JSON.stringify(activeMeta.features, null, 8).replace(/\n/g, '\n      ')}`);
 
       // Theme-color meta — warm cream for happy variant
@@ -926,16 +936,27 @@ export default defineConfig(({ mode }) => {
         includeManifestIcons: false,
 
         manifest: {
+          id: '/dashboard',
           name: `${activeMeta.siteName} - ${activeMeta.subject}`,
           short_name: activeMeta.shortName,
           description: activeMeta.description,
           start_url: '/dashboard',
           scope: '/',
           display: 'standalone',
+          display_override: ['window-controls-overlay', 'standalone'],
           orientation: 'any',
           theme_color: '#0a0f0a',
           background_color: '#0a0f0a',
           categories: activeMeta.categories,
+          shortcuts: [
+            {
+              name: 'World Dashboard',
+              short_name: 'Dashboard',
+              description: 'Open the TOPMANIDMB global situation dashboard',
+              url: '/dashboard',
+              icons: [{ src: '/favico/android-chrome-192x192.png', sizes: '192x192' }],
+            },
+          ],
           icons: [
             { src: '/favico/android-chrome-192x192.png', sizes: '192x192', type: 'image/png' },
             { src: '/favico/android-chrome-512x512.png', sizes: '512x512', type: 'image/png' },
@@ -950,6 +971,21 @@ export default defineConfig(({ mode }) => {
             '**/onnx*.wasm',
             '**/locale-*.js',
             '**/clerk-*.js',
+            // Commander Lite precaches the shell, not heavyweight feature
+            // lanes. These immutable chunks remain available on demand and
+            // are retained after first use by optional-runtime-chunks below.
+            '**/GlobeMap-*.js',
+            '**/MapContainer-*.js',
+            '**/maplibre-*.js',
+            '**/deck-stack-*.js',
+            '**/protomaps-*.js',
+            '**/h3-js-*.js',
+            '**/hls-*.js',
+            '**/sentry-*.js',
+            '**/panels-*.js',
+            '**/UnifiedSettings-*.js',
+            '**/settings-window-*.js',
+            '**/checkout-*.js',
             // Fonts are fetched only when their stylesheet applies. Precache
             // would pull every local weight into the first mobile visit.
             '**/*.woff2',
@@ -966,8 +1002,9 @@ export default defineConfig(({ mode }) => {
             // images on demand; the dashboard never needs them.
             'blog/**',
           ],
-          // globe.gl + three.js grows main bundle past the 2 MiB default limit
-          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          // A future unnamed heavyweight feature chunk should not silently
+          // become first-install work.
+          maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
           navigateFallback: null,
           skipWaiting: true,
           clientsClaim: true,
@@ -1024,6 +1061,17 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'protomaps-assets',
                 expiration: { maxEntries: 100, maxAgeSeconds: 365 * 24 * 60 * 60 },
                 cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            {
+              urlPattern: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+                sameOrigin
+                && /^\/assets\/(?:GlobeMap|MapContainer|maplibre|deck-stack|protomaps|h3-js|hls|sentry|panels|UnifiedSettings|settings-window|checkout)-[^/]+\.js$/i.test(url.pathname),
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'optional-runtime-chunks',
+                expiration: { maxEntries: 64, maxAgeSeconds: 30 * 24 * 60 * 60 },
+                cacheableResponse: { statuses: [200] },
               },
             },
             {

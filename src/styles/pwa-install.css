@@ -1,0 +1,247 @@
+.topman-pwa-install {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 10040;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  width: min(430px, calc(100vw - 32px));
+  padding: 10px;
+  color: var(--text);
+  background:
+    linear-gradient(135deg, rgba(19, 29, 34, 0.98), rgba(8, 14, 18, 0.98));
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-radius: 12px;
+  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.48), 0 0 24px rgba(212, 175, 55, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.topman-pwa-install[hidden],
+.topman-pwa-guide[hidden],
+.topman-pwa-guide-backdrop[hidden] {
+  display: none;
+}
+
+.topman-pwa-install__icon {
+  border-radius: 9px;
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.35);
+}
+
+.topman-pwa-install__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.topman-pwa-install__copy strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topman-pwa-install__copy span {
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topman-pwa-install__action,
+.topman-pwa-guide__done {
+  min-height: 38px;
+  padding: 0 14px;
+  color: #07110d;
+  font: 700 11px/1 inherit;
+  letter-spacing: 0.04em;
+  background: var(--accent);
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.topman-pwa-install__action:hover,
+.topman-pwa-guide__done:hover {
+  filter: brightness(1.1);
+}
+
+.topman-pwa-install__close,
+.topman-pwa-guide__close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--text-dim);
+  font: 400 22px/1 inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  place-items: center;
+}
+
+.topman-pwa-install__close:hover,
+.topman-pwa-guide__close:hover {
+  color: var(--text);
+  background: var(--overlay-subtle);
+}
+
+.topman-pwa-guide-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10049;
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(4px);
+}
+
+.topman-pwa-guide {
+  position: fixed;
+  left: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 10050;
+  width: min(520px, calc(100vw - 24px));
+  padding: 20px;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top right, rgba(212, 175, 55, 0.12), transparent 40%),
+    var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 18px;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.58);
+  transform: translateX(-50%);
+}
+
+.topman-pwa-guide__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.topman-pwa-guide__eyebrow {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.topman-pwa-guide h2 {
+  margin: 5px 0 0;
+  color: var(--text);
+  font-size: clamp(19px, 5vw, 25px);
+  line-height: 1.25;
+}
+
+.topman-pwa-guide__intro,
+.topman-pwa-guide__note {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.topman-pwa-guide__steps {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: pwa-step;
+}
+
+.topman-pwa-guide__steps li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 2px 10px;
+  padding: 12px;
+  background: var(--overlay-subtle);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  counter-increment: pwa-step;
+}
+
+.topman-pwa-guide__steps li::before {
+  display: grid;
+  grid-row: 1 / 3;
+  width: 30px;
+  height: 30px;
+  color: #07110d;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--accent);
+  border-radius: 50%;
+  content: counter(pwa-step);
+  place-items: center;
+}
+
+.topman-pwa-guide__steps strong {
+  font-size: 13px;
+}
+
+.topman-pwa-guide__steps span {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.topman-pwa-guide__note {
+  padding: 10px 12px;
+  background: rgba(59, 130, 246, 0.08);
+  border-left: 2px solid var(--blue, #3b82f6);
+}
+
+.topman-pwa-guide__done {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.topman-pwa-guide-open {
+  overflow: hidden;
+}
+
+@media (max-width: 600px) {
+  .topman-pwa-install {
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: calc(100vw - 24px);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .topman-pwa-install__close {
+    position: absolute;
+    top: -12px;
+    right: -5px;
+    width: 28px;
+    height: 28px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+  }
+
+  .topman-pwa-guide {
+    padding: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .topman-pwa-install:not([hidden]) {
+    animation: topman-pwa-rise 280ms ease-out;
+  }
+
+  @keyframes topman-pwa-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}

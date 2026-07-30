@@ -22,7 +22,7 @@
  * api/mcp/auth.ts byte-for-byte so both surfaces present one identical challenge.
  */
 
-import { resolveMetadataOrigin } from './_agent-metadata';
+import { resolveMetadataOrigin } from './_agent-metadata.js';
 
 export const config = { runtime: 'edge' };
 

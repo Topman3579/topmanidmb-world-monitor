@@ -1,4 +1,13 @@
-import { LANGUAGES, getCurrentLanguage, changeLanguage, t } from '@/services/i18n';
+import {
+  LANGUAGES,
+  changeLanguage,
+  getCurrentLanguage,
+  getTopmanLanguageMode,
+  setTopmanLanguageMode,
+  t,
+  topmanText,
+  type TopmanLanguageMode,
+} from '@/services/i18n';
 import { getAiFlowSettings, setAiFlowSetting, getStreamQuality, setStreamQuality, STREAM_QUALITY_OPTIONS } from '@/services/ai-flow-settings';
 import { getMapProvider, setMapProvider, MAP_PROVIDER_OPTIONS, MAP_THEME_OPTIONS, getMapTheme, setMapTheme, type MapProvider } from '@/config/basemap';
 import { getLiveStreamsAlwaysOn, setLiveStreamsAlwaysOn } from '@/services/live-stream-settings';
@@ -112,6 +121,7 @@ function updateAiStatus(container: HTMLElement): void {
 export function renderPreferences(host: PreferencesHost): PreferencesResult {
   const settings = getAiFlowSettings();
   const currentLang = getCurrentLanguage();
+  const topmanLanguageMode = getTopmanLanguageMode();
   let html = '';
 
   // ── Display group ──
@@ -203,8 +213,36 @@ export function renderPreferences(host: PreferencesHost): PreferencesResult {
   }
   html += `</select>`;
 
-  // Language
-  html += `<div class="ai-flow-section-label">${t('header.languageLabel')}</div>`;
+  // TOPMANIDMB language mode: concise Thai-first guidance without making every
+  // dashboard label twice as long. The upstream language list remains below.
+  html += `<div class="ai-flow-toggle-row topman-language-heading">
+    <div class="ai-flow-toggle-label-wrap">
+      <div class="ai-flow-toggle-label">${escapeHtml(topmanText('ภาษาของแอป', 'App language'))}</div>
+      <div class="ai-flow-toggle-desc">${escapeHtml(topmanText(
+        'แนะนำแบบสองภาษา: เมนูหลักเป็นไทย พร้อมคำอังกฤษกำกับ และระบบจะจำค่าบนอุปกรณ์นี้',
+        'Bilingual is recommended. The app remembers this choice on this device.',
+      ))}</div>
+    </div>
+  </div>`;
+  html += `<select class="unified-settings-lang-select topman-language-select" id="us-topman-language-mode">`;
+  if (currentLang !== 'th' && currentLang !== 'en') {
+    const currentLanguage = LANGUAGES.find(language => language.code === currentLang);
+    const label = currentLanguage?.label ?? currentLang.toUpperCase();
+    html += `<option value="" selected disabled>${escapeHtml(label)} (${escapeHtml(topmanText('ภาษาอื่น', 'Other language'))})</option>`;
+  }
+  for (const option of [
+    { value: 'th', label: 'ไทย' },
+    { value: 'bilingual', label: 'ไทย + English (แนะนำ / Recommended)' },
+    { value: 'en', label: 'English' },
+  ] as Array<{ value: TopmanLanguageMode; label: string }>) {
+    const selected = (currentLang === 'th' || currentLang === 'en') && option.value === topmanLanguageMode
+      ? ' selected'
+      : '';
+    html += `<option value="${option.value}"${selected}>${escapeHtml(option.label)}</option>`;
+  }
+  html += `</select>`;
+
+  html += `<div class="ai-flow-section-label">${escapeHtml(topmanText('ภาษาอื่น', 'Other languages'))}</div>`;
   html += `<select class="unified-settings-lang-select" id="us-language">`;
   for (const lang of LANGUAGES) {
     const selected = lang.code === currentLang ? ' selected' : '';
@@ -459,6 +497,12 @@ export function renderPreferences(host: PreferencesHost): PreferencesResult {
         if (target.id === 'us-language') {
           trackLanguageChange(target.value);
           void changeLanguage(target.value);
+          return;
+        }
+        if (target.id === 'us-topman-language-mode') {
+          const mode = target.value as TopmanLanguageMode;
+          trackLanguageChange(mode === 'bilingual' ? 'th-en' : mode);
+          void setTopmanLanguageMode(mode);
           return;
         }
         if (target.id === 'us-cloud') {

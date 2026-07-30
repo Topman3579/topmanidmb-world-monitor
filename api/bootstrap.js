@@ -21,6 +21,7 @@ import {
 import { redisPipeline } from './_upstash-json.js';
 import { unwrapEnvelope } from './_seed-envelope.js';
 import { bootstrapTierKeyNames, resolveBootstrapRegistry } from './_bootstrap-tier-keys.js';
+import { resolveTopmanCoreProjection, topmanCoreDataKey } from './_topman-core.js';
 import { compactWildfireDashboardPayload } from './_wildfire-dashboard.js';
 import {
   BOOTSTRAP_R2_PROBE_CEILING_MS,
@@ -204,7 +205,12 @@ function hasBootstrapCredentialCookie(req) {
 const NEG_SENTINEL = '__WM_NEG__';
 export const compactWildfireBootstrapPayload = compactWildfireDashboardPayload;
 
-async function getCachedJsonBatch(keys, shadowMarkerTier = null) {
+async function getCachedJsonBatch(
+  keys,
+  shadowMarkerTier = null,
+  preserveEnvelopeKeys = new Set(),
+  optionalKeys = new Set(),
+) {
   const result = new Map();
   if (keys.length === 0) return result;
 
@@ -231,6 +237,7 @@ async function getCachedJsonBatch(keys, shadowMarkerTier = null) {
       || !('result' in entry)
       || entry.error != null
     ) {
+      if (optionalKeys.has(keys[i])) continue;
       throw new Error('Bootstrap Redis pipeline command failed');
     }
     const raw = entry.result;
@@ -241,7 +248,10 @@ async function getCachedJsonBatch(keys, shadowMarkerTier = null) {
         // Envelope-aware: bootstrap is a public-boundary consumer — strip _seed
         // from contract-mode canonical keys so clients never see envelope
         // metadata. Legacy bare-shape values pass through unchanged.
-        result.set(keys[i], unwrapEnvelope(parsed).data);
+        result.set(
+          keys[i],
+          preserveEnvelopeKeys.has(keys[i]) ? parsed : unwrapEnvelope(parsed).data,
+        );
       } catch { /* skip malformed */ }
     }
   }
@@ -395,12 +405,27 @@ export default async function handler(req, ctx) {
 
   const keys = Object.values(registry);
   const names = Object.keys(registry);
+  const topmanOverrides = names.flatMap((name, index) => {
+    const dataKey = topmanCoreDataKey(name);
+    return dataKey ? [{ name, canonicalKey: keys[index], dataKey }] : [];
+  });
+  const readKeys = [...keys, ...topmanOverrides.map((entry) => entry.dataKey)];
+  const envelopeKeys = new Set(topmanOverrides.flatMap((entry) => [
+    entry.canonicalKey,
+    entry.dataKey,
+  ]));
+  const optionalTopmanKeys = new Set(topmanOverrides.map((entry) => entry.dataKey));
   const measureR2Shadow = shouldMeasureBootstrapR2Shadow(auth.kind, tier);
   const redisStartedAt = measureR2Shadow ? performance.now() : null;
 
   let cached;
   try {
-    cached = await getCachedJsonBatch(keys, measureR2Shadow ? tier : null);
+    cached = await getCachedJsonBatch(
+      readKeys,
+      measureR2Shadow ? tier : null,
+      envelopeKeys,
+      optionalTopmanKeys,
+    );
   } catch {
     const isPublic = isPublicBootstrapKind(auth.kind);
     if (isPublic) {
@@ -427,6 +452,23 @@ export default async function handler(req, ctx) {
         : response;
     }
     return jsonResponse({ data: {}, missing: names }, 200, { ...cors, 'Cache-Control': 'no-store' });
+  }
+
+  // Merge TOPMAN's focused rows into the existing logical projections without
+  // shrinking broader canonical coverage. A focused row may lead only when its
+  // envelope is fresh and at least as new; stale or malformed focused data is
+  // ignored, and partial focused data can only fill canonical gaps.
+  for (const override of topmanOverrides) {
+    const projection = resolveTopmanCoreProjection(
+      override.name,
+      cached.get(override.canonicalKey),
+      cached.get(override.dataKey),
+    );
+    if (projection !== undefined && projection !== null) {
+      cached.set(override.canonicalKey, projection);
+    } else {
+      cached.delete(override.canonicalKey);
+    }
   }
 
   const data = {};

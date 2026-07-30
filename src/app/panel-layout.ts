@@ -38,7 +38,13 @@ import {
 } from '@/config';
 import { resolveNewsCategories, enabledNewsCategoryKeys } from '@/config/feed-resolution';
 import { BETA_MODE } from '@/config/beta';
-import { t } from '@/services/i18n';
+import { getTopmanBrandSubtitle, t } from '@/services/i18n';
+import {
+  getInitialTopmanHealthPresentation,
+  getTopmanSourceHref,
+  getTopmanSourceTitle,
+  startTopmanHealthStatus,
+} from '@/services/topman-health-status';
 import { getCurrentTheme } from '@/utils';
 import { trackCriticalBannerAction, trackCheckoutSuccess, trackCheckoutFailed, replayPendingCheckoutSuccess, replayPendingProFunnelEvents } from '@/services/analytics';
 import { getStoredMapModePreference } from '@/services/map-mode-preference';
@@ -351,6 +357,7 @@ export class PanelLayoutManager implements AppModule {
   private scheduledLoadAllRaf: number | null = null;
   private scheduledLoadAllIdle: number | null = null;
   private responsiveZoneListener: ResponsiveZoneListener | null = null;
+  private topmanHealthCleanup: (() => void) | null = null;
 
   constructor(ctx: AppContext, callbacks: PanelLayoutManagerCallbacks) {
     this.ctx = ctx;
@@ -536,6 +543,8 @@ export class PanelLayoutManager implements AppModule {
     this.proBlockUnsubscribe = null;
     this.proBlockEntitlementUnsubscribe?.();
     this.proBlockEntitlementUnsubscribe = null;
+    this.topmanHealthCleanup?.();
+    this.topmanHealthCleanup = null;
 
     const destroyedTargets = new Set<{ destroy?: () => void }>();
     const destroyOnce = (target: { destroy?: () => void } | null | undefined): void => {
@@ -704,6 +713,9 @@ export class PanelLayoutManager implements AppModule {
 
   async renderLayout(): Promise<void> {
     const isGlobeMode = getStoredMapModePreference() === 'globe';
+    const topmanHealth = getInitialTopmanHealthPresentation();
+    const topmanSourceHref = getTopmanSourceHref(__BUILD_HASH__);
+    const topmanSourceTitle = getTopmanSourceTitle(__BUILD_HASH__);
     // #5159: the collapsed-map cohort's #mapSection must be CREATED with
     // .collapsed — main.css sets the expanded mobile height with !important
     // inside a cascade layer, and layered !important beats any unlayered
@@ -786,26 +798,32 @@ export class PanelLayoutManager implements AppModule {
               <span class="variant-label">Good News</span>
             </a>`;
       })()}</div>
-          <span class="topman-brand-lockup" aria-label="TOPMANIDMB World Intelligence">
-            <img class="topman-brand-mark" src="/brand/topmanidmb-logo-mark.svg" alt="" width="27" height="27">
+          <span class="topman-brand-lockup" aria-label="TOPMANIDMB ${escapeHtml(getTopmanBrandSubtitle())}">
+            <img class="topman-brand-mark" src="/brand/topmanidmb-orbit-emblem.png" alt="" width="27" height="27">
             <span class="topman-brand-copy">
               <span class="topman-brand-name">TOPMANIDMB</span>
-              <span class="topman-brand-subtitle">World Intelligence</span>
+              <span class="topman-brand-subtitle">${escapeHtml(getTopmanBrandSubtitle())}</span>
             </span>
           </span>
           <span class="logo">MONITOR</span><span class="logo-mobile">World Monitor</span><span class="version">v${__APP_VERSION__}</span>${BETA_MODE ? '<span class="beta-badge">BETA</span>' : ''}
           <a href="https://github.com/koala73/worldmonitor" target="_blank" rel="noopener" class="powered-by-link" title="Open-source engine by Elie Habib, AGPL-3.0">
             Powered by <strong>World Monitor</strong>
           </a>
-          <a href="https://github.com/koala73/worldmonitor" target="_blank" rel="noopener" class="github-link" title="${t('header.viewOnGitHub')}">
+          <a href="${escapeHtml(topmanSourceHref)}" target="_blank" rel="noopener" class="github-link topman-source-link" title="${escapeHtml(topmanSourceTitle)}" aria-label="${escapeHtml(topmanSourceTitle)}">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
           </a>
           <button class="mobile-settings-btn" id="mobileSettingsBtn" title="${t('header.settings')}">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
-          <div class="status-indicator">
-            <span class="status-dot"></span>
-            <span>${t('header.live')}</span>
+          <div class="status-indicator status-indicator--topman-health status-indicator--health-unavailable"
+               data-topman-health-state="unavailable"
+               role="status"
+               aria-live="polite"
+               aria-atomic="true"
+               aria-label="${escapeHtml(topmanHealth.description)}"
+               title="${escapeHtml(topmanHealth.description)}">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span data-topman-health-label>${escapeHtml(topmanHealth.label)}</span>
           </div>
           <div class="region-selector">
             <select id="regionSelect" class="region-select" aria-label="${t('header.selectRegion')}">
@@ -971,6 +989,8 @@ export class PanelLayoutManager implements AppModule {
     // earlier than any LCP candidate in the new shell, making it useless for
     // ordering the LCP element against the shell swap (PR #4512 review).
     markLcpDebug('wm:layout:shell-replaced');
+    this.topmanHealthCleanup?.();
+    this.topmanHealthCleanup = startTopmanHealthStatus({ root: this.ctx.container });
 
     // Skip link: explicitly move focus to <main> on activation. Native
     // fragment focus on a tabindex="-1" target is inconsistent across
