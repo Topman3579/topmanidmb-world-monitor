@@ -22,11 +22,14 @@ import {
   MISSION_PRESET_DISMISSED_KEY,
   MISSION_PRESET_STORAGE_KEY,
   MISSION_PRESETS,
+  TOPMAN_MISSION_PRESET_STORAGE_KEY,
+  TOPMAN_CORE_MISSION_PRESETS,
   applyMissionPresetToState,
   clearMissionPreset,
   dismissMissionPresetPrompt,
   filterMissionLayersForRenderer,
   getMissionPreset,
+  getMissionPresetsForVariant,
   isMissionPresetPromptDismissed,
   loadStoredMissionPreset,
   resetMissionPresetState,
@@ -617,20 +620,74 @@ describe('mission preset definitions', () => {
     );
   });
 
-  it('uses approachable first-run labels for broad audience personas', () => {
-    assert.equal(getMissionPreset('osint-newsroom')?.label, 'News Seeker');
-    assert.equal(getMissionPreset('osint-newsroom')?.shortLabel, 'News');
-    assert.equal(getMissionPreset('macro-market-watch')?.label, 'Stock Geek');
-    assert.equal(getMissionPreset('macro-market-watch')?.shortLabel, 'Stocks');
+  it('keeps the original v1 preset ids and meanings stable for stored users', () => {
+    assert.equal(getMissionPreset('crisis-desk')?.label, 'Crisis Desk');
+    assert.equal(getMissionPreset('supply-chain-risk')?.label, 'Supply-Chain Risk');
+    assert.equal(getMissionPreset('supply-chain-risk')?.shortLabel, 'Supply');
     assert.equal(getMissionPreset('tech-ai-watch')?.label, 'Tech / AI Watcher');
-    assert.equal(getMissionPreset('tech-ai-watch')?.shortLabel, 'Tech');
     assert.equal(getMissionPreset('good-news-explorer')?.label, 'Good News Explorer');
-    assert.equal(getMissionPreset('good-news-explorer')?.shortLabel, 'Good');
+  });
+
+  it('exposes six Thai-first TOPMAN operational missions under semantic v2 ids', () => {
+    assert.equal(TOPMAN_CORE_MISSION_PRESETS.length, 6);
+    assert.deepEqual(
+      TOPMAN_CORE_MISSION_PRESETS.map((preset) => preset.id),
+      [
+        'topman-thailand-asean',
+        'topman-disaster-weather',
+        'topman-energy-commodities',
+        'topman-news-conflict',
+        'topman-finance-radar',
+        'topman-aviation-routes',
+      ],
+    );
+    assert.match(getMissionPreset('topman-thailand-asean')?.label ?? '', /ไทยและอาเซียน/);
+    assert.match(getMissionPreset('topman-thailand-asean')?.label ?? '', /Thailand & ASEAN/);
+    assert.match(getMissionPreset('topman-news-conflict')?.label ?? '', /ข่าวและความขัดแย้ง/);
+    assert.match(getMissionPreset('topman-finance-radar')?.shortLabel ?? '', /Markets/);
+    assert.match(getMissionPreset('topman-aviation-routes')?.label ?? '', /Aviation & Routes/);
+  });
+
+  it('uses TOPMAN core missions only in full and keeps legacy pickers elsewhere', () => {
+    assert.deepEqual(
+      getMissionPresetsForVariant('full').map((preset) => preset.id),
+      TOPMAN_CORE_MISSION_PRESETS.map((preset) => preset.id),
+    );
+    for (const variant of VARIANTS.filter((variant) => variant !== 'full')) {
+      assert.deepEqual(
+        getMissionPresetsForVariant(variant).map((preset) => preset.id),
+        MISSION_PRESETS.map((preset) => preset.id),
+        `${variant} should retain the v1 picker`,
+      );
+    }
+  });
+
+  it('keeps every TOPMAN core mission focused to 8-12 panels and 3-5 map layers', () => {
+    for (const preset of TOPMAN_CORE_MISSION_PRESETS) {
+      assert.ok(preset.panels.length >= 8, `${preset.id} needs at least 8 focused panels`);
+      assert.ok(preset.panels.length <= 12, `${preset.id} exceeds the 12-panel command limit`);
+      assert.ok(preset.layers.length >= 3, `${preset.id} needs at least 3 map layers`);
+      assert.ok(preset.layers.length <= 5, `${preset.id} exceeds the 5-layer command limit`);
+      for (const layer of preset.layers) {
+        assert.ok(getAllowedLayerKeys('full').has(layer), `${preset.id}/${String(layer)} must execute in TOPMAN full mode`);
+      }
+
+      const applied = applyMissionPresetToState(
+        preset.id,
+        makePanelSettings('full'),
+        DEFAULT_MAP_LAYERS,
+        'full',
+      );
+      const appliedPanelCount = enabledWorkspacePanelKeys(applied.panelSettings).length + 1;
+      const appliedLayerCount = Object.values(applied.mapLayers).filter(Boolean).length;
+      assert.ok(appliedPanelCount >= 8 && appliedPanelCount <= 12, `${preset.id} applied ${appliedPanelCount} panels`);
+      assert.ok(appliedLayerCount >= 3 && appliedLayerCount <= 5, `${preset.id} applied ${appliedLayerCount} layers`);
+    }
   });
 
   it('uses known panel and layer keys without duplicate ids', () => {
     const ids = new Set<string>();
-    for (const preset of MISSION_PRESETS) {
+    for (const preset of [...MISSION_PRESETS, ...TOPMAN_CORE_MISSION_PRESETS]) {
       assert.equal(ids.has(preset.id), false, `${preset.id} is duplicated`);
       ids.add(preset.id);
       assert.ok(preset.label.length > 0, `${preset.id} needs a label`);
@@ -659,9 +716,9 @@ describe('mission preset definitions', () => {
 describe('applyMissionPresetToState', () => {
   it('applies a coherent full-variant preset while preserving dynamic panels', () => {
     const current = makePanelSettings('full');
-    const applied = applyMissionPresetToState('crisis-desk', current, DEFAULT_MAP_LAYERS, 'full');
+    const applied = applyMissionPresetToState('topman-thailand-asean', current, DEFAULT_MAP_LAYERS, 'full');
 
-    assert.equal(applied.preset.id, 'crisis-desk');
+    assert.equal(applied.preset.id, 'topman-thailand-asean');
     assert.equal(applied.panelSettings.map?.enabled, true);
     assert.equal(applied.panelSettings['live-news']?.enabled, true);
     assert.equal(applied.panelSettings['strategic-risk']?.enabled, true);
@@ -670,13 +727,14 @@ describe('applyMissionPresetToState', () => {
     assert.equal(applied.panelSettings['mcp-risk-feed']?.enabled, false);
     assert.deepEqual(applied.panelOrder.slice(0, 5), [
       'live-news',
+      'asia',
       'insights',
-      'strategic-posture',
-      'cii',
       'strategic-risk',
+      'gdelt-intel',
     ]);
     assert.equal(applied.mapLayers.conflicts, true);
-    assert.equal(applied.mapLayers.ciiChoropleth, true);
+    assert.equal(applied.mapLayers.weather, true);
+    assert.equal(applied.mapLayers.ciiChoropleth, false);
   });
 
   it('filters enabled panels to the active variant instead of creating mini-variants', () => {
@@ -767,6 +825,20 @@ describe('applyMissionPresetToState', () => {
     }
   });
 
+  it('rejects TOPMAN core presets outside the full variant', () => {
+    for (const variant of VARIANTS.filter((variant) => variant !== 'full')) {
+      assert.throws(
+        () => applyMissionPresetToState(
+          'topman-disaster-weather',
+          makePanelSettings(variant),
+          DEFAULT_MAP_LAYERS,
+          variant,
+        ),
+        /only available in the full variant/,
+      );
+    }
+  });
+
   it('never applies a preset as an empty or single-panel workspace across variants', () => {
     for (const variant of VARIANTS) {
       for (const preset of MISSION_PRESETS) {
@@ -825,23 +897,23 @@ describe('resetMissionPresetState', () => {
 });
 
 describe('mission preset renderer filtering', () => {
-  it('removes DeckGL-only energy layers on the mobile/SVG fallback path', () => {
+  it('keeps the focused energy context executable on the mobile/SVG fallback path', () => {
     const applied = applyMissionPresetToState(
-      'energy-security',
-      makePanelSettings('energy'),
+      'topman-energy-commodities',
+      makePanelSettings('full'),
       DEFAULT_MAP_LAYERS,
-      'energy',
+      'full',
     );
 
-    assert.equal(applied.mapLayers.storageFacilities, true);
-    assert.equal(applied.mapLayers.fuelShortages, true);
-    assert.equal(applied.mapLayers.liveTankers, true);
+    assert.equal(applied.mapLayers.pipelines, true);
+    assert.equal(applied.mapLayers.tradeRoutes, true);
+    assert.equal(applied.mapLayers.weather, true);
 
     const filtered = filterMissionLayersForRenderer(applied.mapLayers, 'flat', false, DEFAULT_MAP_LAYERS);
 
-    assert.equal(filtered.storageFacilities, false);
-    assert.equal(filtered.fuelShortages, false);
-    assert.equal(filtered.liveTankers, false);
+    assert.equal(filtered.pipelines, true);
+    assert.equal(filtered.tradeRoutes, true);
+    assert.equal(filtered.weather, true);
     assert.ok(Object.values(filtered).some(Boolean), 'renderer filtering should keep executable context layers');
   });
 
@@ -859,21 +931,24 @@ describe('mission preset renderer filtering', () => {
     assert.ok(Object.values(filtered).some(Boolean), 'filtered fallback should keep executable default layers');
   });
 
-  it('removes supply-chain resilienceScore on the mobile/SVG fallback path', () => {
+  it('keeps disaster and weather layers on the mobile/SVG fallback path', () => {
     const applied = applyMissionPresetToState(
-      'supply-chain-risk',
+      'topman-disaster-weather',
       makePanelSettings('full'),
       DEFAULT_MAP_LAYERS,
       'full',
     );
 
-    assert.equal(applied.mapLayers.resilienceScore, true);
+    assert.equal(applied.mapLayers.weather, true);
+    assert.equal(applied.mapLayers.natural, true);
+    assert.equal(applied.mapLayers.fires, true);
 
     const filtered = filterMissionLayersForRenderer(applied.mapLayers, 'flat', false, DEFAULT_MAP_LAYERS);
 
-    assert.equal(filtered.resilienceScore, false);
-    assert.equal(filtered.tradeRoutes, true);
-    assert.ok(Object.values(filtered).some(Boolean), 'renderer filtering should keep executable supply-chain layers');
+    assert.equal(filtered.weather, true);
+    assert.equal(filtered.natural, true);
+    assert.equal(filtered.fires, true);
+    assert.ok(Object.values(filtered).some(Boolean), 'renderer filtering should keep executable disaster layers');
   });
 });
 
@@ -893,7 +968,44 @@ describe('mission preset persistence', () => {
 
     assert.equal(loadStoredMissionPreset(), null);
     assert.equal(localStorage.getItem(MISSION_PRESET_STORAGE_KEY), null);
+    assert.equal(localStorage.getItem(TOPMAN_MISSION_PRESET_STORAGE_KEY), null);
     assert.equal(isMissionPresetPromptDismissed(), true);
+  });
+
+  it('keeps stored v1 ids on their original definitions during the v2 migration', () => {
+    localStorage.setItem(MISSION_PRESET_STORAGE_KEY, 'supply-chain-risk');
+
+    const migrated = loadStoredMissionPreset('full');
+
+    assert.equal(migrated?.id, 'supply-chain-risk');
+    assert.equal(migrated?.label, 'Supply-Chain Risk');
+    assert.equal(migrated?.shortLabel, 'Supply');
+    assert.ok(migrated?.panels.includes('supply-chain'));
+    assert.equal(migrated?.panels.includes('disaster-correlation'), false);
+  });
+
+  it('stores TOPMAN core state under v2 and keeps non-full variants on v1', () => {
+    localStorage.setItem(MISSION_PRESET_STORAGE_KEY, 'tech-ai-watch');
+    saveMissionPreset('topman-aviation-routes', 'full');
+
+    assert.equal(
+      localStorage.getItem(TOPMAN_MISSION_PRESET_STORAGE_KEY),
+      'topman-aviation-routes',
+    );
+    assert.equal(loadStoredMissionPreset('full')?.id, 'topman-aviation-routes');
+    assert.equal(loadStoredMissionPreset('tech')?.id, 'tech-ai-watch');
+
+    clearMissionPreset('tech');
+    assert.equal(loadStoredMissionPreset('tech'), null);
+    assert.equal(loadStoredMissionPreset('full')?.id, 'topman-aviation-routes');
+  });
+
+  it('rejects saving a TOPMAN core id for a non-full variant', () => {
+    assert.throws(
+      () => saveMissionPreset('topman-news-conflict', 'finance'),
+      /only available in the full variant/,
+    );
+    assert.equal(localStorage.getItem(TOPMAN_MISSION_PRESET_STORAGE_KEY), null);
   });
 
   it('treats unknown stored ids as absent', () => {
@@ -1134,32 +1246,32 @@ describe('mission preset shell integration', () => {
     const baselineWorkspace = defaultWorkspacePanelKeys('full');
     const baselineLayers = activeLayers(DEFAULT_MAP_LAYERS);
 
-    manager.applyMissionPreset('supply-chain-risk');
+    manager.applyMissionPreset('topman-disaster-weather');
     await waitForMissionTimers();
 
-    assert.equal(ctx.panelSettings['supply-chain']?.enabled, true);
-    assert.equal(ctx.panelSettings.markets?.enabled, true);
-    assert.equal(ctx.panelSettings['live-news']?.enabled, false);
-    assert.deepEqual(callbacks.appliedOrders[0]?.slice(0, 3), ['supply-chain', 'hormuz-tracker', 'cascade']);
-    assert.equal(localStorage.getItem(MISSION_PRESET_STORAGE_KEY), 'supply-chain-risk');
+    assert.equal(ctx.panelSettings['disaster-correlation']?.enabled, true);
+    assert.equal(ctx.panelSettings['satellite-fires']?.enabled, true);
+    assert.equal(ctx.panelSettings['live-news']?.enabled, true);
+    assert.deepEqual(callbacks.appliedOrders[0]?.slice(0, 3), ['live-news', 'disaster-correlation', 'satellite-fires']);
+    assert.equal(localStorage.getItem(TOPMAN_MISSION_PRESET_STORAGE_KEY), 'topman-disaster-weather');
     assert.deepEqual(readJsonStorage<string[]>('panel-order'), callbacks.appliedOrders[0]);
-    assert.equal(readJsonStorage<MapLayers>('worldmonitor-layers').tradeRoutes, true);
-    assert.equal(readJsonStorage<MapLayers>('worldmonitor-layers').resilienceScore, true);
-    assert.deepEqual(ctx.map.calls.setView.at(-1), { view: 'global', zoom: 2.3 });
-    assert.equal(ctx.map.calls.setTimeRange.at(-1), '7d');
-    assert.equal(callbacks.waitForAisCalls, 1, 'AIS layer enable should initialize the AIS stream path');
-    assert.ok(callbacks.loadDataForLayer.includes('tradeRoutes'), 'newly enabled non-AIS layers should load data');
+    assert.equal(readJsonStorage<MapLayers>('worldmonitor-layers').weather, true);
+    assert.equal(readJsonStorage<MapLayers>('worldmonitor-layers').fires, true);
+    assert.deepEqual(ctx.map.calls.setView.at(-1), { view: 'global', zoom: 2.2 });
+    assert.equal(ctx.map.calls.setTimeRange.at(-1), '48h');
+    assert.equal(callbacks.waitForAisCalls, 0, 'focused disaster mission must not start the AIS stream');
+    assert.ok(callbacks.loadDataForLayer.includes('fires'), 'newly enabled disaster layers should load data');
     assert.ok(
       ((globalThis as { __missionAnalytics?: Array<{ name: string; args: unknown[] }> }).__missionAnalytics ?? [])
-        .some((entry) => entry.name === 'trackMapLayerToggle' && entry.args[0] === 'tradeRoutes' && entry.args[1] === true),
+        .some((entry) => entry.name === 'trackMapLayerToggle' && entry.args[0] === 'fires' && entry.args[1] === true),
       'programmatic layer analytics should be emitted for apply transitions',
     );
-    assert.equal(latestUrl().searchParams.get('layers')?.includes('tradeRoutes'), true);
+    assert.equal(latestUrl().searchParams.get('layers')?.includes('fires'), true);
 
     manager.resetMissionPreset();
     await waitForMissionTimers();
 
-    assert.equal(localStorage.getItem(MISSION_PRESET_STORAGE_KEY), null);
+    assert.equal(localStorage.getItem(TOPMAN_MISSION_PRESET_STORAGE_KEY), null);
     assert.deepEqual(enabledWorkspacePanelKeys(ctx.panelSettings), baselineWorkspace);
     assert.deepEqual(activeLayers(ctx.mapLayers), baselineLayers);
     assert.deepEqual(readJsonStorage<string[]>('panel-order'), VARIANT_DEFAULTS.full.filter((key) => key !== 'map'));
@@ -1167,8 +1279,8 @@ describe('mission preset shell integration', () => {
     assert.deepEqual(callbacks.appliedOrders.at(-1), VARIANT_DEFAULTS.full.filter((key) => key !== 'map'));
     assert.deepEqual(ctx.map.calls.setView.at(-1), { view: 'global', zoom: undefined });
     assert.equal(ctx.map.calls.setTimeRange.at(-1), '7d');
-    assert.ok(callbacks.stopLayerActivity.includes('tradeRoutes'), 'reset should stop layers the preset enabled');
-    assert.deepEqual((globalThis as { __missionAis?: string[] }).__missionAis, ['init', 'disconnect']);
+    assert.ok(callbacks.stopLayerActivity.includes('fires'), 'reset should stop layers the preset enabled');
+    assert.deepEqual((globalThis as { __missionAis?: string[] }).__missionAis, undefined);
     assert.equal(latestUrl().searchParams.get('view'), 'global');
     assert.equal(latestUrl().searchParams.get('timeRange'), '7d');
     assert.deepEqual((latestUrl().searchParams.get('layers') ?? '').split(',').sort(), baselineLayers);
@@ -1180,22 +1292,22 @@ describe('mission preset shell integration', () => {
       map: makeMapSpy({ isDeckGLActive: false }),
     });
 
-    manager.applyMissionPreset('supply-chain-risk');
+    manager.applyMissionPreset('topman-disaster-weather');
     await waitForMissionTimers();
 
-    assert.equal(ctx.mapLayers.resilienceScore, false);
-    assert.equal(readJsonStorage<MapLayers>('worldmonitor-layers').resilienceScore, false);
-    assert.equal(ctx.mapLayers.tradeRoutes, true);
-    assert.ok(callbacks.loadDataForLayer.includes('tradeRoutes'));
+    assert.equal(ctx.mapLayers.fires, true);
+    assert.equal(readJsonStorage<MapLayers>('worldmonitor-layers').fires, true);
+    assert.equal(ctx.mapLayers.weather, true);
+    assert.ok(callbacks.loadDataForLayer.includes('fires'));
     assert.equal(callbacks.loadDataForLayer.includes('resilienceScore'), false);
     assert.equal(callbacks.stopLayerActivity.includes('resilienceScore'), false);
   });
 
-  it('filters AIS before persisting a mission preset when AIS is not configured', async () => {
+  it('does not start AIS for a focused mission when AIS is not configured', async () => {
     (globalThis as { __missionAisConfigured?: boolean }).__missionAisConfigured = false;
     const { ctx, callbacks, manager } = createMissionHarness();
 
-    manager.applyMissionPreset('supply-chain-risk');
+    manager.applyMissionPreset('topman-disaster-weather');
     await waitForMissionTimers();
 
     assert.equal(ctx.mapLayers.ais, false);
@@ -1203,7 +1315,7 @@ describe('mission preset shell integration', () => {
     assert.equal(callbacks.waitForAisCalls, 0);
     assert.deepEqual((globalThis as { __missionAis?: string[] }).__missionAis, undefined);
     assert.equal((latestUrl().searchParams.get('layers') ?? '').split(',').includes('ais'), false);
-    assert.equal(ctx.mapLayers.tradeRoutes, true);
+    assert.equal(ctx.mapLayers.weather, true);
   });
 
   it('still applies in-memory panel order and reset order when storage writes fail', async () => {
@@ -1211,12 +1323,12 @@ describe('mission preset shell integration', () => {
     storage.throwOnSet = true;
     const { ctx, callbacks, manager } = createMissionHarness({ storage });
 
-    assert.doesNotThrow(() => manager.applyMissionPreset('macro-market-watch'));
+    assert.doesNotThrow(() => manager.applyMissionPreset('topman-finance-radar'));
     await waitForMissionTimers();
 
     assert.equal(ctx.panelSettings.markets?.enabled, true);
-    assert.deepEqual(callbacks.appliedOrders[0]?.slice(0, 4), ['markets', 'heatmap', 'market-breadth', 'earnings-calendar']);
-    assert.equal(localStorage.getItem(MISSION_PRESET_STORAGE_KEY), null);
+    assert.deepEqual(callbacks.appliedOrders[0]?.slice(0, 4), ['live-news', 'markets', 'heatmap', 'macro-signals']);
+    assert.equal(localStorage.getItem(TOPMAN_MISSION_PRESET_STORAGE_KEY), null);
 
     assert.doesNotThrow(() => manager.resetMissionPreset());
     await waitForMissionTimers();

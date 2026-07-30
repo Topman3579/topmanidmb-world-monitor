@@ -9,11 +9,13 @@ import {
 import { SITE_VARIANT } from '@/config/variant';
 import { isLayerExecutable, sanitizeLayersForVariant } from '@/config/map-layer-definitions';
 import type { MapRenderer, MapVariant } from '@/config/map-layer-definitions';
+import { topmanText } from '@/services/topman-language-mode';
 
 export const MISSION_PRESET_STORAGE_KEY = 'worldmonitor-mission-preset-v1';
+export const TOPMAN_MISSION_PRESET_STORAGE_KEY = 'worldmonitor-mission-preset-v2';
 export const MISSION_PRESET_DISMISSED_KEY = 'worldmonitor-mission-preset-dismissed-v1';
 
-export type MissionPresetId =
+export type LegacyMissionPresetId =
   | 'crisis-desk'
   | 'supply-chain-risk'
   | 'energy-security'
@@ -21,6 +23,16 @@ export type MissionPresetId =
   | 'macro-market-watch'
   | 'tech-ai-watch'
   | 'good-news-explorer';
+
+export type TopmanCoreMissionPresetId =
+  | 'topman-thailand-asean'
+  | 'topman-disaster-weather'
+  | 'topman-energy-commodities'
+  | 'topman-news-conflict'
+  | 'topman-finance-radar'
+  | 'topman-aviation-routes';
+
+export type MissionPresetId = LegacyMissionPresetId | TopmanCoreMissionPresetId;
 
 export type MissionMapView = 'global' | 'america' | 'mena' | 'eu' | 'asia' | 'latam' | 'africa' | 'oceania';
 export type MissionTimeRange = '1h' | '6h' | '24h' | '48h' | '7d' | 'all';
@@ -51,6 +63,196 @@ export interface ResetMissionPresetState {
   mapLayers: MapLayers;
 }
 
+export const TOPMAN_CORE_MISSION_PRESETS: readonly MissionPreset[] = [
+  {
+    id: 'topman-thailand-asean',
+    label: topmanText('ไทยและอาเซียน', 'Thailand & ASEAN'),
+    shortLabel: topmanText('อาเซียน', 'ASEAN'),
+    description: topmanText(
+      'ติดตามข่าว ความเสี่ยง ภัยพิบัติ และสัญญาณสำคัญรอบประเทศไทย',
+      'News, risk, disasters, and priority signals around Thailand.',
+    ),
+    icon: 'TH',
+    view: 'asia',
+    zoom: 3.4,
+    timeRange: '24h',
+    panels: [
+      'map',
+      'live-news',
+      'asia',
+      'insights',
+      'strategic-risk',
+      'gdelt-intel',
+      'disaster-correlation',
+      'security-advisories',
+      'world-clock',
+    ],
+    layers: [
+      'hotspots',
+      'conflicts',
+      'weather',
+      'natural',
+    ],
+  },
+  {
+    id: 'topman-disaster-weather',
+    label: topmanText('ภัยพิบัติและสภาพอากาศ', 'Disaster & Weather'),
+    shortLabel: topmanText('ภัยพิบัติ', 'Disaster'),
+    description: topmanText(
+      'แผ่นดินไหว พายุ ไฟป่า ภูมิอากาศ และผลกระทบต่อประชาชน',
+      'Earthquakes, storms, fires, climate, and population exposure.',
+    ),
+    icon: 'WX',
+    view: 'global',
+    zoom: 2.2,
+    timeRange: '48h',
+    panels: [
+      'map',
+      'live-news',
+      'disaster-correlation',
+      'satellite-fires',
+      'climate',
+      'population-exposure',
+      'security-advisories',
+      'disease-outbreaks',
+    ],
+    layers: [
+      'weather',
+      'natural',
+      'fires',
+      'climate',
+    ],
+  },
+  {
+    id: 'topman-energy-commodities',
+    label: topmanText('พลังงานและสินค้าโภคภัณฑ์', 'Energy & Commodities'),
+    shortLabel: topmanText('พลังงาน', 'Energy'),
+    description: topmanText(
+      'น้ำมัน ก๊าซ โลหะ เส้นทางขนส่ง และความเสี่ยงด้านพลังงาน',
+      'Oil, gas, metals, trade routes, and energy disruption risk.',
+    ),
+    icon: 'EN',
+    view: 'global',
+    zoom: 2.4,
+    timeRange: '7d',
+    panels: [
+      'map',
+      'live-news',
+      'energy-complex',
+      'commodities',
+      'pipeline-status',
+      'oil-inventories',
+      'energy-disruptions',
+      'energy-risk-overview',
+      'supply-chain',
+    ],
+    layers: [
+      'pipelines',
+      'tradeRoutes',
+      'waterways',
+      'weather',
+      'natural',
+    ],
+  },
+  {
+    id: 'topman-news-conflict',
+    label: topmanText('ข่าวและความขัดแย้ง', 'News & Conflict'),
+    shortLabel: topmanText('ข่าว', 'News'),
+    description: topmanText(
+      'ข่าวเร่งด่วน เหตุขัดแย้ง การประท้วง และสัญญาณข่าวกรองข้ามแหล่ง',
+      'Breaking news, conflicts, protests, and cross-source intelligence.',
+    ),
+    icon: 'OS',
+    view: 'global',
+    zoom: 2.1,
+    timeRange: '24h',
+    panels: [
+      'map',
+      'live-news',
+      'gdelt-intel',
+      'intel',
+      'threat-timeline',
+      'strategic-risk',
+      'ucdp-events',
+      'cross-source-signals',
+      'politics',
+      'security-advisories',
+    ],
+    layers: [
+      'conflicts',
+      'hotspots',
+      'protests',
+      'ucdpEvents',
+      'military',
+    ],
+  },
+  {
+    id: 'topman-finance-radar',
+    label: topmanText('เรดาร์ตลาดการเงิน', 'Financial Market Radar'),
+    shortLabel: topmanText('ตลาด', 'Markets'),
+    description: topmanText(
+      'ตลาดหุ้น ภาวะมหภาค ความเชื่อมั่น และสินค้าโภคภัณฑ์',
+      'Equities, macro conditions, sentiment, and commodities.',
+    ),
+    icon: 'FX',
+    view: 'global',
+    zoom: 2.3,
+    timeRange: '7d',
+    panels: [
+      'map',
+      'live-news',
+      'markets',
+      'heatmap',
+      'macro-signals',
+      'market-breadth',
+      'fear-greed',
+      'commodities',
+      'economic',
+    ],
+    layers: [
+      'economic',
+      'tradeRoutes',
+      'waterways',
+      'pipelines',
+      'sanctions',
+    ],
+  },
+  {
+    id: 'topman-aviation-routes',
+    label: topmanText('การบินและเส้นทางเดินทาง', 'Aviation & Routes'),
+    shortLabel: topmanText('การบิน', 'Aviation'),
+    description: topmanText(
+      'สถานะเที่ยวบิน สภาพอากาศ ความเสี่ยงเส้นทาง และข้อมูลสายการบิน',
+      'Flight status, weather, route risk, and airline intelligence.',
+    ),
+    icon: 'AV',
+    view: 'global',
+    zoom: 2.5,
+    timeRange: '24h',
+    panels: [
+      'map',
+      'live-news',
+      'airline-intel',
+      'world-clock',
+      'security-advisories',
+      'strategic-risk',
+      'asia',
+      'europe',
+    ],
+    layers: [
+      'flights',
+      'weather',
+      'natural',
+      'conflicts',
+      'outages',
+    ],
+  },
+];
+
+/**
+ * Original v1 presets. Their IDs and meanings are intentionally immutable:
+ * existing users may still have one of these IDs stored under the v1 key.
+ */
 export const MISSION_PRESETS: readonly MissionPreset[] = [
   {
     id: 'crisis-desk',
@@ -344,31 +546,74 @@ const withMapPanel = (panels: string[]): string[] => {
   return Array.from(new Set(ordered));
 };
 
-export function getMissionPreset(id: string | null | undefined): MissionPreset | null {
-  if (!id) return null;
-  return MISSION_PRESETS.find((preset) => preset.id === id) ?? null;
+const LEGACY_MISSION_PRESET_IDS = new Set<MissionPresetId>(
+  MISSION_PRESETS.map((preset) => preset.id),
+);
+const TOPMAN_CORE_MISSION_PRESET_IDS = new Set<MissionPresetId>(
+  TOPMAN_CORE_MISSION_PRESETS.map((preset) => preset.id),
+);
+
+export function isTopmanCoreMissionPresetId(
+  id: string | null | undefined,
+): id is TopmanCoreMissionPresetId {
+  return !!id && TOPMAN_CORE_MISSION_PRESET_IDS.has(id as MissionPresetId);
 }
 
-export function loadStoredMissionPreset(): MissionPreset | null {
+export function getMissionPresetsForVariant(variant: string = SITE_VARIANT): readonly MissionPreset[] {
+  return variant === 'full' ? TOPMAN_CORE_MISSION_PRESETS : MISSION_PRESETS;
+}
+
+export function getMissionPreset(id: string | null | undefined): MissionPreset | null {
+  if (!id) return null;
+  return TOPMAN_CORE_MISSION_PRESETS.find((preset) => preset.id === id)
+    ?? MISSION_PRESETS.find((preset) => preset.id === id)
+    ?? null;
+}
+
+export function loadStoredMissionPreset(variant: string = SITE_VARIANT): MissionPreset | null {
   try {
-    return getMissionPreset(localStorage.getItem(MISSION_PRESET_STORAGE_KEY));
+    if (variant === 'full') {
+      const topmanId = localStorage.getItem(TOPMAN_MISSION_PRESET_STORAGE_KEY);
+      if (isTopmanCoreMissionPresetId(topmanId)) {
+        return getMissionPreset(topmanId);
+      }
+    }
+
+    const legacyId = localStorage.getItem(MISSION_PRESET_STORAGE_KEY);
+    return legacyId && LEGACY_MISSION_PRESET_IDS.has(legacyId as MissionPresetId)
+      ? getMissionPreset(legacyId)
+      : null;
   } catch {
     return null;
   }
 }
 
-export function saveMissionPreset(id: MissionPresetId): void {
+export function saveMissionPreset(id: MissionPresetId, variant: string = SITE_VARIANT): void {
+  if (isTopmanCoreMissionPresetId(id) && variant !== 'full') {
+    throw new Error(`TOPMAN core mission preset "${id}" is only available in the full variant`);
+  }
+
   try {
-    localStorage.setItem(MISSION_PRESET_STORAGE_KEY, id);
+    if (isTopmanCoreMissionPresetId(id)) {
+      localStorage.setItem(TOPMAN_MISSION_PRESET_STORAGE_KEY, id);
+    } else {
+      localStorage.setItem(MISSION_PRESET_STORAGE_KEY, id);
+      if (variant === 'full') {
+        localStorage.removeItem(TOPMAN_MISSION_PRESET_STORAGE_KEY);
+      }
+    }
     localStorage.setItem(MISSION_PRESET_DISMISSED_KEY, '1');
   } catch {
     // Storage can be unavailable in private mode; preset application still works for this session.
   }
 }
 
-export function clearMissionPreset(): void {
+export function clearMissionPreset(variant: string = SITE_VARIANT): void {
   try {
     localStorage.removeItem(MISSION_PRESET_STORAGE_KEY);
+    if (variant === 'full') {
+      localStorage.removeItem(TOPMAN_MISSION_PRESET_STORAGE_KEY);
+    }
     localStorage.setItem(MISSION_PRESET_DISMISSED_KEY, '1');
   } catch {
     // Ignore storage failures.
@@ -399,6 +644,9 @@ export function applyMissionPresetToState(
 ): AppliedMissionPreset {
   const preset = getMissionPreset(presetId);
   if (!preset) throw new Error(`Unknown mission preset: ${presetId}`);
+  if (isTopmanCoreMissionPresetId(preset.id) && variant !== 'full') {
+    throw new Error(`TOPMAN core mission preset "${preset.id}" is only available in the full variant`);
+  }
 
   const variantPanels = getVariantDefaultPanels(variant);
   const variantPanelSet = new Set(variantPanels);

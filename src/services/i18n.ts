@@ -3,6 +3,19 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 import { enqueueSentryCall } from '@/bootstrap/sentry-defer';
 import { readQueryLanguage, stripQueryLanguage } from '@/utils/i18n-url';
+import {
+  TOPMAN_LANGUAGE_MODE_KEY,
+  readRequestedTopmanLanguageModeFromUrl,
+  storedTopmanLanguageMode,
+  type TopmanLanguageMode,
+} from '@/services/topman-language-mode';
+
+export {
+  getTopmanBrandSubtitle,
+  getTopmanLanguageMode,
+  topmanText,
+  type TopmanLanguageMode,
+} from '@/services/topman-language-mode';
 
 // Keep only first-paint English strings in the entry chunk. The full English
 // dictionary is loaded through localeModules so it can split like other locales.
@@ -15,11 +28,6 @@ import enShellTranslation from '../locales/en.shell.json';
 // future visits. Anyone whose browser is French now sees French automatically;
 // the moment they pick another language explicitly, that choice persists here.
 const EXPLICIT_LOCALE_KEY = 'wm-locale-explicit';
-const TOPMAN_LANGUAGE_MODE_KEY = 'topman-language-mode';
-
-export type TopmanLanguageMode = 'th' | 'bilingual' | 'en';
-
-const TOPMAN_LANGUAGE_MODES = new Set<TopmanLanguageMode>(['th', 'bilingual', 'en']);
 
 const SUPPORTED_LANGUAGES = ['en', 'bg', 'cs', 'fr', 'de', 'el', 'es', 'hr', 'hu', 'it', 'pl', 'pt', 'nl', 'sv', 'ru', 'ar', 'fa', 'zh', 'ja', 'ko', 'ro', 'tr', 'th', 'vi', 'hi'] as const;
 type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
@@ -51,56 +59,6 @@ function normalizeLanguage(lng: string): SupportedLanguage {
     return base as SupportedLanguage;
   }
   return 'en';
-}
-
-function normalizeTopmanLanguageMode(value: string | null | undefined): TopmanLanguageMode | null {
-  return value && TOPMAN_LANGUAGE_MODES.has(value as TopmanLanguageMode)
-    ? value as TopmanLanguageMode
-    : null;
-}
-
-function readTopmanLanguageModeFromUrl(): TopmanLanguageMode | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return normalizeTopmanLanguageMode(new URL(window.location.href).searchParams.get('topmanMode'));
-  } catch {
-    return null;
-  }
-}
-
-function storedTopmanLanguageMode(): TopmanLanguageMode | null {
-  try {
-    return normalizeTopmanLanguageMode(localStorage.getItem(TOPMAN_LANGUAGE_MODE_KEY));
-  } catch {
-    return null;
-  }
-}
-
-export function getTopmanLanguageMode(): TopmanLanguageMode {
-  const requested = readTopmanLanguageModeFromUrl();
-  if (requested) return requested;
-
-  const stored = storedTopmanLanguageMode();
-  if (stored) return stored;
-
-  // Keep a prior explicit English selection intact. Thai and first-time users
-  // receive the TOPMANIDMB default: Thai-first with short English guidance.
-  try {
-    if (localStorage.getItem(EXPLICIT_LOCALE_KEY) === 'en') return 'en';
-  } catch { /* private mode */ }
-  return 'bilingual';
-}
-
-export function topmanText(thai: string, english: string): string {
-  switch (getTopmanLanguageMode()) {
-    case 'th': return thai;
-    case 'en': return english;
-    case 'bilingual': return `${thai} / ${english}`;
-  }
-}
-
-export function getTopmanBrandSubtitle(): string {
-  return topmanText('ข่าวกรองสถานการณ์โลก', 'World Intelligence');
 }
 
 function applyDocumentDirection(lang: string): void {
@@ -215,7 +173,7 @@ export async function initI18n(): Promise<void> {
   // The native app passes its selected TOPMANIDMB mode in the launch URL.
   // Persist it before the dashboard normalizes query parameters so internal
   // navigation and reloads keep the same language choice.
-  const requestedTopmanMode = readTopmanLanguageModeFromUrl();
+  const requestedTopmanMode = readRequestedTopmanLanguageModeFromUrl();
   if (requestedTopmanMode) {
     try {
       localStorage.setItem(TOPMAN_LANGUAGE_MODE_KEY, requestedTopmanMode);
@@ -247,7 +205,7 @@ export async function initI18n(): Promise<void> {
   detector.addDetector({
     name: 'wmTopman',
     lookup: () => {
-      const requested = readTopmanLanguageModeFromUrl();
+      const requested = readRequestedTopmanLanguageModeFromUrl();
       if (requested) return requested === 'en' ? 'en' : 'th';
 
       const stored = storedTopmanLanguageMode();

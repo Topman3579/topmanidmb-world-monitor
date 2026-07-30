@@ -961,6 +961,21 @@ export default defineConfig(({ mode }) => {
             '**/onnx*.wasm',
             '**/locale-*.js',
             '**/clerk-*.js',
+            // Commander Lite precaches the shell, not heavyweight feature
+            // lanes. These immutable chunks remain available on demand and
+            // are retained after first use by optional-runtime-chunks below.
+            '**/GlobeMap-*.js',
+            '**/MapContainer-*.js',
+            '**/maplibre-*.js',
+            '**/deck-stack-*.js',
+            '**/protomaps-*.js',
+            '**/h3-js-*.js',
+            '**/hls-*.js',
+            '**/sentry-*.js',
+            '**/panels-*.js',
+            '**/UnifiedSettings-*.js',
+            '**/settings-window-*.js',
+            '**/checkout-*.js',
             // Fonts are fetched only when their stylesheet applies. Precache
             // would pull every local weight into the first mobile visit.
             '**/*.woff2',
@@ -977,8 +992,9 @@ export default defineConfig(({ mode }) => {
             // images on demand; the dashboard never needs them.
             'blog/**',
           ],
-          // globe.gl + three.js grows main bundle past the 2 MiB default limit
-          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          // A future unnamed heavyweight feature chunk should not silently
+          // become first-install work.
+          maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
           navigateFallback: null,
           skipWaiting: true,
           clientsClaim: true,
@@ -1035,6 +1051,17 @@ export default defineConfig(({ mode }) => {
                 cacheName: 'protomaps-assets',
                 expiration: { maxEntries: 100, maxAgeSeconds: 365 * 24 * 60 * 60 },
                 cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            {
+              urlPattern: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+                sameOrigin
+                && /^\/assets\/(?:GlobeMap|MapContainer|maplibre|deck-stack|protomaps|h3-js|hls|sentry|panels|UnifiedSettings|settings-window|checkout)-[^/]+\.js$/i.test(url.pathname),
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'optional-runtime-chunks',
+                expiration: { maxEntries: 64, maxAgeSeconds: 30 * 24 * 60 * 60 },
+                cacheableResponse: { statuses: [200] },
               },
             },
             {
