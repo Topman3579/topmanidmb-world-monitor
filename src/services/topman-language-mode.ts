@@ -53,6 +53,33 @@ export function topmanText(thai: string, english: string): string {
   }
 }
 
+/** Product line name — briefing desk for command, not a generic feed. */
+export function getTopmanProductName(): string {
+  return 'TOPMAN News Room';
+}
+
+/** Always-visible product promise under the name. */
 export function getTopmanBrandSubtitle(): string {
-  return topmanText('ข่าวกรองสถานการณ์โลก', 'World Intelligence');
+  return topmanText('ภาพรวมสถานการณ์ · โฟกัสไทย', 'Situation overview · Thailand focus');
+}
+
+/** One-line role: collect → brief for command (ผบ.ตร. / chain of command). */
+export function getTopmanProductMission(): string {
+  return topmanText(
+    'รวบรวมสถานการณ์การข่าว → สรุปภาพรวมอย่างถูกต้อง แม่นยำ รวดเร็ว เข้าใจง่าย เพื่อสนับสนุนการรับทราบและสั่งการของผู้บังคับบัญชา',
+    'Collect multi-source situation news → brief correctly, precisely, quickly, and clearly to support command awareness and decisions',
+  );
+}
+
+/** Short workflow tag for the simple shell kicker. */
+export function getTopmanWorkflowTag(): string {
+  return topmanText(
+    'รวบรวม · เรียบเรียง · วิเคราะห์ · นำเสนอ',
+    'Collect · organize · analyze · present',
+  );
+}
+
+/** Entry CTA for welcome / simple mode. */
+export function getTopmanOpenDeskLabel(): string {
+  return topmanText('เปิด News Room', 'Open News Room');
 }

@@ -1088,7 +1088,8 @@ export class EventHandlerManager implements AppModule {
     }
   }
 
-  private applyMissionPreset(presetId: MissionPresetId): void {
+  /** Public for TOPMAN Simple Mode mission cards. */
+  applyMissionPreset(presetId: MissionPresetId): void {
     const applied = applyMissionPresetToState(
       presetId,
       this.ctx.panelSettings,
@@ -1305,7 +1306,7 @@ export class EventHandlerManager implements AppModule {
     const baseUrl = `${window.location.origin}${window.location.pathname}`;
     const briefPage = this.ctx.countryBriefPage;
     const isCountryVisible = briefPage?.isVisible() ?? false;
-    return buildMapUrl(baseUrl, {
+    const shareUrl = buildMapUrl(baseUrl, {
       view: state.view,
       zoom: state.zoom,
       center,
@@ -1315,6 +1316,23 @@ export class EventHandlerManager implements AppModule {
       expanded: isCountryVisible && briefPage?.getIsMaximized?.() ? true : undefined,
       chokepoint: !isCountryVisible ? (this.ctx.activeChokepoint ?? undefined) : undefined,
     });
+    // Preserve TOPMAN progressive-disclosure params that map URL sync would otherwise drop.
+    try {
+      const next = new URL(shareUrl);
+      const current = new URL(window.location.href);
+      for (const key of ['mode', 'topmanMode']) {
+        const value = current.searchParams.get(key);
+        if (value) next.searchParams.set(key, value);
+      }
+      // If document is in simple/advanced, keep mode even when storage is the only source.
+      const docMode = document.documentElement.dataset.topmanUiMode;
+      if ((docMode === 'simple' || docMode === 'advanced') && !next.searchParams.get('mode')) {
+        next.searchParams.set('mode', docMode);
+      }
+      return next.toString();
+    } catch {
+      return shareUrl;
+    }
   }
 
   private getEmbedUrl(): string | null {

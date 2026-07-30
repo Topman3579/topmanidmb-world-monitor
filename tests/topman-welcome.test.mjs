@@ -105,13 +105,15 @@ describe('TOPMAN Thai-first welcome landing', () => {
 
   it('uses Thai-first copy, the approved Orbit asset, and the dashboard CTA', () => {
     assert.match(welcomeHtml, /<html lang="th">/);
-    assert.match(welcomeHtml, /รู้ก่อนข่าว[\s\S]*เข้าใจก่อนเหตุการณ์/);
+    assert.match(welcomeHtml, /TOPMAN News Room/);
+    assert.match(welcomeHtml, /ภาพรวมสถานการณ์ · โฟกัสไทย/);
     assert.match(
       welcomeHtml,
-      /ศูนย์บัญชาการสถานการณ์โลก[\s\S]*สำหรับประเทศไทยและอาเซียน/
+      /รวบรวมสถานการณ์การข่าว[\s\S]*ถูกต้อง · แม่นยำ · รวดเร็ว · เข้าใจง่าย/
     );
     assert.match(welcomeHtml, /src="\/brand\/topmanidmb-orbit-emblem\.png"/);
-    assert.match(welcomeHtml, /href="\/dashboard"/);
+    assert.match(welcomeHtml, /href="\/dashboard(?:\?mode=simple)?"/);
+    assert.match(welcomeHtml, /เปิด News Room/);
   });
 
   it('shows honest health states from the dedicated TOPMAN core endpoint', () => {

@@ -3,7 +3,11 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 
 import {
   TOPMAN_LANGUAGE_MODE_KEY,
+  getTopmanBrandSubtitle,
   getTopmanLanguageMode,
+  getTopmanProductMission,
+  getTopmanProductName,
+  getTopmanWorkflowTag,
   readRequestedTopmanLanguageModeFromUrl,
   storedTopmanLanguageMode,
   topmanText,
@@ -104,5 +108,13 @@ describe('TOPMAN language mode', () => {
     assert.equal(readRequestedTopmanLanguageModeFromUrl(), null);
     assert.equal(storedTopmanLanguageMode(), null);
     assert.equal(getTopmanLanguageMode(), 'bilingual');
+  });
+
+  it('locks TOPMAN News Room product naming for command briefing', () => {
+    storage.setItem(TOPMAN_LANGUAGE_MODE_KEY, 'th');
+    assert.equal(getTopmanProductName(), 'TOPMAN News Room');
+    assert.match(getTopmanBrandSubtitle(), /ภาพรวมสถานการณ์ · โฟกัสไทย/);
+    assert.match(getTopmanProductMission(), /สั่งการของผู้บังคับบัญชา/);
+    assert.match(getTopmanWorkflowTag(), /รวบรวม · เรียบเรียง · วิเคราะห์ · นำเสนอ/);
   });
 });

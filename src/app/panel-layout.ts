@@ -39,6 +39,7 @@ import {
 import { resolveNewsCategories, enabledNewsCategoryKeys } from '@/config/feed-resolution';
 import { BETA_MODE } from '@/config/beta';
 import { getTopmanBrandSubtitle, t } from '@/services/i18n';
+import { getTopmanProductName, topmanText } from '@/services/topman-language-mode';
 import {
   getInitialTopmanHealthPresentation,
   getTopmanSourceHref,
@@ -798,10 +799,10 @@ export class PanelLayoutManager implements AppModule {
               <span class="variant-label">Good News</span>
             </a>`;
       })()}</div>
-          <span class="topman-brand-lockup" aria-label="TOPMANIDMB ${escapeHtml(getTopmanBrandSubtitle())}">
+          <span class="topman-brand-lockup" aria-label="${escapeHtml(getTopmanProductName())} · ${escapeHtml(getTopmanBrandSubtitle())}">
             <img class="topman-brand-mark" src="/brand/topmanidmb-orbit-emblem.png" alt="" width="27" height="27">
             <span class="topman-brand-copy">
-              <span class="topman-brand-name">TOPMANIDMB</span>
+              <span class="topman-brand-name">${escapeHtml(getTopmanProductName())}</span>
               <span class="topman-brand-subtitle">${escapeHtml(getTopmanBrandSubtitle())}</span>
             </span>
           </span>
@@ -838,6 +839,9 @@ export class PanelLayoutManager implements AppModule {
             </select>
           </div>
           <span id="missionPresetMount" class="mission-preset-mount"></span>
+          <button type="button" class="topman-mode-toggle" id="topmanModeToggle" data-mode="simple" title="${escapeHtml(topmanText('สลับโหมดใช้ง่าย/ผู้เชี่ยวชาญ', 'Toggle Simple/Advanced Mode'))}" aria-label="${escapeHtml(topmanText('สลับโหมดใช้ง่าย/ผู้เชี่ยวชาญ', 'Toggle Simple/Advanced Mode'))}">
+            ${escapeHtml(topmanText('โหมดผู้เชี่ยวชาญ', 'Advanced Mode'))}
+          </button>
           <button class="mobile-search-btn" id="mobileSearchBtn" aria-label="${t('header.search')}">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </button>
@@ -855,7 +859,7 @@ export class PanelLayoutManager implements AppModule {
       <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
       <nav class="mobile-menu" id="mobileMenu">
         <div class="mobile-menu-header">
-          <span class="mobile-menu-title">TOPMANIDMB · WORLD INTELLIGENCE</span>
+          <span class="mobile-menu-title">TOPMAN NEWS ROOM · โฟกัสไทย</span>
           <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Close menu">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -888,6 +892,10 @@ export class PanelLayoutManager implements AppModule {
           <span class="mobile-menu-item-icon">◎</span>
           <span class="mobile-menu-item-label">Mission</span>
           <span class="mobile-menu-chevron">▸</span>
+        </button>
+        <button class="mobile-menu-item" id="mobileMenuTopmanMode">
+          <span class="mobile-menu-item-icon">◎</span>
+          <span class="mobile-menu-item-label">${escapeHtml(topmanText('โหมดผู้เชี่ยวชาญ', 'Advanced Mode'))}</span>
         </button>
         <div class="mobile-menu-divider"></div>
         <button class="mobile-menu-item" id="mobileMenuSettings">
@@ -933,6 +941,7 @@ export class PanelLayoutManager implements AppModule {
       </div>
       <div class="dashboard-tabs-mount" id="panelTabsMount"></div>
       <main id="main" tabindex="-1" class="main-content${this.ctx.isDesktopApp ? ' desktop-grid' : ''}">
+        <div id="topmanSimpleModeRoot" class="topman-simple-mode topman-simple-mode--top" hidden></div>
         <div class="map-section${mapStartsCollapsed ? ' collapsed' : ''}" id="mapSection">
           <div class="panel-header">
             <div class="panel-header-left">
@@ -960,6 +969,7 @@ export class PanelLayoutManager implements AppModule {
           <div class="map-bottom-grid" id="mapBottomGrid"></div>
         </div>
         <div class="map-width-resize-handle" id="mapWidthResizeHandle"></div>
+        <div id="topmanSimpleModeBelow" class="topman-simple-mode topman-simple-mode--below" hidden></div>
         <div class="panels-grid" id="panelsGrid" role="tabpanel"></div>
         <button class="search-mobile-fab" id="searchMobileFab" aria-label="Search">\u{1F50D}</button>
       </main>

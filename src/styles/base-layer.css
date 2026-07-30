@@ -11,4 +11,5 @@
 @import url('./map-context-menu.css') layer(base);
 @import url('./supply-chain-panel.css') layer(base);
 @import url('./topman-brand.css');
+@import url('./topman-simple-mode.css');
 @import url('./pwa-install.css') layer(base);
