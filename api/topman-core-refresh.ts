@@ -216,7 +216,8 @@ function retryAfterMs(response: Response): number | null {
 
 export function classifyRefreshError(error: unknown): string {
   if (error instanceof TopmanUpstreamError) return error.category;
-  if (error instanceof DOMException && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+  const errorRecord = asRecord(error);
+  if (errorRecord?.name === 'TimeoutError' || errorRecord?.name === 'AbortError') {
     return 'TIMEOUT';
   }
   const message = errorMessage(error).toLowerCase();

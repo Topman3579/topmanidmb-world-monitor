@@ -451,7 +451,14 @@ describe('TOPMAN core refresh normalizers', () => {
 
   it('classifies upstream failures without exposing raw error text in metadata', () => {
     assert.equal(classifyRefreshError(new DOMException('timed out', 'TimeoutError')), 'TIMEOUT');
+    assert.equal(classifyRefreshError({ name: 'AbortError', message: 'aborted' }), 'TIMEOUT');
     assert.equal(classifyRefreshError(new Error('returned no usable rows')), 'INVALID_PAYLOAD');
     assert.equal(classifyRefreshError(new Error('socket reset')), 'UPSTREAM_ERROR');
+
+    const source = readFileSync(
+      fileURLToPath(new URL('../api/topman-core-refresh.ts', import.meta.url)),
+      'utf8',
+    );
+    assert.doesNotMatch(source, /\binstanceof\s+DOMException\b/);
   });
 });
