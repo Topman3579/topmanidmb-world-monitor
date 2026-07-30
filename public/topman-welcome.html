@@ -1533,10 +1533,11 @@
       <section class="data-trust" id="data-trust" aria-labelledby="trust-title">
         <div class="container">
           <div class="trust-header">
-            <h2 id="trust-title">ข้อมูลต้องสดก่อนเรียกว่าล่าสุด</h2>
+            <h2 id="trust-title">ข้อมูลหลัก TOPMAN 6 ชุดต้องสดก่อนเรียกว่าล่าสุด</h2>
             <p>
-              ระบบแสดงผลตรวจสุขภาพล่าสุดอย่างตรงไปตรงมา
+              หน้านี้แสดงผลตรวจเฉพาะข้อมูลหลัก TOPMAN 6 ชุดอย่างตรงไปตรงมา
               “พร้อมบางส่วน” หมายถึงบางแหล่งอาจล่าช้าหรือไม่พร้อม
+              ไม่ใช่สถานะของระบบ World Monitor ทั้งหมด
               จึงควรเปิดดูรายละเอียดและแหล่งอ้างอิงก่อนนำไปตัดสินใจ
             </p>
           </div>
@@ -1570,8 +1571,8 @@
               <path d="M12 11v5m0-8v.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" />
             </svg>
             <span>
-              สถานะจาก <code>/api/health?compact=1</code> เป็นภาพรวม ณ เวลาที่ตรวจ
-              ไม่ใช่คำรับรองว่าข้อมูลทุกชุดเป็นปัจจุบันทันที
+              สถานะจาก <code>/api/topman-core-status</code> ครอบคลุมเฉพาะข้อมูลหลัก
+              TOPMAN 6 ชุด ไม่ใช่คำรับรองสถานะของแหล่งข้อมูลทั้งหมดในระบบต้นทาง
             </span>
           </p>
         </div>
@@ -1589,14 +1590,15 @@
 
           <div class="source-links">
             <a
+              id="topman-source-link"
               class="source-link"
-              href="https://github.com/Topman3579/topmanidmb-world-monitor/tree/codex/world-command-center-v2"
+              href="https://github.com/Topman3579/topmanidmb-world-monitor"
               target="_blank"
               rel="noopener noreferrer"
             >
               <span>
                 <strong>ซอร์สของเวอร์ชันนี้</strong>
-                <span>Topman3579/topmanidmb-world-monitor · codex/world-command-center-v2</span>
+                <span id="topman-source-revision">กำลังยืนยัน revision ที่เผยแพร่</span>
               </span>
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
                 <path d="M8 16 16 8m-6 0h6v6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
@@ -1616,9 +1618,18 @@
                 <path d="M8 16 16 8m-6 0h6v6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </a>
+            <a class="source-link" href="/api/topman-core-status">
+              <span>
+                <strong>ผลตรวจข้อมูลหลัก TOPMAN 6 ชุด (JSON)</strong>
+                <span>/api/topman-core-status</span>
+              </span>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <path d="M8 16 16 8m-6 0h6v6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </a>
             <a class="source-link" href="/api/health?compact=1">
               <span>
-                <strong>ผลตรวจสถานะระบบ (JSON)</strong>
+                <strong>ผลตรวจระบบต้นทางทั้งหมด (JSON)</strong>
                 <span>/api/health?compact=1</span>
               </span>
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
@@ -1654,13 +1665,15 @@
       </div>
     </footer>
 
+    <script src="/topman-welcome-source.js" defer nonce="wm-static-bootstrap"></script>
     <script nonce="wm-static-bootstrap">
       (() => {
         "use strict";
 
-        const HEALTH_URL = "/api/health?compact=1";
+        const HEALTH_URL = "/api/topman-core-status";
         const HEALTH_CHECK_MAX_AGE_MS = 5 * 60 * 1000;
         const HEALTH_CHECK_FUTURE_TOLERANCE_MS = 60 * 1000;
+        const HEALTH_REQUEST_TIMEOUT_MS = 10 * 1000;
         const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
         const EMPTY_SUMMARY = Object.freeze({
           total: 0,
@@ -1677,6 +1690,8 @@
         const time = document.getElementById("health-time");
         const counts = document.getElementById("health-counts");
         const refreshButton = document.getElementById("health-refresh");
+        let activeHealthController = null;
+        let healthRequestGeneration = 0;
 
         const unavailableSnapshot = (sourceStatus = null, checkedAtMs = null) => ({
           state: "unavailable",
@@ -1705,7 +1720,7 @@
 
           if (
             summary.total === null ||
-            summary.total === 0 ||
+            summary.total !== 6 ||
             summary.ok === null ||
             summary.warn === null ||
             summary.onDemandWarn === null ||
@@ -1750,25 +1765,31 @@
           const summary = parseSummary(payload.summary);
           if (!summary) return unavailableSnapshot();
 
+          const statusMatchesSummary =
+            sourceStatus === "HEALTHY"
+              ? summary.ok === summary.total &&
+                summary.warn === 0 &&
+                summary.onDemandWarn === 0 &&
+                summary.staleContent === 0 &&
+                summary.crit === 0
+              : sourceStatus === "WARNING"
+                ? summary.warn > 0 &&
+                  summary.onDemandWarn === 0 &&
+                  summary.crit === 0
+                : sourceStatus === "UNHEALTHY"
+                  ? summary.onDemandWarn === 0 && summary.crit > 0
+                  : false;
+          if (!statusMatchesSummary) return unavailableSnapshot();
+
           let state;
           if (nowMs - checkedAtMs > HEALTH_CHECK_MAX_AGE_MS) {
             state = "stale";
-          } else if (summary.crit > 0) {
+          } else if (sourceStatus === "UNHEALTHY") {
             state = summary.ok > 0 ? "partial" : "unavailable";
           } else if (sourceStatus === "HEALTHY") {
-            state =
-              summary.warn === 0 &&
-              summary.onDemandWarn === 0 &&
-              summary.ok === summary.total
-                ? "healthy"
-                : "partial";
+            state = "healthy";
           } else if (sourceStatus === "WARNING") {
             state = summary.staleContent > 0 ? "stale" : "partial";
-          } else if (
-            sourceStatus === "DEGRADED" ||
-            sourceStatus === "UNHEALTHY"
-          ) {
-            state = "partial";
           } else {
             return unavailableSnapshot();
           }
@@ -1810,14 +1831,14 @@
             ? `ตรวจล่าสุด ${checked.text} น.`
             : "ไม่พบเวลาที่ตรวจล่าสุด";
           const summaryText = total
-            ? `ผ่าน ${ok}/${total} · เตือน ${warn} · วิกฤต ${critical}`
-            : "ระบบไม่ส่งจำนวนแหล่งข้อมูลกลับมา";
+            ? `TOPMAN Core ${total} ชุด · ผ่าน ${ok}/${total} · เตือน ${warn} · วิกฤต ${critical}`
+            : "ระบบไม่ส่งจำนวนข้อมูลหลักกลับมา";
 
           if (snapshot.state === "healthy") {
             setHealthView(
               "ready",
-              "พร้อมใช้งาน",
-              "ผลตรวจล่าสุดไม่พบคำเตือนที่มีผลต่อภาพรวม",
+              "ข้อมูลหลัก 6 ชุดพร้อม",
+              "ผลตรวจล่าสุดไม่พบคำเตือนในข้อมูลหลัก TOPMAN 6 ชุด",
               checkedText,
               summaryText,
             );
@@ -1827,8 +1848,8 @@
           if (snapshot.state === "stale") {
             setHealthView(
               "delayed",
-              "ข้อมูลล่าช้า",
-              "ผลตรวจหรือข้อมูลบางส่วนเก่ากว่าเกณฑ์ที่กำหนด",
+              "ข้อมูลหลักล่าช้า",
+              "ผลตรวจหรือข้อมูลหลักบางชุดเก่ากว่าเกณฑ์ที่กำหนด",
               checkedText,
               summaryText,
             );
@@ -1838,8 +1859,8 @@
           if (snapshot.state === "partial") {
             setHealthView(
               "partial",
-              "พร้อมบางส่วน",
-              "บางแหล่งอาจล่าช้าหรือไม่พร้อม กรุณาตรวจรายละเอียดก่อนใช้งาน",
+              "ข้อมูลหลักพร้อมบางส่วน",
+              "ข้อมูลหลักบางชุดอาจล่าช้าหรือไม่พร้อม กรุณาตรวจรายละเอียดก่อนใช้งาน",
               checkedText,
               summaryText,
             );
@@ -1849,8 +1870,8 @@
           if (snapshot.state === "unavailable") {
             setHealthView(
               "unavailable",
-              "ไม่พร้อม",
-              "ยังยืนยันความพร้อมของข้อมูลไม่ได้ กรุณาลองตรวจอีกครั้งภายหลัง",
+              "ข้อมูลหลักไม่พร้อม",
+              "ยังยืนยันความพร้อมของข้อมูลหลัก 6 ชุดไม่ได้ กรุณาลองตรวจอีกครั้งภายหลัง",
               checkedText,
               summaryText,
             );
@@ -1859,11 +1880,19 @@
         };
 
         const refreshHealth = async () => {
+          const generation = ++healthRequestGeneration;
+          activeHealthController?.abort();
+          const controller = new AbortController();
+          activeHealthController = controller;
+          const timeoutId = window.setTimeout(
+            () => controller.abort(new DOMException("Health request timed out", "TimeoutError")),
+            HEALTH_REQUEST_TIMEOUT_MS,
+          );
           refreshButton.setAttribute("aria-busy", "true");
           setHealthView(
             "checking",
             "กำลังตรวจสอบ",
-            "กำลังอ่านสถานะจากระบบ",
+            "กำลังอ่านสถานะข้อมูลหลัก TOPMAN 6 ชุด",
             "รอผลตรวจล่าสุด",
             "ยังไม่มีผลสรุป",
           );
@@ -1872,24 +1901,33 @@
             const response = await fetch(HEALTH_URL, {
               cache: "no-store",
               headers: { Accept: "application/json" },
+              signal: controller.signal,
             });
             const payload = await response.json();
+            if (generation !== healthRequestGeneration) return;
             const snapshot = classifyHealthPayload(payload);
             if (!response.ok && snapshot.sourceStatus !== "REDIS_DOWN") {
               renderHealthSnapshot(unavailableSnapshot());
               return;
             }
             renderHealthSnapshot(snapshot);
-          } catch {
+          } catch (error) {
+            if (generation !== healthRequestGeneration) return;
             setHealthView(
               "unknown",
               "ตรวจสอบไม่ได้",
-              "เชื่อมต่อผลตรวจสุขภาพระบบไม่สำเร็จ",
+              error?.name === "TimeoutError"
+                ? "การตรวจข้อมูลหลักใช้เวลานานเกิน 10 วินาที"
+                : "เชื่อมต่อผลตรวจข้อมูลหลักไม่สำเร็จ",
               "ยังยืนยันเวลาล่าสุดไม่ได้",
               "กดปุ่มด้านขวาเพื่อลองใหม่",
             );
           } finally {
-            refreshButton.setAttribute("aria-busy", "false");
+            window.clearTimeout(timeoutId);
+            if (generation === healthRequestGeneration) {
+              activeHealthController = null;
+              refreshButton.setAttribute("aria-busy", "false");
+            }
           }
         };
 

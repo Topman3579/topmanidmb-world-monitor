@@ -36,6 +36,11 @@ const LEGACY_DASHBOARD_ROOT_QUERY_KEYS = ['lat', 'lon', 'zoom', 'view', 'timeRan
 //   keyless, advertised as service-meta in /.well-known/api-catalog). Agents
 //   evaluating the product are a primary audience; an agent-journey run (#4854)
 //   got 403 here and concluded the endpoint didn't exist.
+// - /api/topman-core-status: intentionally public, read-only health/freshness
+//   snapshot for the TOPMAN Core 6 lanes and native-app monitoring.
+// - /api/topman-core-refresh: Vercel Cron producer. The middleware must allow
+//   Vercel's script UA through; the handler still requires GET plus the exact
+//   CRON_SECRET Bearer token before any refresh work runs.
 const PUBLIC_API_PATHS = new Set([
   '/api/version',
   '/api/health',
@@ -43,6 +48,8 @@ const PUBLIC_API_PATHS = new Set([
   '/api/internal/brief-why-matters',
   '/api/llms.txt',
   '/api/product-catalog',
+  '/api/topman-core-status',
+  '/api/topman-core-refresh',
 ]);
 
 const SOCIAL_IMAGE_UA =

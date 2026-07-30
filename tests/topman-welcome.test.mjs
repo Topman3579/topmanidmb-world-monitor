@@ -8,6 +8,10 @@ import vm from 'node:vm';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const welcomePath = resolve(__dirname, '../public/topman-welcome.html');
 const welcomeHtml = readFileSync(welcomePath, 'utf-8').replace(/\r\n/g, '\n');
+const welcomeSourceScript = readFileSync(
+  resolve(__dirname, '../public/topman-welcome-source.js'),
+  'utf-8'
+).replace(/\r\n/g, '\n');
 const vercelConfig = JSON.parse(
   readFileSync(resolve(__dirname, '../vercel.json'), 'utf-8')
 );
@@ -55,6 +59,8 @@ async function renderLandingHealth(payload, {
       setInterval() {
         return 1;
       },
+      setTimeout,
+      clearTimeout,
     },
     fetch: async () => ({
       ok,
@@ -63,6 +69,8 @@ async function renderLandingHealth(payload, {
     }),
     Intl,
     Date,
+    AbortController,
+    DOMException,
   };
 
   vm.runInNewContext(healthScript, sandbox);
@@ -106,13 +114,16 @@ describe('TOPMAN Thai-first welcome landing', () => {
     assert.match(welcomeHtml, /href="\/dashboard"/);
   });
 
-  it('shows honest health states from the compact health endpoint', () => {
-    assert.match(welcomeHtml, /const HEALTH_URL = "\/api\/health\?compact=1"/);
+  it('shows honest health states from the dedicated TOPMAN core endpoint', () => {
+    assert.match(welcomeHtml, /const HEALTH_URL = "\/api\/topman-core-status"/);
     assert.match(welcomeHtml, /cache: "no-store"/);
     assert.match(welcomeHtml, /พร้อมบางส่วน/);
     assert.match(welcomeHtml, /ข้อมูลล่าช้า/);
     assert.match(welcomeHtml, /ตรวจสอบไม่ได้/);
     assert.match(welcomeHtml, /HEALTH_CHECK_MAX_AGE_MS = 5 \* 60 \* 1000/);
+    assert.match(welcomeHtml, /HEALTH_REQUEST_TIMEOUT_MS = 10 \* 1000/);
+    assert.match(welcomeHtml, /healthRequestGeneration/);
+    assert.match(welcomeHtml, /activeHealthController\?\.abort\(\)/);
     assert.match(welcomeHtml, /role="status"/);
     assert.match(welcomeHtml, /aria-live="polite"/);
     assert.doesNotMatch(
@@ -122,24 +133,25 @@ describe('TOPMAN Thai-first welcome landing', () => {
     );
   });
 
-  it('classifies the current production UNHEALTHY count shape as partial', async () => {
+  it('classifies a partially available TOPMAN Core 6 snapshot honestly', async () => {
     const result = await renderLandingHealth({
       status: 'UNHEALTHY',
       checkedAt: new Date().toISOString(),
       summary: {
-        total: 232,
-        ok: 17,
-        warn: 50,
+        total: 6,
+        ok: 2,
+        warn: 0,
         onDemandWarn: 0,
         staleContent: 0,
-        crit: 165,
+        crit: 4,
       },
     });
 
     assert.equal(result.state, 'partial');
-    assert.equal(result.label, 'พร้อมบางส่วน');
-    assert.match(result.counts, /ผ่าน 17\/232/);
-    assert.match(result.counts, /วิกฤต 165/);
+    assert.equal(result.label, 'ข้อมูลหลักพร้อมบางส่วน');
+    assert.match(result.counts, /TOPMAN Core 6 ชุด/);
+    assert.match(result.counts, /ผ่าน 2\/6/);
+    assert.match(result.counts, /วิกฤต 4/);
   });
 
   it('renders HEALTHY as ready only when every validated count is OK', async () => {
@@ -147,8 +159,8 @@ describe('TOPMAN Thai-first welcome landing', () => {
       status: 'HEALTHY',
       checkedAt: new Date().toISOString(),
       summary: {
-        total: 10,
-        ok: 10,
+        total: 6,
+        ok: 6,
         warn: 0,
         onDemandWarn: 0,
         staleContent: 0,
@@ -156,11 +168,11 @@ describe('TOPMAN Thai-first welcome landing', () => {
       },
     });
     const partial = await renderLandingHealth({
-      status: 'HEALTHY',
+      status: 'UNHEALTHY',
       checkedAt: new Date().toISOString(),
       summary: {
-        total: 10,
-        ok: 9,
+        total: 6,
+        ok: 5,
         warn: 0,
         onDemandWarn: 0,
         staleContent: 0,
@@ -171,20 +183,20 @@ describe('TOPMAN Thai-first welcome landing', () => {
       status: 'HEALTHY',
       checkedAt: new Date().toISOString(),
       summary: {
-        total: 1,
+        total: 6,
         ok: 0,
         warn: 0,
         onDemandWarn: 0,
         staleContent: 0,
-        crit: 1,
+        crit: 6,
       },
     });
     const warning = await renderLandingHealth({
-      status: 'HEALTHY',
+      status: 'WARNING',
       checkedAt: new Date().toISOString(),
       summary: {
-        total: 10,
-        ok: 9,
+        total: 6,
+        ok: 5,
         warn: 1,
         onDemandWarn: 0,
         staleContent: 0,
@@ -195,8 +207,8 @@ describe('TOPMAN Thai-first welcome landing', () => {
       status: 'HEALTHY',
       checkedAt: new Date().toISOString(),
       summary: {
-        total: 10,
-        ok: 9,
+        total: 6,
+        ok: 5,
         warn: 0,
         onDemandWarn: 1,
         staleContent: 0,
@@ -208,7 +220,7 @@ describe('TOPMAN Thai-first welcome landing', () => {
     assert.equal(partial.state, 'partial');
     assert.equal(unavailable.state, 'unavailable');
     assert.equal(warning.state, 'partial');
-    assert.equal(onDemand.state, 'partial');
+    assert.equal(onDemand.state, 'unavailable');
   });
 
   it('fails closed for contradictory counts, future timestamps, and non-2xx responses', async () => {
@@ -216,8 +228,8 @@ describe('TOPMAN Thai-first welcome landing', () => {
       status: 'HEALTHY',
       checkedAt: new Date().toISOString(),
       summary: {
-        total: 10,
-        ok: 10,
+        total: 6,
+        ok: 6,
         warn: 0,
         onDemandWarn: 0,
         staleContent: 0,
@@ -228,8 +240,8 @@ describe('TOPMAN Thai-first welcome landing', () => {
       status: 'HEALTHY',
       checkedAt: new Date(Date.now() + 2 * 60_000).toISOString(),
       summary: {
-        total: 10,
-        ok: 10,
+        total: 6,
+        ok: 6,
         warn: 0,
         onDemandWarn: 0,
         staleContent: 0,
@@ -240,8 +252,8 @@ describe('TOPMAN Thai-first welcome landing', () => {
       status: 'HEALTHY',
       checkedAt: new Date().toISOString(),
       summary: {
-        total: 10,
-        ok: 10,
+        total: 6,
+        ok: 6,
         warn: 0,
         onDemandWarn: 0,
         staleContent: 0,
@@ -254,26 +266,44 @@ describe('TOPMAN Thai-first welcome landing', () => {
     assert.equal(httpFailure.state, 'unavailable');
   });
 
+  it('rejects non-Core-6 summary totals', async () => {
+    for (const total of [5, 10]) {
+      const result = await renderLandingHealth({
+        status: 'HEALTHY',
+        checkedAt: new Date().toISOString(),
+        summary: {
+          total,
+          ok: total,
+          warn: 0,
+          onDemandWarn: 0,
+          staleContent: 0,
+          crit: 0,
+        },
+      });
+      assert.equal(result.state, 'unavailable');
+    }
+  });
+
   it('gives stale health priority across status families', async () => {
     const oldCheckedAt = new Date(Date.now() - 6 * 60_000).toISOString();
     const staleCritical = await renderLandingHealth({
       status: 'UNHEALTHY',
       checkedAt: oldCheckedAt,
       summary: {
-        total: 10,
+        total: 6,
         ok: 2,
         warn: 0,
         onDemandWarn: 0,
         staleContent: 0,
-        crit: 8,
+        crit: 4,
       },
     });
     const staleWarning = await renderLandingHealth({
       status: 'WARNING',
       checkedAt: oldCheckedAt,
       summary: {
-        total: 10,
-        ok: 8,
+        total: 6,
+        ok: 4,
         warn: 2,
         onDemandWarn: 0,
         staleContent: 0,
@@ -285,11 +315,21 @@ describe('TOPMAN Thai-first welcome landing', () => {
     assert.equal(staleWarning.state, 'delayed');
   });
 
-  it('links the exact TOPMAN branch, upstream source, and AGPL attribution', () => {
+  it('fails neutral until the deployed TOPMAN commit is verified, with upstream and AGPL attribution', () => {
     assert.match(
       welcomeHtml,
-      /https:\/\/github\.com\/Topman3579\/topmanidmb-world-monitor\/tree\/codex\/world-command-center-v2/
+      /href="https:\/\/github\.com\/Topman3579\/topmanidmb-world-monitor"/
     );
+    assert.match(welcomeHtml, /กำลังยืนยัน revision ที่เผยแพร่/);
+    assert.doesNotMatch(welcomeHtml, /\/commit\/[0-9a-f]{40}/);
+    assert.doesNotMatch(welcomeHtml, /\/tree\/codex\/world-command-center-v2/);
+    assert.match(
+      welcomeHtml,
+      /<script src="\/topman-welcome-source\.js" defer nonce="wm-static-bootstrap"><\/script>/
+    );
+    assert.match(welcomeSourceScript, /\/build-hash\.txt\?t=\$\{Date\.now\(\)\}/);
+    assert.match(welcomeSourceScript, /cache: 'no-store'/);
+    assert.match(welcomeSourceScript, /\/commit\/\$\{hash\}/);
     assert.match(welcomeHtml, /https:\/\/github\.com\/koala73\/worldmonitor/);
     assert.match(welcomeHtml, /Based on[\s\S]*World Monitor/);
     assert.match(welcomeHtml, /AGPL-3\.0/);

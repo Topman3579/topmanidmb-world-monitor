@@ -5,13 +5,19 @@ import { fileURLToPath } from 'node:url';
 
 import {
   type PublishableDataset,
+  assertUpstreamArrayPayload,
+  classifyRefreshError,
+  countUniqueGdeltTopicArticles,
+  fetchCommodityQuotes,
   isAuthorizedCronRequest,
   normalizeEarthquakes,
+  normalizeEcbFxSeries,
   normalizeGdeltArticles,
   normalizeNaturalEvents,
   normalizeWeatherAlerts,
   normalizeYahooQuote,
   publishDatasets,
+  recordRefreshAttempts,
 } from '../api/topman-core-refresh.ts';
 import handler from '../api/topman-core-refresh.ts';
 
@@ -124,6 +130,27 @@ describe('TOPMAN core Redis publication', () => {
     assert.equal(redisCalls, 0);
   });
 
+  it('records bounded attempt metadata only under the TOPMAN namespace', async () => {
+    const captured: string[][][] = [];
+    const recorded = await recordRefreshAttempts([
+      {
+        name: 'gdelt-intel',
+        attemptedAt: 1_700_000_000_000,
+        status: 'FAILED',
+        durationMs: 18_250,
+        errorCategory: 'RATE_LIMITED',
+      },
+    ], async (commands) => {
+      captured.push(commands);
+      return commands.map(() => ({ result: 'OK' }));
+    });
+
+    assert.equal(recorded, true);
+    assert.equal(captured[0]?.[0]?.[0], 'SET');
+    assert.equal(captured[0]?.[0]?.[1], 'topman:core:attempt:gdelt-intel:v1');
+    assert.doesNotMatch(JSON.stringify(captured), /seed-meta:|health:verdict/);
+  });
+
   it('returns PUBLISH_FAILED when Redis returns a malformed publish result and releases its own lock', async () => {
     const previousFetch = globalThis.fetch;
     const previousSecret = process.env.CRON_SECRET;
@@ -144,6 +171,7 @@ describe('TOPMAN core Redis publication', () => {
         redisCall += 1;
         if (redisCall === 1) return responseJson([{ result: 'OK' }]);
         if (redisCall === 2) return responseJson([{}]);
+        if (redisCall === 3) return responseJson(commands.map(() => ({ result: 'OK' })));
         return responseJson([{ result: 1 }]);
       }
       if (url.includes('earthquake.usgs.gov')) {
@@ -176,14 +204,16 @@ describe('TOPMAN core Redis publication', () => {
 
       assert.equal(response.status, 503);
       assert.equal(body.status, 'PUBLISH_FAILED');
-      assert.equal(redisCommands.length, 3);
+      assert.equal(redisCommands.length, 4);
       const publishCommand = redisCommands[1]?.[0] ?? [];
       assert.equal(publishCommand[0], 'EVAL');
       const keyCount = Number(publishCommand[2]);
       const keys = publishCommand.slice(3, 3 + keyCount);
       assert.equal(keys.every((key) => key.startsWith('topman:core:')), true);
       assert.equal(JSON.stringify(redisCommands).includes('health:verdict'), false);
-      assert.equal(redisCommands[2]?.[0]?.includes('topman:core:lock:fast:v1'), true);
+      assert.equal(redisCommands[2]?.every((command) =>
+        command[0] === 'SET' && command[1]?.startsWith('topman:core:attempt:')), true);
+      assert.equal(redisCommands[3]?.[0]?.includes('topman:core:lock:fast:v1'), true);
     } finally {
       globalThis.fetch = previousFetch;
       restoreEnvironment('CRON_SECRET', previousSecret);
@@ -275,6 +305,21 @@ describe('TOPMAN core refresh normalizers', () => {
     assert.deepEqual(rows[0]?.centroid, [101, 14]);
   });
 
+  it('accepts valid empty observations but rejects malformed empty-object contracts', () => {
+    assert.doesNotThrow(() => assertUpstreamArrayPayload({ features: [] }, 'features', 'NWS'));
+    assert.doesNotThrow(() => assertUpstreamArrayPayload({ events: [] }, 'events', 'NASA EONET'));
+    assert.throws(
+      () => assertUpstreamArrayPayload({}, 'features', 'NWS'),
+      /invalid features contract/,
+    );
+    try {
+      assertUpstreamArrayPayload({}, 'events', 'NASA EONET');
+      assert.fail('malformed EONET payload must be rejected');
+    } catch (error) {
+      assert.equal(classifyRefreshError(error), 'INVALID_PAYLOAD');
+    }
+  });
+
   it('normalizes only point-based EONET events', () => {
     const rows = normalizeNaturalEvents({
       events: [
@@ -290,14 +335,32 @@ describe('TOPMAN core refresh normalizers', () => {
           sources: [{ id: 'NASA', url: 'https://eonet.gsfc.nasa.gov/' }],
           closed: null,
         },
+        {
+          id: 'old-wildfire',
+          title: 'Old wildfire',
+          categories: [{ id: 'wildfires', title: 'Wildfires' }],
+          geometry: [{
+            type: 'Point',
+            coordinates: [101, 14],
+            date: '2026-07-27T00:00:00Z',
+          }],
+        },
+        {
+          id: 'event-earthquake',
+          title: 'Duplicate earthquake',
+          categories: [{ id: 'earthquakes', title: 'Earthquakes' }],
+          geometry: [{ type: 'Point', coordinates: [101, 14], date: '2026-07-30T00:00:00Z' }],
+        },
         { id: 'event-2', geometry: [{ type: 'Polygon', coordinates: [] }] },
       ],
-    });
+    }, Date.parse('2026-07-30T00:00:00Z'));
 
     assert.equal(rows.length, 1);
     assert.equal(rows[0]?.category, 'severeStorms');
     assert.equal(rows[0]?.lat, 15);
     assert.equal(rows[0]?.lon, 120);
+    assert.deepEqual(rows[0]?.forecastTrack, []);
+    assert.deepEqual(rows[0]?.agencyObservations, []);
   });
 
   it('keeps only GDELT articles with safe HTTP URLs', () => {
@@ -317,6 +380,25 @@ describe('TOPMAN core refresh normalizers', () => {
     assert.equal(rows[0]?.title, 'ASEAN update');
   });
 
+  it('counts only unique GDELT articles actually emitted in topic projections', () => {
+    assert.equal(countUniqueGdeltTopicArticles([
+      {
+        id: 'intelligence',
+        articles: [
+          { title: 'Story A', url: 'https://example.com/a' },
+          { title: 'Story B', url: 'https://example.com/b' },
+        ],
+      },
+      {
+        id: 'military',
+        articles: [
+          { title: 'Story A duplicated', url: 'https://example.com/a' },
+          { title: 'Story C' },
+        ],
+      },
+    ]), 3);
+  });
+
   it('maps Yahoo chart data into the dashboard quote contract', () => {
     const quote = normalizeYahooQuote({
       chart: {
@@ -330,5 +412,46 @@ describe('TOPMAN core refresh normalizers', () => {
     assert.equal(quote?.price, 105);
     assert.equal(quote?.change, 5);
     assert.deepEqual(quote?.sparkline, [100, 105]);
+  });
+
+  it('computes real day-over-day ECB FX changes from provider-pinned observations', () => {
+    const normalized = normalizeEcbFxSeries([
+      { date: '2026-07-28', base: 'EUR', quote: 'USD', rate: 1.16 },
+      { date: '2026-07-29', base: 'EUR', quote: 'USD', rate: 1.17 },
+      { date: '2026-07-28', base: 'EUR', quote: 'JPY', rate: 171.2 },
+      { date: '2026-07-29', base: 'EUR', quote: 'JPY', rate: 170.8 },
+      { date: '2026-07-29', base: 'USD', quote: 'THB', rate: 32.1 },
+    ]);
+
+    assert.equal(normalized.updatedAt, '2026-07-29');
+    assert.deepEqual(normalized.rates, [
+      { pair: 'EURUSD', rate: 1.17, date: '2026-07-29', change1d: 0.01 },
+      { pair: 'EURJPY', rate: 170.8, date: '2026-07-29', change1d: -0.4 },
+    ]);
+  });
+
+  it('stages Yahoo request starts at least 200 ms apart while preserving partial success', async () => {
+    const delays: number[] = [];
+    const quotes = await fetchCommodityQuotes(
+      async () => ({
+        chart: {
+          result: [{
+            meta: { regularMarketPrice: 105, chartPreviousClose: 100 },
+            indicators: { quote: [{ close: [100, 105] }] },
+          }],
+        },
+      }),
+      async (ms) => { delays.push(ms); },
+    );
+
+    assert.equal(quotes.length, 7);
+    assert.deepEqual(delays, [200, 400, 600, 800, 1000, 1200]);
+    assert.equal(delays.every((ms, index) => index === 0 || ms - delays[index - 1]! >= 200), true);
+  });
+
+  it('classifies upstream failures without exposing raw error text in metadata', () => {
+    assert.equal(classifyRefreshError(new DOMException('timed out', 'TimeoutError')), 'TIMEOUT');
+    assert.equal(classifyRefreshError(new Error('returned no usable rows')), 'INVALID_PAYLOAD');
+    assert.equal(classifyRefreshError(new Error('socket reset')), 'UPSTREAM_ERROR');
   });
 });

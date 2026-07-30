@@ -51,6 +51,7 @@ const {
   fetchTopmanHealthSnapshot,
   formatTopmanHealthLabel,
   getTopmanSourceHref,
+  TOPMAN_HEALTH_POLL_INTERVAL_MS,
 } = await loadTopmanHealthModule();
 
 const NOW_MS = Date.parse('2026-07-30T00:00:00.000Z');
@@ -69,8 +70,8 @@ function healthPayload(overrides: {
     status: overrides.status ?? 'HEALTHY',
     checkedAt: overrides.checkedAt ?? new Date(NOW_MS).toISOString(),
     summary: {
-      total: overrides.total ?? 10,
-      ok: overrides.ok ?? 10,
+      total: overrides.total ?? 6,
+      ok: overrides.ok ?? 6,
       warn: overrides.warn ?? 0,
       onDemandWarn: overrides.onDemandWarn ?? 0,
       staleContent: overrides.staleContent ?? 0,
@@ -84,19 +85,19 @@ describe('TOPMAN health classification', () => {
     const snapshot = classifyTopmanHealthPayload(healthPayload(), NOW_MS);
 
     assert.equal(snapshot.state, 'healthy');
-    assert.equal(snapshot.summary.ok, 10);
+    assert.equal(snapshot.summary.ok, 6);
   });
 
   it('never shows healthy when any critical check exists', () => {
     const partial = classifyTopmanHealthPayload(healthPayload({
       status: 'UNHEALTHY',
       ok: 2,
-      crit: 8,
+      crit: 4,
     }), NOW_MS);
     const unavailable = classifyTopmanHealthPayload(healthPayload({
       status: 'UNHEALTHY',
       ok: 0,
-      crit: 10,
+      crit: 6,
     }), NOW_MS);
 
     assert.equal(partial.state, 'partial');
@@ -107,23 +108,23 @@ describe('TOPMAN health classification', () => {
   it('distinguishes stale warnings from on-demand partial coverage', () => {
     const stale = classifyTopmanHealthPayload(healthPayload({
       status: 'WARNING',
-      ok: 8,
+      ok: 4,
       warn: 2,
       staleContent: 2,
     }), NOW_MS);
-    const partial = classifyTopmanHealthPayload(healthPayload({
+    const invalidOnDemand = classifyTopmanHealthPayload(healthPayload({
       status: 'HEALTHY',
-      ok: 8,
-      onDemandWarn: 2,
+      ok: 5,
+      onDemandWarn: 1,
     }), NOW_MS);
     const nonStaleWarning = classifyTopmanHealthPayload(healthPayload({
       status: 'WARNING',
-      ok: 8,
+      ok: 4,
       warn: 2,
     }), NOW_MS);
 
     assert.equal(stale.state, 'stale');
-    assert.equal(partial.state, 'partial');
+    assert.equal(invalidOnDemand.state, 'unavailable');
     assert.equal(nonStaleWarning.state, 'partial');
   });
 
@@ -135,7 +136,7 @@ describe('TOPMAN health classification', () => {
       status: 'UNHEALTHY',
       checkedAt: new Date(NOW_MS - 5 * 60_000 - 1).toISOString(),
       ok: 2,
-      crit: 8,
+      crit: 4,
     }), NOW_MS);
 
     assert.equal(snapshot.state, 'stale');
@@ -145,8 +146,7 @@ describe('TOPMAN health classification', () => {
   it('fails closed for malformed or contradictory payloads', () => {
     const malformed = classifyTopmanHealthPayload({ status: 'HEALTHY' }, NOW_MS);
     const contradictory = classifyTopmanHealthPayload(healthPayload({
-      total: 10,
-      ok: 10,
+      ok: 6,
       warn: 1,
     }), NOW_MS);
     const unknown = classifyTopmanHealthPayload(healthPayload({
@@ -157,9 +157,36 @@ describe('TOPMAN health classification', () => {
     assert.equal(contradictory.state, 'unavailable');
     assert.equal(unknown.state, 'unavailable');
   });
+
+  it('accepts only the dedicated TOPMAN Core 6 summary contract', () => {
+    for (const total of [5, 10]) {
+      const snapshot = classifyTopmanHealthPayload(healthPayload({
+        total,
+        ok: total,
+      }), NOW_MS);
+      assert.equal(snapshot.state, 'unavailable');
+    }
+  });
 });
 
 describe('TOPMAN health transport and presentation', () => {
+  it('reads the dedicated TOPMAN core status endpoint by default', async () => {
+    let requestedUrl = '';
+    await fetchTopmanHealthSnapshot({
+      fetchFn: (async (input: RequestInfo | URL) => {
+        requestedUrl = String(input);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => healthPayload(),
+        } as Response;
+      }) as typeof fetch,
+      now: () => NOW_MS,
+    });
+
+    assert.equal(requestedUrl, '/api/topman-core-status');
+  });
+
   it('fails closed on transport and non-2xx failures', async () => {
     const transportFailure = await fetchTopmanHealthSnapshot({
       fetchFn: (async () => {
@@ -178,6 +205,23 @@ describe('TOPMAN health transport and presentation', () => {
 
     assert.equal(transportFailure.state, 'unavailable');
     assert.equal(httpFailure.state, 'unavailable');
+  });
+
+  it('bounds a hung health request and aborts its transport', async () => {
+    let receivedSignal: AbortSignal | undefined;
+    const startedAt = Date.now();
+    const snapshot = await fetchTopmanHealthSnapshot({
+      fetchFn: ((_: RequestInfo | URL, init?: RequestInit) => {
+        receivedSignal = init?.signal ?? undefined;
+        return new Promise<Response>(() => {});
+      }) as typeof fetch,
+      now: () => NOW_MS,
+      timeoutMs: 10,
+    });
+
+    assert.equal(snapshot.state, 'unavailable');
+    assert.equal(receivedSignal?.aborted, true);
+    assert.ok(Date.now() - startedAt < 500, 'hung request should resolve at the configured timeout');
   });
 
   it('accepts the intentional REDIS_DOWN 503 as unavailable health', async () => {
@@ -201,15 +245,16 @@ describe('TOPMAN health transport and presentation', () => {
     const snapshot = classifyTopmanHealthPayload(healthPayload({
       status: 'UNHEALTHY',
       ok: 2,
-      crit: 8,
+      crit: 4,
     }), NOW_MS);
     const presentation = buildTopmanHealthPresentation(snapshot, 'bilingual');
 
-    assert.equal(formatTopmanHealthLabel('partial', 'th'), 'ข้อมูลบางส่วน');
-    assert.equal(formatTopmanHealthLabel('partial', 'bilingual'), 'ข้อมูลบางส่วน / Partial');
-    assert.equal(formatTopmanHealthLabel('partial', 'en'), 'Partial');
-    assert.match(presentation.description, /พร้อม\/OK 2\/10/);
-    assert.match(presentation.description, /วิกฤต\/Critical 8/);
+    assert.equal(formatTopmanHealthLabel('partial', 'th'), 'ข้อมูลหลักบางส่วน');
+    assert.equal(formatTopmanHealthLabel('partial', 'bilingual'), 'ข้อมูลหลักบางส่วน / Core partial');
+    assert.equal(formatTopmanHealthLabel('partial', 'en'), 'Core partial');
+    assert.match(presentation.description, /TOPMAN Core 6 ชุด\/lanes/);
+    assert.match(presentation.description, /พร้อม\/OK 2\/6/);
+    assert.match(presentation.description, /วิกฤต\/Critical 4/);
     assert.match(presentation.description, /ตรวจล่าสุด/);
     assert.match(presentation.description, /Last checked/);
   });
@@ -223,5 +268,9 @@ describe('TOPMAN health transport and presentation', () => {
       getTopmanSourceHref('development'),
       'https://github.com/Topman3579/topmanidmb-world-monitor',
     );
+  });
+
+  it('polls on the established five-minute health cadence', () => {
+    assert.equal(TOPMAN_HEALTH_POLL_INTERVAL_MS, 5 * 60_000);
   });
 });

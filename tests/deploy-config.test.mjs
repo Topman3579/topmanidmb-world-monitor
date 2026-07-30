@@ -761,7 +761,7 @@ describe('welcome landing page routing', () => {
       'generated welcome HTML must launch the dashboard at /dashboard'
     );
     assert.ok(
-      dashboardHtml.includes('<link rel="canonical" href="https://www.worldmonitor.app/dashboard" />'),
+      dashboardHtml.includes('<link rel="canonical" href="https://topmanidmb-world-monitor.vercel.app/dashboard" />'),
       'dashboard shell must canonicalize to /dashboard'
     );
   });

@@ -32,6 +32,7 @@ interface FetchTopmanHealthOptions {
   fetchFn?: typeof fetch;
   now?: () => number;
   signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 interface StartTopmanHealthOptions extends FetchTopmanHealthOptions {
@@ -39,9 +40,10 @@ interface StartTopmanHealthOptions extends FetchTopmanHealthOptions {
   pollIntervalMs?: number;
 }
 
-const HEALTH_ENDPOINT = '/api/health?compact=1';
+const HEALTH_ENDPOINT = '/api/topman-core-status';
 const HEALTH_CHECK_MAX_AGE_MS = 5 * 60_000;
-const HEALTH_POLL_INTERVAL_MS = 60_000;
+export const TOPMAN_HEALTH_POLL_INTERVAL_MS = 5 * 60_000;
+const HEALTH_REQUEST_TIMEOUT_MS = 10_000;
 const TOPMAN_SOURCE_REPO_URL = 'https://github.com/Topman3579/topmanidmb-world-monitor';
 
 const EMPTY_SUMMARY: TopmanHealthSummary = {
@@ -94,7 +96,7 @@ function parseSummary(value: unknown): TopmanHealthSummary | null {
 
   if (
     total === null
-    || total === 0
+    || total !== 6
     || ok === null
     || warn === null
     || onDemandWarn === null
@@ -126,13 +128,13 @@ export function formatTopmanHealthLabel(
 ): string {
   switch (state) {
     case 'healthy':
-      return bilingualText('ข้อมูลพร้อม', 'Healthy', mode);
+      return bilingualText('ข้อมูลหลักพร้อม', 'Core ready', mode);
     case 'partial':
-      return bilingualText('ข้อมูลบางส่วน', 'Partial', mode);
+      return bilingualText('ข้อมูลหลักบางส่วน', 'Core partial', mode);
     case 'stale':
-      return bilingualText('ข้อมูลล่าช้า', 'Stale', mode);
+      return bilingualText('ข้อมูลหลักล่าช้า', 'Core stale', mode);
     case 'unavailable':
-      return bilingualText('ข้อมูลไม่พร้อม', 'Unavailable', mode);
+      return bilingualText('ข้อมูลหลักไม่พร้อม', 'Core unavailable', mode);
   }
 }
 
@@ -161,12 +163,12 @@ function formatCheckedAtDescription(
 }
 
 function formatCounts(summary: TopmanHealthSummary, mode: TopmanLanguageMode): string {
-  const thai = `พร้อม ${summary.ok}/${summary.total} · เตือน ${summary.warn} · ตามคำขอ ${summary.onDemandWarn} · วิกฤต ${summary.crit}`;
-  const english = `OK ${summary.ok}/${summary.total} · warnings ${summary.warn} · on demand ${summary.onDemandWarn} · critical ${summary.crit}`;
+  const thai = `TOPMAN Core ${summary.total} ชุด · พร้อม ${summary.ok}/${summary.total} · เตือน ${summary.warn} · ตามคำขอ ${summary.onDemandWarn} · วิกฤต ${summary.crit}`;
+  const english = `TOPMAN Core ${summary.total} lanes · OK ${summary.ok}/${summary.total} · warnings ${summary.warn} · on demand ${summary.onDemandWarn} · critical ${summary.crit}`;
 
   if (mode === 'th') return thai;
   if (mode === 'en') return english;
-  return `พร้อม/OK ${summary.ok}/${summary.total} · เตือน/Warnings ${summary.warn} · ตามคำขอ/On demand ${summary.onDemandWarn} · วิกฤต/Critical ${summary.crit}`;
+  return `TOPMAN Core ${summary.total} ชุด/lanes · พร้อม/OK ${summary.ok}/${summary.total} · เตือน/Warnings ${summary.warn} · ตามคำขอ/On demand ${summary.onDemandWarn} · วิกฤต/Critical ${summary.crit}`;
 }
 
 export function buildTopmanHealthPresentation(
@@ -224,25 +226,36 @@ export function classifyTopmanHealthPayload(
   const summary = parseSummary(payload.summary);
   if (!summary) return unavailableSnapshot();
 
+  const statusMatchesSummary = (
+    sourceStatus === 'HEALTHY'
+      ? summary.ok === summary.total
+        && summary.warn === 0
+        && summary.onDemandWarn === 0
+        && summary.staleContent === 0
+        && summary.crit === 0
+      : sourceStatus === 'WARNING'
+        ? summary.warn > 0 && summary.onDemandWarn === 0 && summary.crit === 0
+        : sourceStatus === 'UNHEALTHY'
+          ? summary.onDemandWarn === 0 && summary.crit > 0
+          : false
+  );
+  if (!statusMatchesSummary) return unavailableSnapshot();
+
   let state: TopmanHealthState;
 
   if (nowMs - checkedAtMs > HEALTH_CHECK_MAX_AGE_MS) {
     state = 'stale';
-  } else if (summary.crit > 0) {
+  } else if (sourceStatus === 'UNHEALTHY') {
     // Any critical gap forbids the green state. A deployment with at least one
     // healthy check is partial; one with no healthy checks is unavailable.
     state = summary.ok > 0 ? 'partial' : 'unavailable';
   } else if (sourceStatus === 'HEALTHY') {
-    state = summary.warn === 0 && summary.onDemandWarn === 0 && summary.ok === summary.total
-      ? 'healthy'
-      : 'partial';
+    state = 'healthy';
   } else if (sourceStatus === 'WARNING') {
     // `warn` also includes non-staleness conditions such as SEED_ERROR,
     // REDIS_PARTIAL, and COVERAGE_PARTIAL. Only the explicit stale-content
     // sub-count is safe to describe as stale from the compact summary alone.
     state = summary.staleContent > 0 ? 'stale' : 'partial';
-  } else if (sourceStatus === 'DEGRADED' || sourceStatus === 'UNHEALTHY') {
-    state = 'partial';
   } else {
     return unavailableSnapshot();
   }
@@ -263,26 +276,49 @@ export async function fetchTopmanHealthSnapshot(
 
   if (typeof fetchFn !== 'function') return unavailableSnapshot();
 
+  const requestController = new AbortController();
+  const abortFromCaller = (): void => requestController.abort(options.signal?.reason);
+  if (options.signal?.aborted) {
+    abortFromCaller();
+  } else {
+    options.signal?.addEventListener('abort', abortFromCaller, { once: true });
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
   try {
-    const response = await fetchFn(options.endpoint ?? HEALTH_ENDPOINT, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-      credentials: 'same-origin',
-      signal: options.signal,
+    const request = async (): Promise<TopmanHealthSnapshot> => {
+      const response = await fetchFn(options.endpoint ?? HEALTH_ENDPOINT, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        credentials: 'same-origin',
+        signal: requestController.signal,
+      });
+
+      const payload = await response.json();
+      const snapshot = classifyTopmanHealthPayload(payload, now());
+
+      // Parse REDIS_DOWN bodies on their intentional HTTP 503 path. Every other
+      // non-2xx response is transport failure and must stay unavailable.
+      if (!response.ok && snapshot.sourceStatus !== 'REDIS_DOWN') {
+        return unavailableSnapshot();
+      }
+      return snapshot;
+    };
+
+    const timeout = new Promise<TopmanHealthSnapshot>((resolve) => {
+      timeoutId = setTimeout(() => {
+        requestController.abort(new DOMException('TOPMAN health request timed out', 'TimeoutError'));
+        resolve(unavailableSnapshot());
+      }, Math.max(1, options.timeoutMs ?? HEALTH_REQUEST_TIMEOUT_MS));
     });
 
-    const payload = await response.json();
-    const snapshot = classifyTopmanHealthPayload(payload, now());
-
-    // Parse REDIS_DOWN bodies on their intentional HTTP 503 path. Every other
-    // non-2xx response is transport failure and must stay unavailable.
-    if (!response.ok && snapshot.sourceStatus !== 'REDIS_DOWN') {
-      return unavailableSnapshot();
-    }
-    return snapshot;
+    return await Promise.race([request(), timeout]);
   } catch {
     return unavailableSnapshot();
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+    options.signal?.removeEventListener('abort', abortFromCaller);
   }
 }
 
@@ -339,7 +375,7 @@ export function startTopmanHealthStatus(
     if (pollTimer !== null) clearTimeout(pollTimer);
     pollTimer = setTimeout(
       () => { void refresh(); },
-      Math.max(30_000, options.pollIntervalMs ?? HEALTH_POLL_INTERVAL_MS),
+      Math.max(30_000, options.pollIntervalMs ?? TOPMAN_HEALTH_POLL_INTERVAL_MS),
     );
   };
 
@@ -357,6 +393,7 @@ export function startTopmanHealthStatus(
       fetchFn: options.fetchFn,
       now: options.now,
       signal: activeAbort.signal,
+      timeoutMs: options.timeoutMs,
     });
 
     if (destroyed || generation !== requestGeneration) return;

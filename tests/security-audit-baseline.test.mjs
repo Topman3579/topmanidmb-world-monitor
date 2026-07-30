@@ -30,15 +30,16 @@ function readRepoJson(relativePath) {
 }
 
 describe('security audit baseline', () => {
-  it('allows currently baselined high advisories', () => {
+  it('does not exempt formerly baselined pro-test advisories', () => {
     const report = auditReportWith({
-      name: '@clerk/clerk-js',
+      name: 'shell-quote',
       severity: 'high',
-      title: 'known clerk advisory',
-      url: 'https://github.com/advisories/GHSA-w24r-5266-9c3c',
+      title: 'shell-quote DoS',
+      url: 'https://github.com/advisories/GHSA-395f-4hp3-45gv',
     });
 
-    assert.deepEqual(collectUnbaselinedFindings(report, 'pro-test/package-lock.json'), []);
+    assert.equal(collectUnbaselinedFindings(report, 'pro-test/package-lock.json').length, 1);
+    assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['pro-test/package-lock.json'], []);
   });
 
   it('ignores moderate production advisories for the high-severity PR gate', () => {
@@ -111,22 +112,9 @@ describe('security audit baseline', () => {
     assert.notEqual(viteEsbuild.version, rootEsbuild.version);
   });
 
-  it('flags baseline entries that no longer match any current advisory', () => {
-    // Report carries the two pro-test advisories that ARE present in the current
-    // audit (the clerk advisory + shell-quote); only GHSA-qjx8, which no longer
-    // matches anything, must be flagged stale.
+  it('has no stale entries after removing the patched pro-test baseline', () => {
     const report = {
       vulnerabilities: {
-        '@clerk/clerk-js': {
-          name: '@clerk/clerk-js',
-          severity: 'high',
-          via: [{
-            name: '@clerk/clerk-js',
-            severity: 'high',
-            title: 'known clerk advisory',
-            url: 'https://github.com/advisories/GHSA-w24r-5266-9c3c',
-          }],
-        },
         'shell-quote': {
           name: 'shell-quote',
           severity: 'high',
@@ -140,9 +128,7 @@ describe('security audit baseline', () => {
       },
     };
 
-    // The still-present ids are not reported as stale; GHSA-qjx8 (absent) is.
-    assert.deepEqual(collectStaleBaselineEntries(report, 'pro-test/package-lock.json'), ['GHSA-qjx8-664m-686j']);
-    // The empty root baseline has nothing to mark stale.
+    assert.deepEqual(collectStaleBaselineEntries(report, 'pro-test/package-lock.json'), []);
     assert.deepEqual(collectStaleBaselineEntries(report, 'package-lock.json'), []);
   });
 

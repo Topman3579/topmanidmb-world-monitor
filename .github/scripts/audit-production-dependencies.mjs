@@ -17,15 +17,13 @@ export const BASELINE_ADVISORIES_BY_LOCKFILE = {
   'package-lock.json': [],
   'consumer-prices-core/package-lock.json': [],
   'blog-site/package-lock.json': [],
-  // GHSA-395f-4hp3-45gv (shell-quote quadratic-complexity DoS in parse()) reaches
-  // pro-test only via react-native -> react-devtools-core, a mobile/dev-tooling
-  // chain the Vite web build never bundles into public/pro/. The parse() DoS is
-  // unreachable from the shipped browser bundle, and forcing shell-quote up (an
-  // `overrides` pin bump) would drag an otherwise-untouched public/pro/ rebuild
-  // into a lockfile-hygiene change. Baselined rather than patched here; drop it
-  // once react-native leaves pro-test's tree. (GHSA-qjx8/w24r predate this.)
-  'pro-test/package-lock.json': ['GHSA-qjx8-664m-686j', 'GHSA-w24r-5266-9c3c', 'GHSA-395f-4hp3-45gv'],
-  'scripts/package-lock.json': [],
+  'pro-test/package-lock.json': [],
+  // GHSA-mh99-v99m-4gvg uses the range <=5.0.7, which cannot express the
+  // official patched maintenance releases 1.1.17 and 2.1.3. The scripts
+  // workspace must keep those CommonJS-compatible backports; the executable
+  // guard in tests/brace-expansion-compat.test.mjs pins both versions and
+  // verifies their CVE-2026-14257 expansion-length cap.
+  'scripts/package-lock.json': ['GHSA-mh99-v99m-4gvg'],
   'docker/runtime-package-lock.json': [],
 };
 

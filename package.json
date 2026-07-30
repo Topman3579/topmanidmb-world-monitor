@@ -196,6 +196,8 @@
     "convex": {
       "esbuild": "0.28.1"
     },
+    "sharp": "0.35.3",
+    "react-native": "0.86.2",
     "fast-xml-parser": "^5.8.0",
     "serialize-javascript": "^7.0.4",
     "node-forge": "^1.4.0",
