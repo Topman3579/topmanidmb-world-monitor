@@ -8,6 +8,7 @@ import { registerClsReporting } from '@/bootstrap/cls-report';
 import { registerInpReporting } from '@/bootstrap/inp-report';
 import { registerLcpReporting } from '@/bootstrap/lcp-report';
 import { initVercelAnalytics } from '@/bootstrap/secondary-startup';
+import { installOptionalRuntimeChunkWarmup } from '@/bootstrap/pwa-optional-chunk-cache';
 import { initPwaInstallExperience } from '@/services/pwa-install';
 import { App } from './App';
 import { installUtmInterceptor } from './utils/utm';
@@ -517,6 +518,7 @@ if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window) && 'serviceWo
   navigator.serviceWorker.register('/sw.js', { scope: '/' })
     .then((registration) => {
       console.log('[PWA] Service worker registered');
+      installOptionalRuntimeChunkWarmup();
 
       let swUpdateInFlight = false;
 

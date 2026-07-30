@@ -454,6 +454,20 @@
       "removal_issue": null
     },
     {
+      "path": "api/topman-core-refresh.ts",
+      "category": "ops-admin",
+      "reason": "Authenticated Vercel Cron producer for the isolated TOPMAN focused-data namespace; operator plumbing rather than a public product API.",
+      "owner": "@Topman3579",
+      "removal_issue": null
+    },
+    {
+      "path": "api/topman-core-status.js",
+      "category": "ops-admin",
+      "reason": "Read-only status probe for the six isolated TOPMAN focused-data lanes; consumed by the branded dashboard health indicator.",
+      "owner": "@Topman3579",
+      "removal_issue": null
+    },
+    {
       "path": "api/version.js",
       "category": "ops-admin",
       "reason": "Build-version probe for the desktop auto-updater. Tiny plain-JSON operator plumbing.",

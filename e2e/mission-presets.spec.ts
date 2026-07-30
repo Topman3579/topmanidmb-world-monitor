@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const PRESET_KEY = 'worldmonitor-mission-preset-v1';
+const PRESET_KEY = 'worldmonitor-mission-preset-v2';
 const STORAGE_READ_TIMEOUT_MS = 1_500;
 const STORAGE_READ_TIMEOUT = '__wm_storage_read_timeout__';
 
@@ -94,27 +94,27 @@ test.describe('mission presets', () => {
     await expect(page.locator('#missionPresetBtn')).toBeVisible({ timeout: 30_000 });
     await openMissionPopover(page);
 
-    await expect(page.locator('.mission-preset-card')).toHaveCount(7);
-    await applyMission(page, 'supply-chain-risk', 'Supply');
+    await expect(page.locator('.mission-preset-card')).toHaveCount(6);
+    await applyMission(page, 'topman-disaster-weather', 'Disaster');
 
-    await expect(page.locator('.panel[data-panel="supply-chain"]:not(.hidden)')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.panel[data-panel="disaster-correlation"]:not(.hidden)')).toBeVisible({ timeout: 30_000 });
     await expect
       .poll(() => readJsonLocalStorage<string[]>(page, 'panel-order').then((order) => order?.[0]))
-      .toBe('supply-chain');
+      .toBe('live-news');
     await expect
-      .poll(() => readJsonLocalStorage<Record<string, boolean>>(page, 'worldmonitor-layers').then((layers) => layers?.tradeRoutes))
+      .poll(() => readJsonLocalStorage<Record<string, boolean>>(page, 'worldmonitor-layers').then((layers) => layers?.fires))
       .toBe(true);
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForEventHandlers(page);
-    await expect(page.locator('#missionPresetBtn')).toContainText('Supply', { timeout: 30_000 });
-    await expect.poll(() => readLocalStorage(page, PRESET_KEY)).toBe('supply-chain-risk');
-    await expect(page.locator('.panel[data-panel="supply-chain"]:not(.hidden)')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('#missionPresetBtn')).toContainText('Disaster', { timeout: 30_000 });
+    await expect.poll(() => readLocalStorage(page, PRESET_KEY)).toBe('topman-disaster-weather');
+    await expect(page.locator('.panel[data-panel="disaster-correlation"]:not(.hidden)')).toBeVisible({ timeout: 30_000 });
     await expect
       .poll(() => readJsonLocalStorage<string[]>(page, 'panel-order').then((order) => order?.[0]))
-      .toBe('supply-chain');
+      .toBe('live-news');
     await expect
-      .poll(() => readJsonLocalStorage<Record<string, boolean>>(page, 'worldmonitor-layers').then((layers) => layers?.tradeRoutes))
+      .poll(() => readJsonLocalStorage<Record<string, boolean>>(page, 'worldmonitor-layers').then((layers) => layers?.fires))
       .toBe(true);
   });
 
@@ -123,12 +123,12 @@ test.describe('mission presets', () => {
     await setupMissionPage(page, { width: 1440, height: 900 });
 
     await expect(page.locator('#missionPresetBtn')).toBeVisible({ timeout: 30_000 });
-    await applyMission(page, 'macro-market-watch', 'Stocks');
+    await applyMission(page, 'topman-finance-radar', 'Markets');
     await expect(page.locator('.panel[data-panel="markets"]:not(.hidden)')).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('#regionSelect')).toHaveValue('america');
+    await expect(page.locator('#regionSelect')).toHaveValue('global');
     await expect
       .poll(() => readJsonLocalStorage<string[]>(page, 'panel-order').then((order) => order?.[0]))
-      .toBe('markets');
+      .toBe('live-news');
     await expect
       .poll(() => readJsonLocalStorage<Record<string, boolean>>(page, 'worldmonitor-layers').then((layers) => layers?.tradeRoutes))
       .toBe(true);
@@ -164,16 +164,22 @@ test.describe('mission presets', () => {
 
     const popover = page.locator('.mission-preset-popover');
     await expect(popover).toBeVisible();
-    await expect(page.locator('.mission-preset-card')).toHaveCount(7);
+    await expect(page.locator('.mission-preset-card')).toHaveCount(6);
     const box = await popover.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.y).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(390);
     expect(box!.y + box!.height).toBeLessThanOrEqual(844);
+    for (const selector of ['[data-mission-reset]', '[data-mission-close]']) {
+      const controlBox = await page.locator(selector).boundingBox();
+      expect(controlBox).not.toBeNull();
+      expect(controlBox!.width).toBeGreaterThanOrEqual(44);
+      expect(controlBox!.height).toBeGreaterThanOrEqual(44);
+    }
 
-    await page.locator('[data-mission-id="energy-security"]').click();
-    await expect.poll(() => readLocalStorage(page, PRESET_KEY)).toBe('energy-security');
+    await page.locator('[data-mission-id="topman-energy-commodities"]').click();
+    await expect.poll(() => readLocalStorage(page, PRESET_KEY)).toBe('topman-energy-commodities');
     await expect
       .poll(() => readJsonLocalStorage<Record<string, boolean>>(page, 'worldmonitor-layers').then((layers) => layers?.pipelines ?? false))
       .toBe(true);

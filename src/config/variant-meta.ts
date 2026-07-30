@@ -7,6 +7,7 @@ export interface VariantMeta {
   shortName: string;
   subject: string;
   classification: string;
+  imageAlt: string;
   categories: string[];
   features: string[];
 }
@@ -21,6 +22,7 @@ export const VARIANT_META: { full: VariantMeta; [k: string]: VariantMeta } = {
     shortName: 'TOPMAN World Intel',
     subject: 'AI-Powered Global Intelligence and Situation Awareness',
     classification: 'AI Intelligence Dashboard, OSINT Tool, News Aggregator',
+    imageAlt: 'TOPMANIDMB World Intelligence — public-source global situation dashboard powered by World Monitor',
     categories: ['news', 'productivity'],
     features: [
       'Real-time news aggregation',
@@ -46,6 +48,7 @@ export const VARIANT_META: { full: VariantMeta; [k: string]: VariantMeta } = {
     shortName: 'TechMonitor',
     subject: 'AI, Tech Industry, and Startup Ecosystem Intelligence',
     classification: 'Tech Dashboard, AI Tracker, Startup Intelligence',
+    imageAlt: 'Tech Monitor — real-time AI, technology industry, and startup ecosystem dashboard',
     categories: ['news', 'business'],
     features: [
       'Tech news aggregation',
@@ -70,6 +73,7 @@ export const VARIANT_META: { full: VariantMeta; [k: string]: VariantMeta } = {
     shortName: 'HappyMonitor',
     subject: 'Good News, Global Progress, and Human Achievement',
     classification: 'Positive News Dashboard, Progress Tracker',
+    imageAlt: 'Happy Monitor — positive news, global progress, and human achievement dashboard',
     categories: ['news', 'lifestyle'],
     features: [
       'Curated positive news',
@@ -89,6 +93,7 @@ export const VARIANT_META: { full: VariantMeta; [k: string]: VariantMeta } = {
     shortName: 'FinanceMonitor',
     subject: 'Global Markets, Trading, and Financial Intelligence',
     classification: 'Finance Dashboard, Market Tracker, Trading Intelligence',
+    imageAlt: 'Finance Monitor — real-time global markets, trading, forex, crypto, and economic indicators dashboard',
     categories: ['finance', 'news'],
     features: [
       'Real-time market data',
@@ -113,6 +118,7 @@ export const VARIANT_META: { full: VariantMeta; [k: string]: VariantMeta } = {
     shortName: 'CommodityMonitor',
     subject: 'Commodity Markets, Mining, and Supply Chain Intelligence',
     classification: 'Commodity Dashboard, Supply Chain Tracker, Resource Intelligence',
+    imageAlt: 'Commodity Monitor — commodity markets, mining, supply chain, and global trade flows dashboard',
     categories: ['finance', 'business'],
     features: [
       'Mining site tracking',
@@ -136,6 +142,7 @@ export const VARIANT_META: { full: VariantMeta; [k: string]: VariantMeta } = {
     shortName: 'EnergyAtlas',
     subject: 'Global Energy Infrastructure, Supply, and Disruption Intelligence',
     classification: 'Energy Dashboard, Pipeline Tracker, Supply Disruption Monitor',
+    imageAlt: 'Energy Atlas — global energy infrastructure, supply, chokepoints, and disruption dashboard',
     categories: ['news', 'business'],
     features: [
       'Oil & gas pipeline registry with live status',

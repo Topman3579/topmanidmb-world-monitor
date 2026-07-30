@@ -49,11 +49,11 @@ import { resolveNewsCategories, enabledNewsCategoryKeys } from '@/config/feed-re
 import { VARIANT_META } from '@/config/variant-meta';
 import { isDesktopRuntime } from '@/services/runtime';
 import {
-  MISSION_PRESETS,
   applyMissionPresetToState,
   clearMissionPreset,
   dismissMissionPresetPrompt,
   filterMissionLayersForRenderer,
+  getMissionPresetsForVariant,
   isMissionPresetPromptDismissed,
   loadStoredMissionPreset,
   resetMissionPresetState,
@@ -88,6 +88,7 @@ import { WM_OPEN_NOTIFICATIONS_FOR_COUNTRY } from '@/utils/notify-country-link';
 import { AuthLauncher } from '@/components/AuthLauncher';
 import { AuthHeaderWidget } from '@/components/AuthHeaderWidget';
 import { t } from '@/services/i18n';
+import { topmanText } from '@/services/topman-language-mode';
 import { TvModeController } from '@/services/tv-mode';
 import { getAuthState, subscribeAuthState } from '@/services/auth-state';
 import { setTrustedHtml, trustedHtml } from '@/utils/dom-utils';
@@ -842,7 +843,8 @@ export class EventHandlerManager implements AppModule {
     if (!mount) return;
 
     const active = loadStoredMissionPreset();
-    const label = active?.shortLabel ?? 'Mission';
+    const missionLabel = topmanText('ภารกิจ', 'Mission');
+    const label = active?.shortLabel ?? missionLabel;
     const icon = active?.icon ?? '◎';
     const activeClass = active ? ' mission-preset-button--active' : '';
     const suggestedClass = !active && !isMissionPresetPromptDismissed() ? ' mission-preset-button--suggested' : '';
@@ -854,7 +856,9 @@ export class EventHandlerManager implements AppModule {
         type="button"
         aria-haspopup="dialog"
         aria-expanded="false"
-        title="${escapeHtml(active ? `Mission: ${active.label}` : 'Choose mission preset')}"
+        title="${escapeHtml(active
+    ? `${missionLabel}: ${active.label}`
+    : topmanText('เลือกชุดภารกิจ', 'Choose mission preset'))}"
       >
         <span class="mission-preset-button__icon">${escapeHtml(icon)}</span>
         <span class="mission-preset-button__label">${escapeHtml(label)}</span>
@@ -871,7 +875,10 @@ export class EventHandlerManager implements AppModule {
   private updateMobileMissionLabel(active: MissionPreset | null = loadStoredMissionPreset()): void {
     const item = document.getElementById('mobileMenuMission');
     const label = item?.querySelector('.mobile-menu-item-label');
-    if (label) label.textContent = active ? `Mission: ${active.shortLabel}` : 'Mission';
+    if (label) {
+      const missionLabel = topmanText('ภารกิจ', 'Mission');
+      label.textContent = active ? `${missionLabel}: ${active.shortLabel}` : missionLabel;
+    }
   }
 
   private toggleMissionPresetPopover(anchor: HTMLElement | null, mobile: boolean): void {
@@ -889,10 +896,10 @@ export class EventHandlerManager implements AppModule {
     const popover = document.createElement('div');
     popover.className = `mission-preset-popover${mobile ? ' mission-preset-popover--mobile' : ''}`;
     popover.setAttribute('role', 'dialog');
-    popover.setAttribute('aria-label', 'Mission presets');
+    popover.setAttribute('aria-label', topmanText('ชุดภารกิจ', 'Mission presets'));
     popover.tabIndex = -1;
 
-    const cards = MISSION_PRESETS.map((preset) => {
+    const cards = getMissionPresetsForVariant(SITE_VARIANT).map((preset) => {
       const selected = active?.id === preset.id;
       return `
         <button
@@ -914,12 +921,12 @@ export class EventHandlerManager implements AppModule {
     setTrustedHtml(popover, trustedHtml(`
       <div class="mission-preset-popover__header">
         <div>
-          <span>Mission</span>
-          <strong>${escapeHtml(active?.label ?? 'Choose Workspace')}</strong>
+          <span>${escapeHtml(topmanText('ภารกิจ', 'Mission'))}</span>
+          <strong>${escapeHtml(active?.label ?? topmanText('เลือกพื้นที่ปฏิบัติการ', 'Choose workspace'))}</strong>
         </div>
         <div class="mission-preset-popover__actions">
-          <button type="button" class="mission-preset-reset" data-mission-reset>Reset</button>
-          <button type="button" class="mission-preset-close" data-mission-close aria-label="Close mission presets">×</button>
+          <button type="button" class="mission-preset-reset" data-mission-reset>${escapeHtml(topmanText('ค่าเริ่มต้น', 'Reset'))}</button>
+          <button type="button" class="mission-preset-close" data-mission-close aria-label="${escapeHtml(topmanText('ปิดชุดภารกิจ', 'Close mission presets'))}">×</button>
         </div>
       </div>
       <div class="mission-preset-popover__list">${cards}</div>
@@ -1096,7 +1103,7 @@ export class EventHandlerManager implements AppModule {
     saveToStorage(STORAGE_KEYS.panels, applied.panelSettings);
     saveToStorage(STORAGE_KEYS.mapLayers, mapLayers);
     this.persistMissionPanelOrder(applied.panelOrder);
-    saveMissionPreset(applied.preset.id);
+    saveMissionPreset(applied.preset.id, SITE_VARIANT);
 
     this.applyPanelSettings();
     this.callbacks.applySavedPanelOrder?.(applied.panelOrder);
@@ -1109,7 +1116,7 @@ export class EventHandlerManager implements AppModule {
     this.callbacks.syncDataFreshnessWithLayers();
     this.scheduleMissionDataRefresh();
     this.syncUrlState();
-    showToast(`Mission preset applied: ${applied.preset.label}`);
+    showToast(`${topmanText('เปิดภารกิจแล้ว', 'Mission applied')}: ${applied.preset.label}`);
     this.renderMissionPresetControl();
     this.closeMissionPresetPopover();
   }
@@ -1128,7 +1135,7 @@ export class EventHandlerManager implements AppModule {
     saveToStorage(STORAGE_KEYS.panels, reset.panelSettings);
     saveToStorage(STORAGE_KEYS.mapLayers, mapLayers);
     this.persistMissionPanelOrder(reset.panelOrder);
-    clearMissionPreset();
+    clearMissionPreset(SITE_VARIANT);
 
     this.applyPanelSettings();
     this.callbacks.applySavedPanelOrder?.(reset.panelOrder);
@@ -1141,7 +1148,7 @@ export class EventHandlerManager implements AppModule {
     this.callbacks.syncDataFreshnessWithLayers();
     this.scheduleMissionDataRefresh();
     this.syncUrlState();
-    showToast('Mission preset reset');
+    showToast(topmanText('คืนค่าภารกิจเริ่มต้นแล้ว', 'Mission preset reset'));
     this.renderMissionPresetControl();
     this.closeMissionPresetPopover();
   }

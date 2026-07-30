@@ -32,36 +32,52 @@ struct HealthStatusView: View {
                 Section {
                     HStack {
                         ProgressView()
-                        Text(languageMode.text(thai: "กำลังตรวจสถานะระบบ…", english: "Checking system health…"))
+                        Text(languageMode.text(
+                            thai: "กำลังตรวจข้อมูลหลัก TOPMAN 6 ชุด…",
+                            english: "Checking six TOPMAN core data lanes…"
+                        ))
                     }
                 }
 
-            case let .failed(message):
-                Section("Health API") {
+            case let .failed(failure):
+                Section(languageMode.text(
+                    thai: "ระบบตรวจสถานะ",
+                    english: "Health service"
+                )) {
                     Label(
                         languageMode.text(thai: "ตรวจสอบไม่สำเร็จ", english: "Health check failed"),
                         systemImage: "exclamationmark.triangle.fill"
                     )
                         .foregroundStyle(.orange)
-                    Text(message)
+                    Text(failureMessage(failure))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-            case let .available(payload, checkedAt):
-                Section(languageMode.text(thai: "สถานะศูนย์ข้อมูล", english: "Data center health")) {
+            case let .available(payload):
+                Section(languageMode.text(
+                    thai: "สถานะข้อมูลหลัก TOPMAN",
+                    english: "TOPMAN core data health"
+                )) {
                     HStack {
-                        Label(payload.status, systemImage: statusSymbol(payload.status))
+                        Label(statusText(payload.status), systemImage: statusSymbol(payload.status))
                             .foregroundStyle(statusColor(payload.status))
                         Spacer()
-                        Text(checkedAt, style: .time)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(payload.checkedAt, style: .time)
+                            Text(languageMode.text(
+                                thai: "เวลาจากเซิร์ฟเวอร์",
+                                english: "Server time"
+                            ))
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.secondary)
                     }
                 }
 
                 Section(languageMode.text(
-                    thai: "แหล่งข้อมูล \(payload.summary.total) ชุด",
-                    english: "\(payload.summary.total) data sources"
+                    thai: "ชุดข้อมูลหลัก \(payload.summary.total) ชุด",
+                    english: "\(payload.summary.total) core datasets"
                 )) {
                     MetricRow(label: languageMode.text(thai: "พร้อมใช้งาน", english: "Available"), value: payload.summary.ok, color: .green)
                     MetricRow(label: languageMode.text(thai: "คำเตือน", english: "Warning"), value: payload.summary.warn, color: .yellow)
@@ -84,29 +100,89 @@ struct HealthStatusView: View {
 
                 Link(destination: HealthMonitor.endpoint) {
                     Label(
-                        languageMode.text(thai: "เปิด Health API", english: "Open Health API"),
+                        languageMode.text(
+                            thai: "เปิดผลตรวจข้อมูลหลัก 6 ชุด",
+                            english: "Open Core 6 health"
+                        ),
+                        systemImage: "safari"
+                    )
+                }
+
+                Link(destination: HealthMonitor.globalEndpoint) {
+                    Label(
+                        languageMode.text(
+                            thai: "เปิดผลตรวจระบบต้นทางทั้งหมด",
+                            english: "Open full upstream health"
+                        ),
                         systemImage: "safari"
                     )
                 }
             } footer: {
                 Text(languageMode.text(
-                    thai: "HTTP 200 หมายถึงปลายทางตอบสนอง ไม่ได้หมายความว่าแหล่งข้อมูลทุกชุดพร้อมใช้งาน",
-                    english: "HTTP 200 confirms the endpoint responded; it does not mean every data source is ready."
+                    thai: "หน้านี้สรุปเฉพาะข้อมูลหลัก TOPMAN 6 ชุด ไม่ใช่สถานะของระบบ World Monitor ทั้งหมด",
+                    english: "This page reports only six TOPMAN core lanes, not the health of the full World Monitor system."
                 ))
             }
         }
-        .navigationTitle(languageMode.text(thai: "สถานะระบบ", english: "System health"))
+        .navigationTitle(languageMode.text(thai: "สถานะข้อมูล", english: "Data health"))
         .refreshable {
             await health.refresh()
         }
     }
 
     private func statusSymbol(_ status: String) -> String {
-        status == "HEALTHY" ? "checkmark.seal.fill" : "exclamationmark.shield.fill"
+        switch status {
+        case "HEALTHY":
+            return "checkmark.seal.fill"
+        case "WARNING":
+            return "exclamationmark.triangle.fill"
+        default:
+            return "exclamationmark.shield.fill"
+        }
+    }
+
+    private func statusText(_ status: String) -> String {
+        switch status {
+        case "HEALTHY":
+            return languageMode.text(thai: "พร้อมใช้งาน", english: "Healthy")
+        case "WARNING":
+            return languageMode.text(thai: "มีคำเตือน", english: "Warning")
+        case "UNHEALTHY":
+            return languageMode.text(thai: "ยังไม่พร้อม", english: "Unhealthy")
+        default:
+            return languageMode.text(thai: "ไม่ทราบสถานะ", english: "Unknown")
+        }
+    }
+
+    private func failureMessage(_ failure: HealthFailure) -> String {
+        switch failure {
+        case .serviceUnavailable:
+            return languageMode.text(
+                thai: "ยังติดต่อระบบตรวจสถานะไม่ได้ โปรดลองใหม่",
+                english: "The health service is unavailable. Please try again."
+            )
+        case .invalidResponse:
+            return languageMode.text(
+                thai: "ผลตรวจจากเซิร์ฟเวอร์ไม่สมบูรณ์ จึงยังไม่แสดงว่าใช้งานได้",
+                english: "The server response is incomplete, so availability cannot be confirmed."
+            )
+        case .staleResponse:
+            return languageMode.text(
+                thai: "ผลตรวจจากเซิร์ฟเวอร์เก่าเกิน 5 นาที จึงยังไม่ยืนยันสถานะ",
+                english: "The server snapshot is over 5 minutes old, so health is not confirmed."
+            )
+        }
     }
 
     private func statusColor(_ status: String) -> Color {
-        status == "HEALTHY" ? .green : .red
+        switch status {
+        case "HEALTHY":
+            return .green
+        case "WARNING":
+            return .orange
+        default:
+            return .red
+        }
     }
 }
 
