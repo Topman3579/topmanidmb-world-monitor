@@ -244,3 +244,14 @@ Heavy checks (`test:data`, typechecks, edge-bundle) must run **sequentially** in
 - [Health endpoints](docs/health-endpoints.mdx)
 - [Adding endpoints guide](docs/adding-endpoints.mdx)
 - [API reference (OpenAPI)](docs/api/)
+
+## Cursor Cloud specific instructions
+
+Durable, non-obvious notes for cloud agents (the startup update script already runs `npm ci`). Standard commands live in "How to Run" above — don't duplicate them.
+
+- **No secrets needed for dev/test.** Every `.env.example` key is optional; the SPA, `npm run dev`, and the test suites all run with no `.env.local`. Live data feeds/AI/Redis features stay disabled without keys, but the app is fully functional.
+- **Node resolution quirk.** `.nvmrc` pins Node 24, but in this VM `node` resolves to the sandbox's `/exec-daemon/node` (v22.14, which is prepended to PATH and always wins); `npm` comes from nvm. The whole toolchain (Vite 6, tsx, Biome, tsc, Playwright) works fine on v22 — do not fight the PATH.
+- **`test:data` has 2 build-gated tests.** `tests/dashboard-critical-css.test.mjs` asserts against `dist/` output and fails with "Run VITE_VARIANT=full vite build first" on a clean tree. Run `npm run build:full` before that suite if you need those 2 to pass; otherwise a fresh `npm run test:data` reports 15997 pass / 2 fail purely from the missing build artifacts.
+- **`worktree:bootstrap` is for git worktrees, not this checkout.** The main `/workspace` clone only needs `npm ci`; the bootstrap helper links ignored `.env.*` from a sibling worktree that doesn't exist here.
+- **Dev server** (`npm run dev`) serves on `http://localhost:3000` (override with `DEV_PORT`) and runs the edge API logic inline via Vite middleware. Expect `[feed-fetch] ... source=both-failed` and `ACLED returned 0 events` logs without network/relay/API keys — these are non-fatal.
+- **Heavy checks OOM if parallelized** (already noted in the Pre-Push section): run `test:data`, typechecks, and the edge-bundle check sequentially.
