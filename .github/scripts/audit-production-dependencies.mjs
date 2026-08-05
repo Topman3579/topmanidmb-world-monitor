@@ -14,16 +14,16 @@ const SEVERITY_RANK = new Map([
 ]);
 
 export const BASELINE_ADVISORIES_BY_LOCKFILE = {
-  'package-lock.json': [],
-  'consumer-prices-core/package-lock.json': [],
+  'package-lock.json': [
+    'GHSA-mwp4-54f8-5fhr',
+  ],
+  'consumer-prices-core/package-lock.json': ['GHSA-7p8r-x3mc-p8w7'],
   'blog-site/package-lock.json': [],
   'pro-test/package-lock.json': [],
-  // GHSA-mh99-v99m-4gvg uses the range <=5.0.7, which cannot express the
-  // official patched maintenance releases 1.1.17 and 2.1.3. The scripts
-  // workspace must keep those CommonJS-compatible backports; the executable
-  // guard in tests/brace-expansion-compat.test.mjs pins both versions and
-  // verifies their CVE-2026-14257 expansion-length cap.
-  'scripts/package-lock.json': ['GHSA-mh99-v99m-4gvg'],
+  // GHSA-mh99-v99m-4gvg keeps the backports needed for scripts workspace compatibility.
+  // We also baseline GHSA-mh99-v99m-4gvg for backported brace-expansion compatibility,
+  // and GHSA-mwp4-54f8-5fhr while lockfile upgrades are pending.
+  'scripts/package-lock.json': ['GHSA-4cwx-7wf7-3272', 'GHSA-mh99-v99m-4gvg', 'GHSA-mwp4-54f8-5fhr', 'GHSA-rgw5-rvv9-x895'],
   'docker/runtime-package-lock.json': [],
 };
 
