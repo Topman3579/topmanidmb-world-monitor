@@ -64,7 +64,11 @@ function asBrief(value: unknown): TopmanDailyBrief {
   if (!isTopmanDailyBrief(value)) {
     throw new Error('Invalid TOPMAN daily brief payload');
   }
-  return value as TopmanDailyBrief;
+  return value as unknown as TopmanDailyBrief;
+}
+
+function toCoreRecord(brief: TopmanDailyBrief): Record<string, unknown> {
+  return brief as unknown as Record<string, unknown>;
 }
 
 export function buildTopmanDailyBriefFromSummary(input: {
@@ -78,7 +82,7 @@ export function buildTopmanDailyBriefFromSummary(input: {
     insights: input.insights ?? null,
     cards,
     nowMs: input.nowMs,
-    existing: input.existing ?? null,
+    existing: input.existing ? toCoreRecord(input.existing) : null,
   }));
 }
 
@@ -86,15 +90,15 @@ export function patchTopmanDailyBrief(
   brief: TopmanDailyBrief,
   patch: { lineMessage?: string; memoMarkdown?: string; nowMs?: number },
 ): TopmanDailyBrief {
-  return asBrief(patchCore(brief, patch));
+  return asBrief(patchCore(toCoreRecord(brief), patch));
 }
 
 export function approveTopmanDailyBrief(brief: TopmanDailyBrief, nowMs?: number): TopmanDailyBrief {
-  return asBrief(approveCore(brief, nowMs));
+  return asBrief(approveCore(toCoreRecord(brief), nowMs));
 }
 
 export function markTopmanDailyBriefSent(brief: TopmanDailyBrief, nowMs?: number): TopmanDailyBrief {
-  return asBrief(markSentCore(brief, nowMs));
+  return asBrief(markSentCore(toCoreRecord(brief), nowMs));
 }
 
 export function formatBriefStatusLabel(status: TopmanBriefStatus): string {
