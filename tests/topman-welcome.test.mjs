@@ -109,7 +109,7 @@ describe('TOPMAN Thai-first welcome landing', () => {
     assert.match(welcomeHtml, /ภาพรวมสถานการณ์ · โฟกัสไทย/);
     assert.match(
       welcomeHtml,
-      /รวบรวมสถานการณ์การข่าว[\s\S]*ถูกต้อง · แม่นยำ · รวดเร็ว · เข้าใจง่าย/
+      /รวบรวม · เรียบเรียง · วิเคราะห์ · นำเสนอข้อมูล[\s\S]*ผบ\.ตร\. และนายกรัฐมนตรี[\s\S]*เข้าใจข่าวสารและตัดสินใจ/
     );
     assert.match(welcomeHtml, /src="\/brand\/topmanidmb-orbit-emblem\.png"/);
     assert.match(welcomeHtml, /href="\/dashboard(?:\?mode=simple)?"/);

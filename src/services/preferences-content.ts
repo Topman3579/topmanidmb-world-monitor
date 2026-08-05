@@ -231,8 +231,8 @@ export function renderPreferences(host: PreferencesHost): PreferencesResult {
     html += `<option value="" selected disabled>${escapeHtml(label)} (${escapeHtml(topmanText('ภาษาอื่น', 'Other language'))})</option>`;
   }
   for (const option of [
-    { value: 'th', label: 'ไทย' },
-    { value: 'bilingual', label: 'ไทย + English (แนะนำ / Recommended)' },
+    { value: 'th', label: 'ไทย (แนะนำ)' },
+    { value: 'bilingual', label: 'ไทย + English' },
     { value: 'en', label: 'English' },
   ] as Array<{ value: TopmanLanguageMode; label: string }>) {
     const selected = (currentLang === 'th' || currentLang === 'en') && option.value === topmanLanguageMode

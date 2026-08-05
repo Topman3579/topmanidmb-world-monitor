@@ -766,6 +766,69 @@ html.topman-ui-mode-advanced #topmanSimpleModeBelow {
   box-shadow: 0 0 0 6px rgba(255, 203, 45, 0.18);
 }
 
+.topman-simple-daily-brief {
+  background: rgba(10, 20, 38, 0.92);
+  border: 1px solid rgba(255, 203, 45, 0.28);
+  border-radius: 18px;
+  padding: 16px 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.topman-simple-daily-brief__meta {
+  margin: 0;
+  color: rgba(156, 180, 202, 0.95);
+  font-size: 0.86rem;
+}
+
+.topman-simple-daily-brief__notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 203, 45, 0.12);
+  color: #ffe7a0;
+  font-size: 0.9rem;
+}
+
+.topman-simple-daily-brief__label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #8fd0ff;
+}
+
+.topman-simple-daily-brief__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 140px;
+  border-radius: 12px;
+  border: 1px solid rgba(143, 208, 255, 0.22);
+  background: #071120;
+  color: #f7f3ea;
+  padding: 10px 12px;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.topman-simple-daily-brief__textarea--memo {
+  min-height: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.topman-simple-daily-brief__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.topman-simple-badge--draft,
+.topman-simple-badge--stale {
+  background: rgba(255, 203, 45, 0.16);
+  color: #ffe7a0;
+}
+
 /* Mobile-first overrides */
 @media (max-width: 900px) {
   .topman-simple-cards,

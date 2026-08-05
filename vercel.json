@@ -3,7 +3,8 @@
   "crons": [
     { "path": "/api/topman-core-refresh?group=fast", "schedule": "*/15 * * * *" },
     { "path": "/api/topman-core-refresh?group=market", "schedule": "3,23,43 * * * *" },
-    { "path": "/api/topman-core-refresh?group=slow", "schedule": "7 */3 * * *" }
+    { "path": "/api/topman-core-refresh?group=slow", "schedule": "7 */3 * * *" },
+    { "path": "/api/topman-daily-brief-generate", "schedule": "30 0 * * *" }
   ],
   "redirects": [
     { "source": "/docs/:match*", "has": [{ "type": "host", "value": "^(?:tech|finance|commodity|happy|energy|api)\\.worldmonitor\\.app$" }], "destination": "https://www.worldmonitor.app/docs/:match*", "permanent": true },

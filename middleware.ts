@@ -41,6 +41,11 @@ const LEGACY_DASHBOARD_ROOT_QUERY_KEYS = ['lat', 'lon', 'zoom', 'view', 'timeRan
 // - /api/topman-core-refresh: Vercel Cron producer. The middleware must allow
 //   Vercel's script UA through; the handler still requires GET plus the exact
 //   CRON_SECRET Bearer token before any refresh work runs.
+// - /api/topman-daily-brief: public GET for today's Thai executive draft;
+//   POST mutations require admin/cron bearer inside the handler.
+// - /api/topman-daily-brief-generate: Vercel Cron at 07:30 ICT; handler requires
+//   CRON_SECRET Bearer (draft only — never auto-sends LINE).
+// - /api/topman-line-push: credential probe / test push; handler requires admin bearer.
 const PUBLIC_API_PATHS = new Set([
   '/api/version',
   '/api/health',
@@ -50,6 +55,9 @@ const PUBLIC_API_PATHS = new Set([
   '/api/product-catalog',
   '/api/topman-core-status',
   '/api/topman-core-refresh',
+  '/api/topman-daily-brief',
+  '/api/topman-daily-brief-generate',
+  '/api/topman-line-push',
 ]);
 
 const SOCIAL_IMAGE_UA =

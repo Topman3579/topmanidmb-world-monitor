@@ -36,13 +36,13 @@ export function getTopmanLanguageMode(): TopmanLanguageMode {
   if (stored) return stored;
 
   // Keep a prior explicit English selection intact. Thai and first-time users
-  // receive the TOPMANIDMB default: Thai-first with short English guidance.
+  // receive the TOPMANIDMB default: Thai-only UI (specialist English terms stay as-is).
   try {
     if (localStorage.getItem(EXPLICIT_LOCALE_KEY) === 'en') return 'en';
   } catch {
     // Storage can be unavailable in private mode.
   }
-  return 'bilingual';
+  return 'th';
 }
 
 export function topmanText(thai: string, english: string): string {
@@ -63,12 +63,22 @@ export function getTopmanBrandSubtitle(): string {
   return topmanText('ภาพรวมสถานการณ์ · โฟกัสไทย', 'Situation overview · Thailand focus');
 }
 
-/** One-line role: collect → brief for command (ผบ.ตร. / chain of command). */
+/** One-line role: collect → organize → analyze → present for national command. */
 export function getTopmanProductMission(): string {
   return topmanText(
-    'รวบรวมสถานการณ์การข่าว → สรุปภาพรวมอย่างถูกต้อง แม่นยำ รวดเร็ว เข้าใจง่าย เพื่อสนับสนุนการรับทราบและสั่งการของผู้บังคับบัญชา',
-    'Collect multi-source situation news → brief correctly, precisely, quickly, and clearly to support command awareness and decisions',
+    'รวบรวม · เรียบเรียง · วิเคราะห์ · นำเสนอข้อมูล ให้ ผบ.ตร. และนายกรัฐมนตรี เพื่อเข้าใจข่าวสารและตัดสินใจ',
+    'Collect, organize, analyze, and present information for the Royal Thai Police Commissioner and the Prime Minister — for news awareness and decision-making',
   );
+}
+
+/** Primary audience label for executive briefs and LINE messages. */
+export function getTopmanBriefAudienceLabel(): string {
+  return topmanText('ผบ.ตร. / นายกรัฐมนตรี', 'Royal Thai Police Commissioner / Prime Minister');
+}
+
+/** Formal LINE salutation for daily briefs. */
+export function getTopmanBriefLineSalutation(): string {
+  return topmanText('เรียน ผบ.ตร. / นายกรัฐมนตรี', 'Dear Commissioner / Prime Minister');
 }
 
 /** Short workflow tag for the simple shell kicker. */

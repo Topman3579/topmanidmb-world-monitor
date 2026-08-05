@@ -216,7 +216,7 @@ export async function initI18n(): Promise<void> {
       if (stored) return stored === 'en' ? 'en' : 'th';
 
       // Respect existing explicit choices in any of the upstream languages.
-      // New TOPMANIDMB visitors default to bilingual Thai-first mode.
+      // New TOPMANIDMB visitors default to Thai-only UI.
       try {
         if (localStorage.getItem(EXPLICIT_LOCALE_KEY)) return undefined;
       } catch { /* private mode */ }

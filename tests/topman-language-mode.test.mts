@@ -101,20 +101,22 @@ describe('TOPMAN language mode', () => {
     assert.equal(topmanText('ภาษาไทย', 'English'), 'ภาษาไทย / English');
   });
 
-  it('ignores invalid URL and storage values', () => {
+  it('ignores invalid URL and storage values and defaults to Thai-only', () => {
     storage.setItem(TOPMAN_LANGUAGE_MODE_KEY, 'unsupported');
     setWindowUrl('https://topmanidmb-world-monitor.vercel.app/?topmanMode=invalid');
 
     assert.equal(readRequestedTopmanLanguageModeFromUrl(), null);
     assert.equal(storedTopmanLanguageMode(), null);
-    assert.equal(getTopmanLanguageMode(), 'bilingual');
+    assert.equal(getTopmanLanguageMode(), 'th');
+    assert.equal(topmanText('ภาษาไทย', 'English'), 'ภาษาไทย');
   });
 
   it('locks TOPMAN News Room product naming for command briefing', () => {
     storage.setItem(TOPMAN_LANGUAGE_MODE_KEY, 'th');
     assert.equal(getTopmanProductName(), 'TOPMAN News Room');
     assert.match(getTopmanBrandSubtitle(), /ภาพรวมสถานการณ์ · โฟกัสไทย/);
-    assert.match(getTopmanProductMission(), /สั่งการของผู้บังคับบัญชา/);
+    assert.match(getTopmanProductMission(), /ผบ\.ตร\.|นายกรัฐมนตรี/);
+    assert.match(getTopmanProductMission(), /เข้าใจข่าวสารและตัดสินใจ/);
     assert.match(getTopmanWorkflowTag(), /รวบรวม · เรียบเรียง · วิเคราะห์ · นำเสนอ/);
   });
 });

@@ -14,6 +14,7 @@ import {
 } from '@/services/topman-health-status';
 import {
   getTopmanBrandSubtitle,
+  getTopmanBriefAudienceLabel,
   getTopmanProductMission,
   getTopmanProductName,
   getTopmanWorkflowTag,
@@ -49,6 +50,21 @@ import {
   shouldAutoStartGuidedTour,
   type GuidedTourStep,
 } from '@/services/topman-guided-tour';
+import {
+  approveTopmanDailyBrief,
+  buildTopmanDailyBriefFromSummary,
+  fetchServerDailyBrief,
+  formatBriefStatusLabel,
+  formatThaiOfficialDate,
+  getBriefAdminSecret,
+  loadLocalDailyBrief,
+  markTopmanDailyBriefSent,
+  patchTopmanDailyBrief,
+  postDailyBriefAction,
+  saveLocalDailyBrief,
+  setBriefAdminSecret,
+  type TopmanDailyBrief,
+} from '@/services/topman-daily-brief';
 import { escapeHtml } from '@/utils/sanitize';
 import { setTrustedHtml, trustedHtml } from '@/utils/dom-utils';
 import type { MapLayers } from '@/types';
@@ -88,6 +104,10 @@ export class TopmanSimpleMode {
   private summary: SimpleExecutiveSummary | null = null;
   private health: TopmanHealthSnapshot | null = null;
   private systemHealth: SystemHealthBrief | null = null;
+  private dailyBrief: TopmanDailyBrief | null = null;
+  private lineConfigured = false;
+  private briefNotice = '';
+  private lastInsights: ServerInsights | null = null;
   private enabledCategories: SimpleMapCategoryId[];
   private tourOpen = false;
   private tourStep = 0;
@@ -296,9 +316,176 @@ export class TopmanSimpleMode {
       case 'open-pro-playbook':
         window.open('/topman-pro-business-playbook.html', '_blank', 'noopener,noreferrer');
         break;
+      case 'brief-generate-local':
+        void this.generateLocalBrief();
+        break;
+      case 'brief-copy-line':
+        void this.copyBriefLineMessage();
+        break;
+      case 'brief-save':
+        void this.persistBrief('save');
+        break;
+      case 'brief-approve':
+        void this.persistBrief('approve');
+        break;
+      case 'brief-send':
+        void this.persistBrief('send');
+        break;
+      case 'brief-set-secret': {
+        const entered = window.prompt(
+          topmanText(
+            'ใส่รหัสผู้ตรวจบรีฟ (TOPMAN_BRIEF_ADMIN_SECRET) สำหรับบันทึก/อนุมัติ/ส่ง',
+            'Enter brief admin secret for save/approve/send',
+          ),
+          getBriefAdminSecret(),
+        );
+        if (entered !== null) {
+          setBriefAdminSecret(entered.trim());
+          this.briefNotice = entered.trim()
+            ? topmanText('บันทึกรหัสผู้ตรวจในเซสชันนี้แล้ว', 'Admin secret stored for this session')
+            : topmanText('ล้างรหัสผู้ตรวจแล้ว', 'Admin secret cleared');
+          this.render();
+        }
+        break;
+      }
       default:
         break;
     }
+  }
+
+  private readBriefEditors(): { lineMessage: string; memoMarkdown: string } {
+    const line = this.root.querySelector<HTMLTextAreaElement>('#topman-daily-brief-line');
+    const memo = this.root.querySelector<HTMLTextAreaElement>('#topman-daily-brief-memo');
+    return {
+      lineMessage: line?.value ?? this.dailyBrief?.lineMessage ?? '',
+      memoMarkdown: memo?.value ?? this.dailyBrief?.memoMarkdown ?? '',
+    };
+  }
+
+  private async generateLocalBrief(): Promise<void> {
+    const existing = this.dailyBrief;
+    this.dailyBrief = buildTopmanDailyBriefFromSummary({
+      summary: this.summary,
+      insights: this.lastInsights,
+      existing: existing?.status === 'draft' ? existing : null,
+    });
+    if (existing && (existing.status === 'approved' || existing.status === 'sent')) {
+      this.briefNotice = topmanText(
+        'บรีฟวันนี้ถูกอนุมัติหรือส่งแล้ว — ไม่เขียนทับ ใช้ปุ่มคัดลอกได้',
+        'Today’s brief is already approved/sent — not overwritten',
+      );
+      this.render();
+      return;
+    }
+    saveLocalDailyBrief(this.dailyBrief);
+    this.briefNotice = topmanText('สร้างร่างจากสรุปหน้านี้แล้ว — ตรวจก่อนส่ง', 'Draft built from this page — review before send');
+    this.render();
+  }
+
+  private async copyBriefLineMessage(): Promise<void> {
+    const { lineMessage } = this.readBriefEditors();
+    if (!lineMessage.trim()) {
+      this.briefNotice = topmanText('ยังไม่มีข้อความ LINE', 'No LINE text yet');
+      this.render();
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(lineMessage);
+      this.briefNotice = topmanText('คัดลอกข้อความ LINE แล้ว — วางใน LINE OA ได้ทันที', 'LINE text copied');
+    } catch {
+      this.briefNotice = topmanText('คัดลอกไม่สำเร็จ — เลือกข้อความแล้วคัดลอกเอง', 'Copy failed — select text manually');
+    }
+    this.render();
+  }
+
+  private async persistBrief(action: 'save' | 'approve' | 'send'): Promise<void> {
+    const editors = this.readBriefEditors();
+    if (!this.dailyBrief) {
+      this.dailyBrief = buildTopmanDailyBriefFromSummary({
+        summary: this.summary,
+        insights: this.lastInsights,
+      });
+    }
+    this.dailyBrief = patchTopmanDailyBrief(this.dailyBrief, editors);
+
+    if (action === 'approve') {
+      this.dailyBrief = approveTopmanDailyBrief(this.dailyBrief);
+    }
+
+    saveLocalDailyBrief(this.dailyBrief);
+
+    if (!getBriefAdminSecret()) {
+      if (action === 'send') {
+        this.briefNotice = topmanText(
+          'ยังไม่มีรหัสผู้ตรวจ — คัดลอกข้อความ LINE ไปส่งเอง หรือตั้งรหัสก่อน',
+          'No admin secret — copy LINE text or set secret first',
+        );
+      } else {
+        this.briefNotice = topmanText(
+          'บันทึกในเครื่องแล้ว (ยังไม่ได้ซิงก์เซิร์ฟเวอร์ — ตั้งรหัสผู้ตรวจเพื่อซิงก์)',
+          'Saved locally (set admin secret to sync server)',
+        );
+      }
+      this.render();
+      return;
+    }
+
+    const result = await postDailyBriefAction(action, {
+      dateKey: this.dailyBrief.dateKey,
+      lineMessage: this.dailyBrief.lineMessage,
+      memoMarkdown: this.dailyBrief.memoMarkdown,
+      brief: this.dailyBrief,
+    });
+    this.lineConfigured = result.lineConfigured;
+    if (result.brief) {
+      this.dailyBrief = result.brief;
+      saveLocalDailyBrief(result.brief);
+    } else if (action === 'send' && result.ok) {
+      this.dailyBrief = markTopmanDailyBriefSent(this.dailyBrief);
+      saveLocalDailyBrief(this.dailyBrief);
+    }
+
+    if (!result.ok) {
+      this.briefNotice = result.error === 'UNAUTHORIZED'
+        ? topmanText('รหัสผู้ตรวจไม่ถูกต้อง หรือยังไม่ได้ตั้งบนเซิร์ฟเวอร์', 'Admin secret rejected')
+        : result.error === 'LINE_NOT_CONFIGURED'
+          ? topmanText('ยังไม่ได้เชื่อม LINE OA — คัดลอกข้อความไปส่งเองได้', 'LINE OA not linked — copy text instead')
+          : result.error === 'NOT_APPROVED'
+            ? topmanText('ต้องกดอนุมัติก่อนส่ง LINE', 'Approve before sending LINE')
+            : (result.error || topmanText('บันทึกไม่สำเร็จ', 'Save failed'));
+      this.render();
+      return;
+    }
+
+    this.briefNotice = action === 'send'
+      ? topmanText('ส่ง LINE OA แล้ว', 'Sent to LINE OA')
+      : action === 'approve'
+        ? topmanText('อนุมัติแล้ว — พร้อมกดส่ง LINE ก่อน 08:00', 'Approved — ready to send before 08:00')
+        : topmanText('บันทึกร่างบนเซิร์ฟเวอร์แล้ว', 'Draft saved on server');
+    this.render();
+  }
+
+  private async loadDailyBrief(): Promise<void> {
+    const local = loadLocalDailyBrief();
+    try {
+      const remote = await fetchServerDailyBrief();
+      this.lineConfigured = remote.lineConfigured;
+      if (remote.brief) {
+        if (
+          !local
+          || (remote.brief.updatedAt || '') >= (local.updatedAt || '')
+          || remote.brief.status === 'approved'
+          || remote.brief.status === 'sent'
+        ) {
+          this.dailyBrief = remote.brief;
+          saveLocalDailyBrief(remote.brief);
+          return;
+        }
+      }
+    } catch {
+      // offline / API down — keep local
+    }
+    if (local) this.dailyBrief = local;
   }
 
   private toggleCategory(id: SimpleMapCategoryId): void {
@@ -385,11 +572,21 @@ export class TopmanSimpleMode {
       this.systemHealth = null;
     }
 
+    this.lastInsights = insights;
     this.summary = buildSimpleExecutiveSummary({
       insights,
       health: this.health,
       systemHealth: this.systemHealth,
     });
+
+    await this.loadDailyBrief();
+    if (!this.dailyBrief) {
+      this.dailyBrief = buildTopmanDailyBriefFromSummary({
+        summary: this.summary,
+        insights,
+      });
+      saveLocalDailyBrief(this.dailyBrief);
+    }
 
     if (!this.destroyed) {
       this.render();
@@ -481,7 +678,7 @@ export class TopmanSimpleMode {
           </div>
           <div class="topman-simple-exec__kicker">
             <span class="topman-simple-badge topman-simple-badge--${escapeHtml(summary.status)}">${escapeHtml(statusLabel)}</span>
-            <span class="topman-simple-kicker-text">${escapeHtml(topmanText('สรุปสำหรับผู้บริหาร · สนับสนุนการสั่งการ', 'Executive brief · command support'))}</span>
+            <span class="topman-simple-kicker-text">${escapeHtml(topmanText('สรุปสำหรับ ผบ.ตร. / นายกฯ · เข้าใจข่าวสารและตัดสินใจ', 'Brief for Commissioner / PM · awareness and decisions'))}</span>
           </div>
           <div class="topman-simple-health-strip" data-tour="health-strip" role="status" aria-live="polite">
             <span class="topman-simple-health-strip__core">${escapeHtml(summary.coreStrip)}</span>
@@ -506,6 +703,8 @@ export class TopmanSimpleMode {
         <div class="topman-simple-cards" data-tour="cards">
           ${summary.cards.map((card) => this.renderCard(card)).join('')}
         </div>
+
+        ${this.renderDailyBriefPanel()}
 
         <section class="topman-simple-map-panel" aria-labelledby="topman-simple-map-title">
           <div class="topman-simple-section-head">
@@ -614,6 +813,85 @@ export class TopmanSimpleMode {
     if (this.tourOpen) {
       window.requestAnimationFrame(() => this.applyTourSpotlight());
     }
+  }
+
+  private renderDailyBriefPanel(): string {
+    const brief = this.dailyBrief;
+    if (!brief) {
+      return `
+        <section class="topman-simple-daily-brief" aria-labelledby="topman-daily-brief-title">
+          <div class="topman-simple-section-head">
+            <div>
+              <h2 id="topman-daily-brief-title">${escapeHtml(topmanText('บทสรุปบริหารรายวัน', 'Daily executive brief'))}</h2>
+              <p>${escapeHtml(topmanText('กำลังเตรียมร่าง…', 'Preparing draft…'))}</p>
+            </div>
+            <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-generate-local">
+              ${escapeHtml(topmanText('สร้างร่างตอนนี้', 'Build draft now'))}
+            </button>
+          </div>
+        </section>
+      `;
+    }
+
+    const statusLabel = formatBriefStatusLabel(brief.status);
+    const dateLabel = formatThaiOfficialDate(brief.dateKey);
+    const lineNote = this.lineConfigured
+      ? topmanText('เชื่อม LINE OA แล้ว — กดอนุมัติแล้วจึงส่ง', 'LINE OA linked — approve then send')
+      : topmanText('ยังไม่ได้เชื่อม LINE OA — คัดลอกข้อความไปส่งเองได้', 'LINE OA not linked — copy text to send manually');
+    const hasSecret = Boolean(getBriefAdminSecret());
+
+    return `
+      <section class="topman-simple-daily-brief" data-tour="daily-brief" aria-labelledby="topman-daily-brief-title">
+        <div class="topman-simple-section-head">
+          <div>
+            <h2 id="topman-daily-brief-title">${escapeHtml(topmanText('บทสรุปบริหารรายวัน', 'Daily executive brief'))}</h2>
+            <p>
+              ${escapeHtml(topmanText('นำเสนอ ผบ.ตร. / นายกรัฐมนตรี · ตรวจก่อนส่ง LINE ก่อน 08:00', 'For Commissioner / PM · review before LINE send by 08:00'))}
+              · ${escapeHtml(getTopmanBriefAudienceLabel())}
+              · ${escapeHtml(dateLabel)}
+            </p>
+          </div>
+          <span class="topman-simple-badge topman-simple-badge--${escapeHtml(brief.status === 'sent' ? 'ready' : brief.status === 'approved' ? 'partial' : 'stale')}">
+            ${escapeHtml(statusLabel)}
+          </span>
+        </div>
+        <p class="topman-simple-daily-brief__meta">
+          ${escapeHtml(lineNote)}
+          · ${escapeHtml(hasSecret
+            ? topmanText('มีรหัสผู้ตรวจในเซสชันนี้', 'Admin secret set for this session')
+            : topmanText('ยังไม่มีรหัสผู้ตรวจ (บันทึกในเครื่องได้)', 'No admin secret (local save ok)'))}
+        </p>
+        ${this.briefNotice ? `<p class="topman-simple-daily-brief__notice" role="status">${escapeHtml(this.briefNotice)}</p>` : ''}
+        <label class="topman-simple-daily-brief__label" for="topman-daily-brief-line">
+          ${escapeHtml(topmanText('ข้อความ LINE (สั้น)', 'LINE message (short)'))}
+        </label>
+        <textarea id="topman-daily-brief-line" class="topman-simple-daily-brief__textarea" rows="10" spellcheck="false">${escapeHtml(brief.lineMessage)}</textarea>
+        <label class="topman-simple-daily-brief__label" for="topman-daily-brief-memo">
+          ${escapeHtml(topmanText('บันทึกสรุปผู้บริหาร', 'Executive memo'))}
+        </label>
+        <textarea id="topman-daily-brief-memo" class="topman-simple-daily-brief__textarea topman-simple-daily-brief__textarea--memo" rows="12" spellcheck="false">${escapeHtml(brief.memoMarkdown)}</textarea>
+        <div class="topman-simple-daily-brief__actions">
+          <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="brief-generate-local">
+            ${escapeHtml(topmanText('สร้างร่างจากสรุปหน้านี้', 'Rebuild from this page'))}
+          </button>
+          <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="brief-copy-line">
+            ${escapeHtml(topmanText('คัดลอกข้อความ LINE', 'Copy LINE text'))}
+          </button>
+          <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="brief-set-secret">
+            ${escapeHtml(topmanText('ตั้งรหัสผู้ตรวจ', 'Set reviewer secret'))}
+          </button>
+          <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="brief-save">
+            ${escapeHtml(topmanText('บันทึกร่าง', 'Save draft'))}
+          </button>
+          <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-approve">
+            ${escapeHtml(topmanText('อนุมัติ', 'Approve'))}
+          </button>
+          <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-send" ${brief.status === 'draft' ? 'disabled' : ''}>
+            ${escapeHtml(topmanText('ส่ง LINE OA', 'Send LINE OA'))}
+          </button>
+        </div>
+      </section>
+    `;
   }
 
   private renderCard(card: SimpleSummaryCard): string {

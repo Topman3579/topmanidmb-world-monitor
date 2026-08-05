@@ -468,6 +468,27 @@
       "removal_issue": null
     },
     {
+      "path": "api/topman-daily-brief.ts",
+      "category": "ops-admin",
+      "reason": "TOPMAN Thai executive daily brief read/mutate API (draft → approve → LINE send). Public GET; mutations require admin bearer.",
+      "owner": "@Topman3579",
+      "removal_issue": null
+    },
+    {
+      "path": "api/topman-daily-brief-generate.ts",
+      "category": "ops-admin",
+      "reason": "Vercel Cron producer for 07:30 ICT Thai executive draft; never auto-sends LINE.",
+      "owner": "@Topman3579",
+      "removal_issue": null
+    },
+    {
+      "path": "api/topman-line-push.ts",
+      "category": "ops-admin",
+      "reason": "LINE Messaging API test/push helper for TOPMAN daily brief; admin bearer required.",
+      "owner": "@Topman3579",
+      "removal_issue": null
+    },
+    {
       "path": "api/version.js",
       "category": "ops-admin",
       "reason": "Build-version probe for the desktop auto-updater. Tiny plain-JSON operator plumbing.",
