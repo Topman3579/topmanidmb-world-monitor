@@ -69,7 +69,7 @@ describe('TOPMAN core refresh authorization', () => {
       fileURLToPath(new URL('../vercel.json', import.meta.url)),
       'utf8',
     )) as { crons?: Array<{ path: string; schedule: string }> };
-    assert.deepEqual(vercelConfig.crons, [
+    assert.deepEqual(vercelConfig.crons?.filter(({ path }) => path.startsWith('/api/topman-core-refresh')), [
       { path: '/api/topman-core-refresh?group=fast', schedule: '*/15 * * * *' },
       { path: '/api/topman-core-refresh?group=market', schedule: '3,23,43 * * * *' },
       { path: '/api/topman-core-refresh?group=slow', schedule: '7 */3 * * *' },

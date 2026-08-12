@@ -207,6 +207,30 @@ describe('CI workflow coverage', () => {
       /unit \+ typecheck/i,
       'deploy-gate.yml must not regress to the old unit+typecheck-only gate',
     );
+    assert.match(
+      deployGateWorkflow,
+      /max\(matches, key=lambda r: r\.get\('id'\) or 0\)/,
+      'deploy-gate.yml must select a newly queued rerun even before started_at is populated',
+    );
+    assert.match(
+      deployGateWorkflow,
+      /if latest_run\.get\('status'\) == 'completed'[\s\S]*else 'pending'/,
+      'deploy-gate.yml must not treat an in-progress latest run as a completed result',
+    );
+    assert.match(
+      deployGateWorkflow,
+      /not in \('success', 'skipped', 'pending'\)/,
+      'pending checks must not also be classified as failures',
+    );
+    assert.match(
+      deployGateWorkflow,
+      /printf '%\.137s\.\.\.'/,
+      'commit-status descriptions must be capped below GitHub\'s 140-character limit',
+    );
+    assert.ok(
+      deployGateWorkflow.indexOf('if [ -n "$failed" ]') < deployGateWorkflow.indexOf('if [ -n "$pending" ]'),
+      'known failures must take precedence over unrelated pending checks',
+    );
   });
 
   it('treats sidecar changes as code for PR smoke gating', () => {

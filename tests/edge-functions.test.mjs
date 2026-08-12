@@ -76,9 +76,12 @@ describe('Edge Function shared helpers resolve', () => {
   it('_rss-allowed-domains.js re-exports shared domain list', async () => {
     const mod = await import(pathToFileURL(join(apiDir, '_rss-allowed-domains.js')).href);
     const domains = mod.default;
+    const canonicalDomains = JSON.parse(readFileSync(join(sharedDir, 'rss-allowed-domains.json'), 'utf8'));
     assert.ok(Array.isArray(domains), 'Expected default export to be an array');
     assert.ok(domains.length > 200, `Expected 200+ domains, got ${domains.length}`);
     assert.ok(domains.includes('feeds.bbci.co.uk'), 'Expected BBC feed domain in list');
+    assert.ok(domains.includes('news.tuoitre.vn'), 'Expected the official Tuoi Tre RSS redirect host in list');
+    assert.deepEqual(domains, canonicalDomains, 'Edge RSS allowlist must match the canonical shared registry');
   });
 });
 

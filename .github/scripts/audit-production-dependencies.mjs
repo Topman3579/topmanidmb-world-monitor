@@ -15,15 +15,16 @@ const SEVERITY_RANK = new Map([
 
 export const BASELINE_ADVISORIES_BY_LOCKFILE = {
   'package-lock.json': [
-    'GHSA-mwp4-54f8-5fhr',
+    // No patched image-size release exists yet. The lock-shape regression test
+    // limits these exceptions to browser-inaccessible Metro/texture tooling.
+    'GHSA-5p2g-fcmc-qvqq',
+    'GHSA-w3rx-r6r6-pgpr',
   ],
-  'consumer-prices-core/package-lock.json': ['GHSA-7p8r-x3mc-p8w7'],
+  'consumer-prices-core/package-lock.json': [],
   'blog-site/package-lock.json': [],
-  'pro-test/package-lock.json': [],
-  // GHSA-mh99-v99m-4gvg keeps the backports needed for scripts workspace compatibility.
-  // We also baseline GHSA-mh99-v99m-4gvg for backported brace-expansion compatibility,
-  // and GHSA-mwp4-54f8-5fhr while lockfile upgrades are pending.
-  'scripts/package-lock.json': ['GHSA-4cwx-7wf7-3272', 'GHSA-mh99-v99m-4gvg', 'GHSA-mwp4-54f8-5fhr', 'GHSA-rgw5-rvv9-x895'],
+  // Same no-fix Metro-only path as the root lockfile, guarded below by tests.
+  'pro-test/package-lock.json': ['GHSA-5p2g-fcmc-qvqq', 'GHSA-w3rx-r6r6-pgpr'],
+  'scripts/package-lock.json': [],
   'docker/runtime-package-lock.json': [],
 };
 

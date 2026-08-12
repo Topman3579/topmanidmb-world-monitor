@@ -86,6 +86,24 @@ export function buildTopmanDailyBriefFromSummary(input: {
   }));
 }
 
+export function generateLocalTopmanDailyBrief(input: {
+  summary: SimpleExecutiveSummary | null;
+  insights?: unknown;
+  nowMs?: number;
+  existing?: TopmanDailyBrief | null;
+}): { brief: TopmanDailyBrief; generated: boolean } {
+  const targetDateKey = bangkokDateKey(input.nowMs);
+  const sameDayExisting = input.existing?.dateKey === targetDateKey ? input.existing : null;
+  if (sameDayExisting?.status === 'approved' || sameDayExisting?.status === 'sent') {
+    return { brief: sameDayExisting, generated: false };
+  }
+
+  return {
+    brief: buildTopmanDailyBriefFromSummary({ ...input, existing: sameDayExisting }),
+    generated: true,
+  };
+}
+
 export function patchTopmanDailyBrief(
   brief: TopmanDailyBrief,
   patch: { lineMessage?: string; memoMarkdown?: string; nowMs?: number },

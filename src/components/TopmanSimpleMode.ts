@@ -56,6 +56,7 @@ import {
   fetchServerDailyBrief,
   formatBriefStatusLabel,
   formatThaiOfficialDate,
+  generateLocalTopmanDailyBrief,
   getBriefAdminSecret,
   loadLocalDailyBrief,
   markTopmanDailyBriefSent,
@@ -364,12 +365,12 @@ export class TopmanSimpleMode {
 
   private async generateLocalBrief(): Promise<void> {
     const existing = this.dailyBrief;
-    this.dailyBrief = buildTopmanDailyBriefFromSummary({
+    const generated = generateLocalTopmanDailyBrief({
       summary: this.summary,
       insights: this.lastInsights,
-      existing: existing?.status === 'draft' ? existing : null,
+      existing,
     });
-    if (existing && (existing.status === 'approved' || existing.status === 'sent')) {
+    if (!generated.generated) {
       this.briefNotice = topmanText(
         'บรีฟวันนี้ถูกอนุมัติหรือส่งแล้ว — ไม่เขียนทับ ใช้ปุ่มคัดลอกได้',
         'Today’s brief is already approved/sent — not overwritten',
@@ -377,6 +378,7 @@ export class TopmanSimpleMode {
       this.render();
       return;
     }
+    this.dailyBrief = generated.brief;
     saveLocalDailyBrief(this.dailyBrief);
     this.briefNotice = topmanText('สร้างร่างจากสรุปหน้านี้แล้ว — ตรวจก่อนส่ง', 'Draft built from this page — review before send');
     this.render();

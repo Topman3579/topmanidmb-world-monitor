@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   approveTopmanDailyBrief,
@@ -12,8 +14,24 @@ import {
   MAX_LINE_MESSAGE_CHARS,
   patchTopmanDailyBrief,
 } from '../shared/topman-daily-brief.js';
+import {
+  approveTopmanDailyBrief as approveLocalTopmanDailyBrief,
+  buildTopmanDailyBriefFromSummary,
+  generateLocalTopmanDailyBrief,
+  markTopmanDailyBriefSent as markLocalTopmanDailyBriefSent,
+} from '../src/services/topman-daily-brief.ts';
 
 describe('TOPMAN daily executive brief', () => {
+  it('registers the authenticated 07:30 Bangkok draft cron', () => {
+    const vercelConfig = JSON.parse(readFileSync(
+      fileURLToPath(new URL('../vercel.json', import.meta.url)),
+      'utf8',
+    )) as { crons?: Array<{ path: string; schedule: string }> };
+    assert.ok(vercelConfig.crons?.some((cron) =>
+      cron.path === '/api/topman-daily-brief-generate' && cron.schedule === '30 0 * * *',
+    ));
+  });
+
   it('builds Bangkok date keys and Thai official dates', () => {
     const key = bangkokDateKey(Date.parse('2026-08-04T00:30:00.000Z')); // 07:30 ICT
     assert.equal(key, '2026-08-04');
@@ -76,6 +94,47 @@ describe('TOPMAN daily executive brief', () => {
     });
     assert.equal(again.status, 'approved');
     assert.equal(again.lineMessage, approved.lineMessage);
+  });
+
+  it('does not create or persist a replacement draft for an approved or sent local brief', () => {
+    const draft = buildTopmanDailyBriefFromSummary({
+      summary: null,
+      nowMs: Date.parse('2026-08-04T00:30:00.000Z'),
+    });
+    const approved = approveLocalTopmanDailyBrief(draft, Date.parse('2026-08-04T00:45:00.000Z'));
+    const sent = markLocalTopmanDailyBriefSent(approved, Date.parse('2026-08-04T00:50:00.000Z'));
+
+    for (const locked of [approved, sent]) {
+      const result = generateLocalTopmanDailyBrief({
+        summary: null,
+        existing: locked,
+        nowMs: Date.parse('2026-08-04T01:00:00.000Z'),
+      });
+      assert.equal(result.generated, false);
+      assert.strictEqual(result.brief, locked);
+      assert.equal(result.brief.status, locked.status);
+      assert.equal(result.brief.lineMessage, locked.lineMessage);
+    }
+  });
+
+  it('starts a fresh draft when the locked local brief belongs to a prior Bangkok day', () => {
+    const priorDraft = buildTopmanDailyBriefFromSummary({
+      summary: null,
+      nowMs: Date.parse('2026-08-04T00:30:00.000Z'),
+    });
+    const priorApproved = approveLocalTopmanDailyBrief(priorDraft, Date.parse('2026-08-04T00:45:00.000Z'));
+    const nextDayMs = Date.parse('2026-08-05T00:30:00.000Z');
+
+    const result = generateLocalTopmanDailyBrief({
+      summary: null,
+      existing: priorApproved,
+      nowMs: nextDayMs,
+    });
+
+    assert.equal(result.generated, true);
+    assert.equal(result.brief.dateKey, '2026-08-05');
+    assert.equal(result.brief.status, 'draft');
+    assert.equal(result.brief.createdAt, new Date(nextDayMs).toISOString());
   });
 
   it('supports patch → approve → sent workflow', () => {

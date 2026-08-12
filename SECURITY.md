@@ -14,9 +14,9 @@ Only the latest version on the `main` branch is actively maintained and receives
 
 If you discover a security vulnerability in World Monitor, please report it responsibly:
 
-1. **GitHub Private Vulnerability Reporting**: Use [GitHub's private vulnerability reporting](https://github.com/koala73/worldmonitor/security/advisories/new) to submit your report directly through the repository.
+1. **GitHub Private Vulnerability Reporting**: Use [GitHub's private vulnerability reporting](https://github.com/Topman3579/topmanidmb-world-monitor/security/advisories/new) to submit your report directly through the repository.
 
-2. **Direct Contact**: Alternatively, reach out to the repository owner [@koala73](https://github.com/koala73) directly through GitHub.
+2. **Direct Contact**: Alternatively, reach out to the repository owner [@Topman3579](https://github.com/Topman3579) directly through GitHub.
 
 ### What to Include
 

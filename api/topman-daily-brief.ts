@@ -147,10 +147,10 @@ export default async function handler(request: Request): Promise<Response> {
     const existing = await loadBrief(targetDate);
     if (existing && (existing.status === 'approved' || existing.status === 'sent')) {
       return jsonResponse({
+        ...publicPayload(existing, targetDate),
         ok: false,
         error: 'LOCKED',
         detail: 'บรีฟที่อนุมัติหรือส่งแล้วจะไม่ถูกสร้างใหม่',
-        ...publicPayload(existing, targetDate),
       }, 409);
     }
     const insights = await loadInsights();
@@ -211,10 +211,10 @@ export default async function handler(request: Request): Promise<Response> {
   if (action === 'send') {
     if (brief.status !== 'approved' && brief.status !== 'sent') {
       return jsonResponse({
+        ...publicPayload(brief, targetDate),
         ok: false,
         error: 'NOT_APPROVED',
         detail: 'ต้องกดอนุมัติก่อนส่ง LINE OA',
-        ...publicPayload(brief, targetDate),
       }, 409);
     }
     brief = patchTopmanDailyBrief(brief, {
@@ -224,10 +224,10 @@ export default async function handler(request: Request): Promise<Response> {
     const push = await pushLineTextMessage(String(brief.lineMessage || ''));
     if (!push.ok) {
       return jsonResponse({
+        ...publicPayload(brief, targetDate),
         ok: false,
         error: push.error,
         detail: push.detail,
-        ...publicPayload(brief, targetDate),
       }, push.error === 'LINE_NOT_CONFIGURED' ? 503 : 502);
     }
     brief = markTopmanDailyBriefSent(brief);
