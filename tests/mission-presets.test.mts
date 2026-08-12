@@ -642,10 +642,9 @@ describe('mission preset definitions', () => {
       ],
     );
     assert.match(getMissionPreset('topman-thailand-asean')?.label ?? '', /ไทยและอาเซียน/);
-    assert.match(getMissionPreset('topman-thailand-asean')?.label ?? '', /Thailand & ASEAN/);
     assert.match(getMissionPreset('topman-news-conflict')?.label ?? '', /ข่าวและความขัดแย้ง/);
-    assert.match(getMissionPreset('topman-finance-radar')?.shortLabel ?? '', /Markets/);
-    assert.match(getMissionPreset('topman-aviation-routes')?.label ?? '', /Aviation & Routes/);
+    assert.match(getMissionPreset('topman-finance-radar')?.shortLabel ?? '', /ตลาด/);
+    assert.match(getMissionPreset('topman-aviation-routes')?.label ?? '', /การบินและเส้นทางเดินทาง/);
   });
 
   it('uses TOPMAN core missions only in full and keeps legacy pickers elsewhere', () => {

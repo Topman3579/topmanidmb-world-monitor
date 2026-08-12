@@ -25,13 +25,13 @@ jobs:
           required='["changes","docs-stats","unit","consumer-prices","sidecar","convex-tests","variant-smoke-full","resilience-validation-smoke","digest-image","typecheck","biome","public-docs","security-audit"]'
 
           # Poll check-runs for this SHA and find the latest result for each required job.
-          # Project to just the three fields the gate logic reads. A SHA can
+          # Project to just the fields the gate logic reads. A SHA can
           # accumulate dozens of full check-run objects across re-runs; passing
           # the un-projected JSON to python3 via the RUNS_JSON env var overflowed
           # Linux's 128KB-per-arg/env limit (MAX_ARG_STRLEN) once it crossed
           # ~131KB, failing the gate with "Argument list too long" (exit 126).
           runs=$(gh api "repos/$REPO/commits/$SHA/check-runs?per_page=100" \
-            --jq ".check_runs | map(select(.name as \$name | $required | index(\$name)) | {name, conclusion, completed_at})")
+            --jq ".check_runs | map(select(.name as \$name | $required | index(\$name)) | {id, name, status, conclusion})")
 
           status=$(RUNS_JSON="$runs" REQUIRED_JOBS="$required" python3 -c "
           import json
@@ -44,37 +44,60 @@ jobs:
           for name in required:
             matches = [r for r in runs if r.get('name') == name]
             if matches:
-              latest_run = sorted(matches, key=lambda r: r.get('completed_at') or '')[-1]
-              latest[name] = latest_run.get('conclusion') or 'pending'
+              # Check-run ids increase when GitHub creates a rerun. Prefer the
+              # id because a newly queued run can legitimately have no
+              # started_at yet; sorting by started_at would select an older
+              # completed run and publish a stale final status.
+              latest_run = max(matches, key=lambda r: r.get('id') or 0)
+              latest[name] = (
+                  latest_run.get('conclusion')
+                  if latest_run.get('status') == 'completed'
+                  else 'pending'
+              ) or 'pending'
             else:
               latest[name] = 'pending'
 
           print(' '.join(f'{name}={latest[name]}' for name in required))
           print('pending=' + ','.join(name for name in required if latest[name] == 'pending'))
-          print('failed=' + ','.join(name for name in required if latest[name] not in ('success', 'skipped')))
+          print('failed=' + ','.join(name for name in required if latest[name] not in ('success', 'skipped', 'pending')))
           ")
 
           echo "$status"
           pending=$(echo "$status" | awk -F= '/^pending=/ { print $2 }')
           failed=$(echo "$status" | awk -F= '/^failed=/ { print $2 }')
 
-          if [ -n "$pending" ]; then
-            gh api "repos/$REPO/statuses/$SHA" --method POST \
-              --field state="pending" \
-              --field context="gate" \
-              --field description="Waiting for required PR gates: $pending"
-            exit 0
-          fi
+          # GitHub's commit-status description limit is 140 characters. Keep
+          # the actionable prefix and truncate only the tail of long job lists.
+          status_description() {
+            local message="$1"
+            if [ "${#message}" -gt 140 ]; then
+              printf '%.137s...' "$message"
+            else
+              printf '%s' "$message"
+            fi
+          }
 
-          # Treat "skipped" as passing (docs-only PRs skip code checks)
+          # A known failure is final even while unrelated jobs are pending.
+          # Pending is reserved for the case where no required job has failed.
           if [ -n "$failed" ]; then
+            description=$(status_description "Required PR gates did not pass: $failed")
             gh api "repos/$REPO/statuses/$SHA" --method POST \
               --field state="failure" \
               --field context="gate" \
-              --field description="Required PR gates did not pass: $failed"
+              --field description="$description"
             exit 0
           fi
 
+          if [ -n "$pending" ]; then
+            description=$(status_description "Waiting for required PR gates: $pending")
+            gh api "repos/$REPO/statuses/$SHA" --method POST \
+              --field state="pending" \
+              --field context="gate" \
+              --field description="$description"
+            exit 0
+          fi
+
+          # Treat "skipped" as passing (docs-only PRs skip code checks).
           gh api "repos/$REPO/statuses/$SHA" --method POST \
             --field state="success" \
             --field context="gate" \

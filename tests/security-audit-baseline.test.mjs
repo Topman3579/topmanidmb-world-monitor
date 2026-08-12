@@ -29,6 +29,20 @@ function readRepoJson(relativePath) {
   return JSON.parse(readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8'));
 }
 
+function packagePathsDependingOn(lockfile, dependencyName) {
+  return Object.entries(lockfile.packages ?? {})
+    .filter(([, pkg]) => Object.hasOwn(pkg.dependencies ?? {}, dependencyName))
+    .map(([path]) => path)
+    .sort();
+}
+
+function lockedVersions(lockfile, dependencyName) {
+  return Object.entries(lockfile.packages ?? {})
+    .filter(([path]) => path.endsWith(`/node_modules/${dependencyName}`) || path === `node_modules/${dependencyName}`)
+    .map(([, pkg]) => pkg.version)
+    .sort();
+}
+
 describe('security audit baseline', () => {
   it('does not exempt formerly baselined pro-test advisories', () => {
     const report = auditReportWith({
@@ -39,7 +53,10 @@ describe('security audit baseline', () => {
     });
 
     assert.equal(collectUnbaselinedFindings(report, 'pro-test/package-lock.json').length, 1);
-    assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['pro-test/package-lock.json'], []);
+    assert.equal(
+      BASELINE_ADVISORIES_BY_LOCKFILE['pro-test/package-lock.json'].includes('GHSA-395f-4hp3-45gv'),
+      false,
+    );
   });
 
   it('ignores moderate production advisories for the high-severity PR gate', () => {
@@ -112,24 +129,54 @@ describe('security audit baseline', () => {
     assert.notEqual(viteEsbuild.version, rootEsbuild.version);
   });
 
-  it('has no stale entries after removing the patched pro-test baseline', () => {
-    const report = {
+  it('does not retain the patched shell-quote baseline', () => {
+    const advisory = 'GHSA-395f-4hp3-45gv';
+    assert.equal(BASELINE_ADVISORIES_BY_LOCKFILE['pro-test/package-lock.json'].includes(advisory), false);
+    assert.equal(BASELINE_ADVISORIES_BY_LOCKFILE['package-lock.json'].includes(advisory), false);
+  });
+
+  it('reports a no-fix baseline entry as stale as soon as its advisory disappears', () => {
+    const advisories = BASELINE_ADVISORIES_BY_LOCKFILE['package-lock.json'];
+    const reportWith = (ids) => ({
       vulnerabilities: {
-        'shell-quote': {
-          name: 'shell-quote',
+        'image-size': {
+          name: 'image-size',
           severity: 'high',
-          via: [{
-            name: 'shell-quote',
+          via: ids.map((id) => ({
+            name: 'image-size',
             severity: 'high',
-            title: 'shell-quote DoS',
-            url: 'https://github.com/advisories/GHSA-395f-4hp3-45gv',
-          }],
+            title: 'image-size denial of service',
+            url: `https://github.com/advisories/${id}`,
+          })),
         },
       },
-    };
+    });
 
-    assert.deepEqual(collectStaleBaselineEntries(report, 'pro-test/package-lock.json'), []);
-    assert.deepEqual(collectStaleBaselineEntries(report, 'package-lock.json'), []);
+    assert.deepEqual(collectStaleBaselineEntries(reportWith(advisories), 'package-lock.json'), []);
+    assert.deepEqual(
+      collectStaleBaselineEntries(reportWith(advisories.slice(0, 1)), 'package-lock.json'),
+      advisories.slice(1),
+    );
+  });
+
+  it('limits the temporary no-fix image-size baseline to non-runtime transitive tooling', () => {
+    const advisories = ['GHSA-5p2g-fcmc-qvqq', 'GHSA-w3rx-r6r6-pgpr'];
+    const rootPackage = readRepoJson('package.json');
+    const rootLock = readRepoJson('package-lock.json');
+    const proPackage = readRepoJson('pro-test/package.json');
+    const proLock = readRepoJson('pro-test/package-lock.json');
+
+    assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['package-lock.json'], advisories);
+    assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['pro-test/package-lock.json'], advisories);
+    assert.equal(rootPackage.dependencies?.['image-size'], undefined);
+    assert.equal(proPackage.dependencies?.['image-size'], undefined);
+    assert.deepEqual(packagePathsDependingOn(rootLock, 'image-size'), [
+      'node_modules/metro',
+      'node_modules/texture-compressor',
+    ]);
+    assert.deepEqual(packagePathsDependingOn(proLock, 'image-size'), ['node_modules/metro']);
+    assert.deepEqual(lockedVersions(rootLock, 'image-size'), ['0.7.5', '1.2.1']);
+    assert.deepEqual(lockedVersions(proLock, 'image-size'), ['1.2.1']);
   });
 
   it('treats a symlinked entry path as direct invocation (no silent fail-open)', () => {
