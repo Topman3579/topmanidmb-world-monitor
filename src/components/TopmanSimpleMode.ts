@@ -9,6 +9,7 @@ import {
   classifyTopmanHealthPayload,
   fetchCompactSystemHealthBrief,
   fetchTopmanHealthSnapshot,
+  TOPMAN_HEALTH_SNAPSHOT_EVENT,
   type SystemHealthBrief,
   type TopmanHealthSnapshot,
 } from '@/services/topman-health-status';
@@ -51,12 +52,12 @@ import {
   type GuidedTourStep,
 } from '@/services/topman-guided-tour';
 import {
-  approveTopmanDailyBrief,
   buildTopmanDailyBriefFromSummary,
   fetchServerDailyBrief,
   formatBriefStatusLabel,
   formatThaiOfficialDate,
   getBriefAdminSecret,
+  isTopmanDailyBriefApprovable,
   loadLocalDailyBrief,
   markTopmanDailyBriefSent,
   patchTopmanDailyBrief,
@@ -114,6 +115,7 @@ export class TopmanSimpleMode {
   private destroyed = false;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private boundModeListener: ((ev: Event) => void) | null = null;
+  private boundHealthListener: ((ev: Event) => void) | null = null;
   private boundRootClick: ((ev: MouseEvent) => void) | null = null;
   private boundBelowClick: ((ev: MouseEvent) => void) | null = null;
   private spotlightEl: HTMLElement | null = null;
@@ -161,6 +163,9 @@ export class TopmanSimpleMode {
     if (this.boundModeListener) {
       window.removeEventListener(TOPMAN_UI_MODE_EVENT, this.boundModeListener);
     }
+    if (this.boundHealthListener) {
+      window.removeEventListener(TOPMAN_HEALTH_SNAPSHOT_EVENT, this.boundHealthListener);
+    }
     if (this.boundRootClick) {
       this.root.removeEventListener('click', this.boundRootClick);
     }
@@ -179,6 +184,7 @@ export class TopmanSimpleMode {
 
   setMode(mode: TopmanUiMode): void {
     if (this.mode === mode) return;
+    if (this.mode === 'simple') this.captureBriefEditors();
     this.mode = setTopmanUiMode(mode);
     this.applyModeChrome();
     if (mode === 'simple') {
@@ -217,6 +223,20 @@ export class TopmanSimpleMode {
     };
     window.addEventListener(TOPMAN_UI_MODE_EVENT, this.boundModeListener);
 
+    this.boundHealthListener = (ev: Event) => {
+      const snapshot = (ev as CustomEvent<TopmanHealthSnapshot>).detail;
+      if (!snapshot || this.destroyed) return;
+      this.captureBriefEditors();
+      this.health = snapshot;
+      this.summary = buildSimpleExecutiveSummary({
+        insights: this.lastInsights,
+        health: this.health,
+        systemHealth: this.systemHealth,
+      });
+      this.render();
+    };
+    window.addEventListener(TOPMAN_HEALTH_SNAPSHOT_EVENT, this.boundHealthListener);
+
     this.boundRootClick = (ev: MouseEvent) => this.onDelegatedClick(ev);
     this.root.addEventListener('click', this.boundRootClick);
     if (this.belowRoot) {
@@ -242,6 +262,7 @@ export class TopmanSimpleMode {
   }
 
   private handleAction(action: string, el: HTMLElement): void {
+    this.captureBriefEditors();
     switch (action) {
       case 'switch-advanced':
         this.setMode('advanced');
@@ -362,13 +383,26 @@ export class TopmanSimpleMode {
     };
   }
 
+  private captureBriefEditors(): void {
+    if (!this.dailyBrief) return;
+    const editors = this.readBriefEditors();
+    if (
+      editors.lineMessage === this.dailyBrief.lineMessage
+      && editors.memoMarkdown === this.dailyBrief.memoMarkdown
+    ) return;
+    const previousStatus = this.dailyBrief.status;
+    this.dailyBrief = patchTopmanDailyBrief(this.dailyBrief, editors);
+    if (previousStatus === 'approved' || previousStatus === 'sent') {
+      this.briefNotice = topmanText(
+        'ข้อความเปลี่ยนหลังอนุมัติ — กลับเป็นร่างและต้องอนุมัติใหม่',
+        'Content changed after approval — returned to draft for re-approval',
+      );
+    }
+    saveLocalDailyBrief(this.dailyBrief);
+  }
+
   private async generateLocalBrief(): Promise<void> {
     const existing = this.dailyBrief;
-    this.dailyBrief = buildTopmanDailyBriefFromSummary({
-      summary: this.summary,
-      insights: this.lastInsights,
-      existing: existing?.status === 'draft' ? existing : null,
-    });
     if (existing && (existing.status === 'approved' || existing.status === 'sent')) {
       this.briefNotice = topmanText(
         'บรีฟวันนี้ถูกอนุมัติหรือส่งแล้ว — ไม่เขียนทับ ใช้ปุ่มคัดลอกได้',
@@ -377,13 +411,19 @@ export class TopmanSimpleMode {
       this.render();
       return;
     }
+    this.dailyBrief = buildTopmanDailyBriefFromSummary({
+      summary: this.summary,
+      insights: this.lastInsights,
+      existing: existing?.status === 'draft' ? existing : null,
+    });
     saveLocalDailyBrief(this.dailyBrief);
     this.briefNotice = topmanText('สร้างร่างจากสรุปหน้านี้แล้ว — ตรวจก่อนส่ง', 'Draft built from this page — review before send');
     this.render();
   }
 
   private async copyBriefLineMessage(): Promise<void> {
-    const { lineMessage } = this.readBriefEditors();
+    this.captureBriefEditors();
+    const lineMessage = this.dailyBrief?.lineMessage ?? '';
     if (!lineMessage.trim()) {
       this.briefNotice = topmanText('ยังไม่มีข้อความ LINE', 'No LINE text yet');
       this.render();
@@ -406,19 +446,18 @@ export class TopmanSimpleMode {
         insights: this.lastInsights,
       });
     }
-    this.dailyBrief = patchTopmanDailyBrief(this.dailyBrief, editors);
-
-    if (action === 'approve') {
-      this.dailyBrief = approveTopmanDailyBrief(this.dailyBrief);
-    }
-
-    saveLocalDailyBrief(this.dailyBrief);
-
     if (!getBriefAdminSecret()) {
+      this.dailyBrief = patchTopmanDailyBrief(this.dailyBrief, editors);
+      saveLocalDailyBrief(this.dailyBrief);
       if (action === 'send') {
         this.briefNotice = topmanText(
           'ยังไม่มีรหัสผู้ตรวจ — คัดลอกข้อความ LINE ไปส่งเอง หรือตั้งรหัสก่อน',
           'No admin secret — copy LINE text or set secret first',
+        );
+      } else if (action === 'approve') {
+        this.briefNotice = topmanText(
+          'บันทึกเป็นร่างในเครื่องแล้ว — ต้องตั้งรหัสผู้ตรวจก่อนอนุมัติ',
+          'Saved locally as draft — set reviewer secret before approval',
         );
       } else {
         this.briefNotice = topmanText(
@@ -429,6 +468,18 @@ export class TopmanSimpleMode {
       this.render();
       return;
     }
+
+    this.dailyBrief = patchTopmanDailyBrief(this.dailyBrief, editors);
+    if (action === 'approve' && !isTopmanDailyBriefApprovable(this.dailyBrief)) {
+      saveLocalDailyBrief(this.dailyBrief);
+      this.briefNotice = topmanText(
+        'ยังอนุมัติไม่ได้ — ต้องมีข้อเท็จจริง แหล่งอ้างอิง และที่มาข้อมูลก่อน',
+        'Cannot approve yet — facts, named sources, and provenance are required',
+      );
+      this.render();
+      return;
+    }
+    saveLocalDailyBrief(this.dailyBrief);
 
     const result = await postDailyBriefAction(action, {
       dateKey: this.dailyBrief.dateKey,
@@ -452,7 +503,17 @@ export class TopmanSimpleMode {
           ? topmanText('ยังไม่ได้เชื่อม LINE OA — คัดลอกข้อความไปส่งเองได้', 'LINE OA not linked — copy text instead')
           : result.error === 'NOT_APPROVED'
             ? topmanText('ต้องกดอนุมัติก่อนส่ง LINE', 'Approve before sending LINE')
-            : (result.error || topmanText('บันทึกไม่สำเร็จ', 'Save failed'));
+            : result.error === 'APPROVAL_STALE'
+              ? topmanText('ข้อความเปลี่ยนหลังอนุมัติ — ต้องบันทึกและอนุมัติใหม่', 'Content changed — save and approve again')
+              : result.error === 'ALREADY_SENT'
+                ? topmanText('บรีฟนี้ส่งแล้ว — ระบบป้องกันการส่งซ้ำ', 'Brief already sent — duplicate send blocked')
+                : result.error === 'SEND_IN_PROGRESS'
+                  ? topmanText('บรีฟฉบับนี้กำลังส่งหรือส่งแล้ว — ระบบป้องกันการส่งซ้ำ', 'This approved revision is sending or sent')
+                  : result.error === 'SEND_GUARD_UNAVAILABLE'
+                    ? topmanText('ระบบป้องกันการส่งซ้ำไม่พร้อม — ยังไม่ส่ง LINE', 'Duplicate-send guard unavailable — LINE not sent')
+                : result.error === 'INSUFFICIENT_EVIDENCE'
+                  ? topmanText('ยังอนุมัติไม่ได้ — ข้อเท็จจริงหรือแหล่งอ้างอิงไม่พอ', 'Cannot approve — insufficient evidence')
+                  : (result.error || topmanText('บันทึกไม่สำเร็จ', 'Save failed'));
       this.render();
       return;
     }
@@ -839,6 +900,7 @@ export class TopmanSimpleMode {
       ? topmanText('เชื่อม LINE OA แล้ว — กดอนุมัติแล้วจึงส่ง', 'LINE OA linked — approve then send')
       : topmanText('ยังไม่ได้เชื่อม LINE OA — คัดลอกข้อความไปส่งเองได้', 'LINE OA not linked — copy text to send manually');
     const hasSecret = Boolean(getBriefAdminSecret());
+    const approvable = isTopmanDailyBriefApprovable(brief);
 
     return `
       <section class="topman-simple-daily-brief" data-tour="daily-brief" aria-labelledby="topman-daily-brief-title">
@@ -860,6 +922,9 @@ export class TopmanSimpleMode {
           · ${escapeHtml(hasSecret
             ? topmanText('มีรหัสผู้ตรวจในเซสชันนี้', 'Admin secret set for this session')
             : topmanText('ยังไม่มีรหัสผู้ตรวจ (บันทึกในเครื่องได้)', 'No admin secret (local save ok)'))}
+          · ${escapeHtml(approvable
+            ? topmanText('หลักฐานครบสำหรับส่งให้ผู้ตรวจ', 'Evidence ready for review')
+            : topmanText('ยังขาดข้อเท็จจริงหรือแหล่งอ้างอิง — อนุมัติไม่ได้', 'Missing facts or sources — approval blocked'))}
         </p>
         ${this.briefNotice ? `<p class="topman-simple-daily-brief__notice" role="status">${escapeHtml(this.briefNotice)}</p>` : ''}
         <label class="topman-simple-daily-brief__label" for="topman-daily-brief-line">
@@ -883,10 +948,10 @@ export class TopmanSimpleMode {
           <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="brief-save">
             ${escapeHtml(topmanText('บันทึกร่าง', 'Save draft'))}
           </button>
-          <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-approve">
+          <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-approve" ${!hasSecret || !approvable || brief.status === 'sent' ? 'disabled' : ''}>
             ${escapeHtml(topmanText('อนุมัติ', 'Approve'))}
           </button>
-          <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-send" ${brief.status === 'draft' ? 'disabled' : ''}>
+          <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-send" ${!hasSecret || brief.status !== 'approved' ? 'disabled' : ''}>
             ${escapeHtml(topmanText('ส่ง LINE OA', 'Send LINE OA'))}
           </button>
         </div>

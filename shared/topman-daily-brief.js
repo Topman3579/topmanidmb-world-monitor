@@ -311,17 +311,42 @@ export function isTopmanDailyBrief(value) {
 }
 
 /**
+ * A reviewer may approve only a brief that carries at least one explicit fact,
+ * one named source, and provenance. This rejects polished placeholder prose.
+ * @param {unknown} value
+ */
+export function isTopmanDailyBriefApprovable(value) {
+  if (!isTopmanDailyBrief(value)) return false;
+  const brief = /** @type {Record<string, unknown>} */ (value);
+  return Array.isArray(brief.facts)
+    && brief.facts.some((fact) => typeof fact === 'string' && fact.trim())
+    && Array.isArray(brief.sources)
+    && brief.sources.some((source) => typeof source === 'string' && source.trim())
+    && Array.isArray(brief.generatedFrom)
+    && brief.generatedFrom.some((source) => typeof source === 'string' && source.trim());
+}
+
+/**
  * @param {Record<string, unknown>} brief
  * @param {{ lineMessage?: string, memoMarkdown?: string, nowMs?: number }} patch
  */
 export function patchTopmanDailyBrief(brief, patch = {}) {
   const nowMs = typeof patch.nowMs === 'number' ? patch.nowMs : Date.now();
   const next = { ...brief };
+  let contentChanged = false;
   if (typeof patch.lineMessage === 'string') {
-    next.lineMessage = clip(patch.lineMessage, MAX_LINE_MESSAGE_CHARS);
+    const lineMessage = clip(patch.lineMessage, MAX_LINE_MESSAGE_CHARS);
+    contentChanged ||= lineMessage !== brief.lineMessage;
+    next.lineMessage = lineMessage;
   }
   if (typeof patch.memoMarkdown === 'string') {
+    contentChanged ||= patch.memoMarkdown !== brief.memoMarkdown;
     next.memoMarkdown = patch.memoMarkdown;
+  }
+  if (contentChanged && (brief.status === 'approved' || brief.status === 'sent')) {
+    next.status = 'draft';
+    next.approvedAt = null;
+    next.sentAt = null;
   }
   next.updatedAt = new Date(nowMs).toISOString();
   return next;

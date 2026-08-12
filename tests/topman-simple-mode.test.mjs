@@ -40,6 +40,9 @@ describe('TOPMAN Simple Mode wiring', () => {
     assert.match(simpleCss, /grid-template-columns:\s*repeat\(3/);
     assert.match(simpleCss, /#topmanSimpleModeBelow/);
     assert.match(simpleCss, /topman-tour-spotlight/);
+    assert.match(simpleCss, /topman-ui-mode-simple \.main-content \.panels-grid\s*\{[\s\S]*display:\s*none !important/);
+    assert.match(simpleCss, /topman-ui-mode-simple \.main-content \.panels-grid\s*\{[\s\S]*visibility:\s*hidden !important/);
+    assert.match(simpleCss, /topman-ui-mode-simple \.main-content \.panels-grid\s*\{[\s\S]*max-height:\s*0 !important/);
     // Auth mount stays in layout for CLS/e2e header reservation (not display:none).
     assert.match(simpleCss, /\.auth-widget-mount\s*\{[\s\S]*opacity:/);
     assert.doesNotMatch(
@@ -75,5 +78,14 @@ describe('TOPMAN Simple Mode wiring', () => {
     assert.match(simpleModeTs, /data-tour="health-strip"/);
     assert.match(simpleModeTs, /fetchCompactSystemHealthBrief/);
     assert.match(simpleCss, /topman-simple-health-strip/);
+  });
+
+  it('protects approved or sent briefs before rebuilding and keeps simple mode unobstructed', () => {
+    const guard = simpleModeTs.indexOf("existing.status === 'approved' || existing.status === 'sent'");
+    const rebuild = simpleModeTs.indexOf('this.dailyBrief = buildTopmanDailyBriefFromSummary', guard);
+    assert.ok(guard >= 0 && rebuild > guard, 'approved/sent guard must run before rebuilding the brief');
+    assert.match(simpleCss, /topman-ui-mode-simple \.community-widget\s*\{[\s\S]*display:\s*none !important/);
+    assert.match(simpleModeTs, /isTopmanDailyBriefApprovable/);
+    assert.match(simpleModeTs, /brief\.status !== 'approved'/);
   });
 });

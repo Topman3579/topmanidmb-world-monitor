@@ -24,7 +24,7 @@ async function waitForEventHandlers(page: Page): Promise<void> {
 }
 
 async function waitForSimpleShell(page: Page): Promise<void> {
-  await expect(page.locator('.topman-simple-shell--top, .topman-simple-shell')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.topman-simple-shell--top')).toBeVisible({ timeout: 20_000 });
   await expect(page.locator('.topman-simple-cards .topman-simple-card')).toHaveCount(3, { timeout: 15_000 });
 }
 
@@ -41,6 +41,26 @@ test.describe('TOPMAN Simple Mode', () => {
     await expect(page.locator('[data-tour="summary"]')).toBeVisible();
     await expect(page.locator('[data-tour="map-categories"] .topman-simple-chip')).toHaveCount(5);
     await expect(page.locator('#topmanModeToggle')).toBeVisible();
+    await expect(page.locator('.panels-grid')).toBeHidden();
+    await expect(page.locator('.community-widget')).toBeHidden();
+  });
+
+  test('preserves an edited draft across mode switches', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await seedSimpleMode(page);
+    await installLocalOnlyNetwork(page);
+    await page.goto('/dashboard?mode=simple', { waitUntil: 'domcontentloaded' });
+    await waitForEventHandlers(page);
+    await waitForSimpleShell(page);
+
+    const editor = page.locator('#topman-daily-brief-line');
+    await expect(editor).toBeVisible({ timeout: 20_000 });
+    await editor.fill('ร่างทดสอบที่ต้องคงอยู่เมื่อสลับโหมด');
+    await page.locator('[data-action="switch-advanced"]').first().click();
+    await expect(page.locator('html')).toHaveAttribute('data-topman-ui-mode', 'advanced');
+    await page.locator('[data-action="switch-simple"]').first().click();
+    await expect(page.locator('html')).toHaveAttribute('data-topman-ui-mode', 'simple');
+    await expect(page.locator('#topman-daily-brief-line')).toHaveValue('ร่างทดสอบที่ต้องคงอยู่เมื่อสลับโหมด');
   });
 
   test('switches to advanced and back to simple', async ({ page }) => {

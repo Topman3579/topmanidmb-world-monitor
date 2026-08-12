@@ -8,6 +8,7 @@ import {
   formatThaiOfficialDate,
   formatThaiShortDate,
   isTopmanDailyBrief,
+  isTopmanDailyBriefApprovable,
   markTopmanDailyBriefSent,
   MAX_LINE_MESSAGE_CHARS,
   patchTopmanDailyBrief,
@@ -93,5 +94,47 @@ describe('TOPMAN daily executive brief', () => {
     brief = markTopmanDailyBriefSent(brief, Date.parse('2026-08-04T00:50:00.000Z'));
     assert.equal(brief.status, 'sent');
     assert.ok(brief.sentAt);
+  });
+
+  it('blocks placeholder-only briefs from approval eligibility', () => {
+    const placeholder = buildTopmanDailyBrief({
+      nowMs: Date.parse('2026-08-04T00:30:00.000Z'),
+      insights: { topStories: [] },
+    });
+    const backed = buildTopmanDailyBrief({
+      nowMs: Date.parse('2026-08-04T00:30:00.000Z'),
+      insights: {
+        worldBrief: 'Verified market overview',
+        topStories: [{
+          primaryTitle: 'SET closes higher on foreign inflows',
+          primarySource: 'SET',
+          category: 'markets',
+        }],
+      },
+    });
+
+    assert.equal(isTopmanDailyBriefApprovable(placeholder), false);
+    assert.equal(isTopmanDailyBriefApprovable(backed), true);
+  });
+
+  it('returns approved or sent briefs to draft when their content changes', () => {
+    const base = buildTopmanDailyBrief({
+      nowMs: Date.parse('2026-08-04T00:30:00.000Z'),
+      insights: {
+        worldBrief: 'Verified market overview',
+        topStories: [{ primaryTitle: 'Market update', primarySource: 'SET', category: 'markets' }],
+      },
+    });
+    const approved = approveTopmanDailyBrief(base);
+    const unchanged = patchTopmanDailyBrief(approved, { lineMessage: approved.lineMessage as string });
+    const edited = patchTopmanDailyBrief(approved, { lineMessage: 'ข้อความใหม่ที่ยังไม่อนุมัติ' });
+    const sent = markTopmanDailyBriefSent(approved);
+    const editedSent = patchTopmanDailyBrief(sent, { memoMarkdown: 'ร่างใหม่' });
+
+    assert.equal(unchanged.status, 'approved');
+    assert.equal(edited.status, 'draft');
+    assert.equal(edited.approvedAt, null);
+    assert.equal(editedSent.status, 'draft');
+    assert.equal(editedSent.sentAt, null);
   });
 });
