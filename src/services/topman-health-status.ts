@@ -340,7 +340,7 @@ export async function fetchTopmanHealthSnapshot(
         method: 'GET',
         headers: { Accept: 'application/json' },
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'same-origin',
         signal: requestController.signal,
       });
 
@@ -636,7 +636,7 @@ export async function fetchCompactSystemHealthBrief(
         method: 'GET',
         headers: { Accept: 'application/json' },
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'same-origin',
         signal: requestController.signal,
       });
       if (!response.ok) return unavailableSystemBrief();

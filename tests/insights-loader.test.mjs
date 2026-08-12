@@ -193,8 +193,10 @@ describe('insights-loader', () => {
     it('falls back to cited public GDELT headlines when private insights are unavailable', async () => {
       const fetchedAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       const calls = [];
-      globalThis.fetch = async (url) => {
+      const requestOptions = [];
+      globalThis.fetch = async (url, options) => {
         calls.push(String(url));
+        requestOptions.push(options);
         if (calls.length === 1) return new Response('API key required', { status: 401 });
         return new Response(JSON.stringify({
           data: {
@@ -221,6 +223,7 @@ describe('insights-loader', () => {
         'Verified headline B',
       ]);
       assert.match(calls[1], /\/api\/bootstrap\?tier=fast&public=1$/);
+      assert.equal(requestOptions[1]?.credentials, 'same-origin');
     });
 
     it('rejects expired or uncited public GDELT payloads', () => {

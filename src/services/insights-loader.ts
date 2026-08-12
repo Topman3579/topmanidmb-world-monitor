@@ -220,7 +220,7 @@ export async function fetchServerInsights(timeoutMs = 5_000): Promise<ServerInsi
   try {
     const resp = await fetch(toApiUrl('/api/bootstrap?tier=fast&public=1'), {
       signal: AbortSignal.timeout(timeoutMs),
-      credentials: 'omit',
+      credentials: 'same-origin',
     });
     if (!resp.ok) return null;
     const payload = (await resp.json()) as { data?: { gdeltIntel?: unknown } };
