@@ -41,6 +41,8 @@ describe('TOPMAN Simple Mode wiring', () => {
     assert.match(simpleCss, /#topmanSimpleModeBelow/);
     assert.match(simpleCss, /topman-tour-spotlight/);
     assert.match(simpleCss, /topman-ui-mode-simple \.main-content \.panels-grid\s*\{[\s\S]*display:\s*none !important/);
+    assert.match(simpleCss, /topman-ui-mode-simple \.main-content \.panels-grid\s*\{[\s\S]*visibility:\s*hidden !important/);
+    assert.match(simpleCss, /topman-ui-mode-simple \.main-content \.panels-grid\s*\{[\s\S]*max-height:\s*0 !important/);
     // Auth mount stays in layout for CLS/e2e header reservation (not display:none).
     assert.match(simpleCss, /\.auth-widget-mount\s*\{[\s\S]*opacity:/);
     assert.doesNotMatch(

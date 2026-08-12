@@ -708,6 +708,18 @@ html.topman-ui-mode-simple #topmanSimpleModeBelow {
 
 html.topman-ui-mode-simple .main-content .panels-grid {
   display: none !important;
+  /* Mobile main.css restores `.panels-grid { display:flex !important }` in
+     production bundle order. Collapse the surface independently of display so
+     Simple Mode cannot expose the expert cockpit on narrow screens. */
+  visibility: hidden !important;
+  flex: 0 0 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
 }
 
 html.topman-ui-mode-simple .site-footer {
