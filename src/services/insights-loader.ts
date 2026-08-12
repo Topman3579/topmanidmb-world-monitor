@@ -56,10 +56,109 @@ let cached: ServerInsights | null = null;
 // Exported so the regression test asserts against the real value rather than
 // inlining a copy that drifts silently when this constant changes.
 export const MAX_AGE_MS = 60 * 60 * 1000;
+// Public GDELT is a last-good fallback for the branded dashboard when the
+// private `insights` snapshot is absent. Its producer runs less frequently than
+// the synthesized brief, so keep the source timestamp and use the same 12-hour
+// budget as the GDELT health lane instead of pretending the headlines are new.
+export const PUBLIC_GDELT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+const PUBLIC_GDELT_PROVIDER = 'gdelt-public-fallback';
 
 function isFresh(data: ServerInsights): boolean {
   const age = Date.now() - new Date(data.generatedAt).getTime();
-  return age < MAX_AGE_MS;
+  const maxAge = data.briefProvider === PUBLIC_GDELT_PROVIDER
+    ? PUBLIC_GDELT_MAX_AGE_MS
+    : MAX_AGE_MS;
+  return age >= 0 && age < maxAge;
+}
+
+interface PublicGdeltArticle {
+  title?: unknown;
+  url?: unknown;
+  source?: unknown;
+  date?: unknown;
+}
+
+interface PublicGdeltTopic {
+  id?: unknown;
+  articles?: unknown;
+}
+
+function gdeltDateToIso(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  if (/^\d{8}T\d{6}Z$/.test(value)) {
+    const iso = `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}T${value.slice(9, 11)}:${value.slice(11, 13)}:${value.slice(13, 15)}Z`;
+    return Number.isFinite(Date.parse(iso)) ? iso : '';
+  }
+  return Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : '';
+}
+
+/**
+ * Deterministic public fallback: expose cited GDELT headlines without asking an
+ * LLM to infer facts. The degraded status is intentional and keeps the Simple
+ * Mode honesty guard active.
+ */
+export function buildServerInsightsFromPublicGdelt(raw: unknown): ServerInsights | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const payload = raw as { topics?: unknown; fetchedAt?: unknown };
+  if (!Array.isArray(payload.topics) || typeof payload.fetchedAt !== 'string') return null;
+
+  const fetchedAtMs = Date.parse(payload.fetchedAt);
+  const age = Date.now() - fetchedAtMs;
+  if (!Number.isFinite(fetchedAtMs) || age < 0 || age >= PUBLIC_GDELT_MAX_AGE_MS) return null;
+
+  const seen = new Set<string>();
+  const stories: ServerInsightStory[] = [];
+  for (const topic of payload.topics as PublicGdeltTopic[]) {
+    if (!topic || !Array.isArray(topic.articles)) continue;
+    const category = typeof topic.id === 'string' && topic.id.trim() ? topic.id.trim() : 'general';
+    for (const article of topic.articles as PublicGdeltArticle[]) {
+      const title = typeof article?.title === 'string' ? article.title.trim() : '';
+      const link = typeof article?.url === 'string' ? article.url.trim() : '';
+      const source = typeof article?.source === 'string' ? article.source.trim() : '';
+      const key = title.toLocaleLowerCase();
+      if (!title || !link || !source || seen.has(key)) continue;
+      seen.add(key);
+      stories.push({
+        primaryTitle: title,
+        primarySource: source,
+        primaryLink: link,
+        pubDate: gdeltDateToIso(article.date),
+        sourceCount: 1,
+        importanceScore: 0,
+        velocity: { level: 'unknown', sourcesPerHour: 0 },
+        isAlert: false,
+        category,
+        threatLevel: 'unknown',
+        countryCode: null,
+      });
+      if (stories.length >= 12) break;
+    }
+    if (stories.length >= 12) break;
+  }
+  if (stories.length === 0) return null;
+
+  const leading = stories.slice(0, 3);
+  return {
+    worldBrief: leading.map((story) => story.primaryTitle).join(' · '),
+    worldBriefSources: leading.map((story) => ({
+      title: story.primaryTitle,
+      source: story.primarySource,
+      url: story.primaryLink,
+      ...(story.pubDate ? { publishedAt: story.pubDate } : {}),
+    })),
+    briefProvider: PUBLIC_GDELT_PROVIDER,
+    status: 'degraded',
+    topStories: stories,
+    generatedAt: new Date(fetchedAtMs).toISOString(),
+    clusterCount: stories.length,
+    multiSourceCount: 0,
+    fastMovingCount: 0,
+    provenance: {
+      storiesConsidered: stories.length,
+      sourcesConsidered: new Set(stories.map((story) => story.primarySource)).size,
+    },
+  };
 }
 
 function validateInsights(raw: unknown): ServerInsights | null {
@@ -106,9 +205,26 @@ export async function fetchServerInsights(timeoutMs = 5_000): Promise<ServerInsi
     const resp = await fetch(toApiUrl('/api/bootstrap?keys=insights'), {
       signal: AbortSignal.timeout(timeoutMs),
     });
+    if (resp.ok) {
+      const payload = (await resp.json()) as { data?: { insights?: unknown } };
+      const data = validateInsights(payload.data?.insights);
+      if (data) {
+        cached = data;
+        return data;
+      }
+    }
+  } catch {
+    // Continue to the public, deterministic fallback below.
+  }
+
+  try {
+    const resp = await fetch(toApiUrl('/api/bootstrap?tier=fast&public=1'), {
+      signal: AbortSignal.timeout(timeoutMs),
+      credentials: 'omit',
+    });
     if (!resp.ok) return null;
-    const payload = (await resp.json()) as { data?: { insights?: unknown } };
-    const data = validateInsights(payload.data?.insights);
+    const payload = (await resp.json()) as { data?: { gdeltIntel?: unknown } };
+    const data = buildServerInsightsFromPublicGdelt(payload.data?.gdeltIntel);
     if (data) cached = data;
     return data;
   } catch {

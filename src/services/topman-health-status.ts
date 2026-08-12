@@ -43,6 +43,7 @@ interface StartTopmanHealthOptions extends FetchTopmanHealthOptions {
 const HEALTH_ENDPOINT = '/api/topman-core-status';
 const HEALTH_CHECK_MAX_AGE_MS = 5 * 60_000;
 export const TOPMAN_HEALTH_POLL_INTERVAL_MS = 5 * 60_000;
+export const TOPMAN_HEALTH_SNAPSHOT_EVENT = 'topman:health-snapshot';
 const HEALTH_REQUEST_TIMEOUT_MS = 10_000;
 const TOPMAN_SOURCE_REPO_URL = 'https://github.com/Topman3579/topmanidmb-world-monitor';
 
@@ -67,6 +68,8 @@ const UPSTREAM_CONNECTIVITY_CLASSES = [
   'status-indicator--unavailable',
 ] as const;
 
+let latestVerifiedSnapshot: TopmanHealthSnapshot | null = null;
+
 function unavailableSnapshot(): TopmanHealthSnapshot {
   return {
     state: 'unavailable',
@@ -74,6 +77,52 @@ function unavailableSnapshot(): TopmanHealthSnapshot {
     summary: { ...EMPTY_SUMMARY },
     checkedAtMs: null,
   };
+}
+
+export function getLatestTopmanHealthSnapshot(nowMs = Date.now()): TopmanHealthSnapshot | null {
+  if (!latestVerifiedSnapshot || latestVerifiedSnapshot.checkedAtMs === null) return null;
+  const checkedAtMs = latestVerifiedSnapshot.checkedAtMs;
+  const snapshot = {
+    ...latestVerifiedSnapshot,
+    checkedAtMs,
+    summary: { ...latestVerifiedSnapshot.summary },
+  };
+  if (
+    snapshot.state !== 'unavailable'
+    && nowMs - checkedAtMs > HEALTH_CHECK_MAX_AGE_MS
+  ) {
+    snapshot.state = 'stale';
+  }
+  return snapshot;
+}
+
+function rememberTopmanHealthSnapshot(snapshot: TopmanHealthSnapshot, nowMs: number): TopmanHealthSnapshot {
+  if (
+    snapshot.checkedAtMs !== null
+    && (
+      latestVerifiedSnapshot?.checkedAtMs === null
+      || latestVerifiedSnapshot === null
+      || snapshot.checkedAtMs >= latestVerifiedSnapshot.checkedAtMs
+    )
+  ) {
+    latestVerifiedSnapshot = {
+      ...snapshot,
+      summary: { ...snapshot.summary },
+    };
+  }
+
+  const published = getLatestTopmanHealthSnapshot(nowMs) ?? snapshot;
+  if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') {
+    window.dispatchEvent(new CustomEvent<TopmanHealthSnapshot>(TOPMAN_HEALTH_SNAPSHOT_EVENT, {
+      detail: published,
+    }));
+  }
+  return published;
+}
+
+/** Test-only reset for deterministic transport/cache coverage. */
+export function __resetTopmanHealthSnapshotForTests(): void {
+  latestVerifiedSnapshot = null;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -291,7 +340,7 @@ export async function fetchTopmanHealthSnapshot(
         method: 'GET',
         headers: { Accept: 'application/json' },
         cache: 'no-store',
-        credentials: 'same-origin',
+        credentials: 'omit',
         signal: requestController.signal,
       });
 
@@ -313,9 +362,10 @@ export async function fetchTopmanHealthSnapshot(
       }, Math.max(1, options.timeoutMs ?? HEALTH_REQUEST_TIMEOUT_MS));
     });
 
-    return await Promise.race([request(), timeout]);
+    const snapshot = await Promise.race([request(), timeout]);
+    return rememberTopmanHealthSnapshot(snapshot, now());
   } catch {
-    return unavailableSnapshot();
+    return rememberTopmanHealthSnapshot(unavailableSnapshot(), now());
   } finally {
     if (timeoutId !== null) clearTimeout(timeoutId);
     options.signal?.removeEventListener('abort', abortFromCaller);
@@ -586,7 +636,7 @@ export async function fetchCompactSystemHealthBrief(
         method: 'GET',
         headers: { Accept: 'application/json' },
         cache: 'no-store',
-        credentials: 'same-origin',
+        credentials: 'omit',
         signal: requestController.signal,
       });
       if (!response.ok) return unavailableSystemBrief();

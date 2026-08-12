@@ -13,6 +13,7 @@ import {
   formatThaiOfficialDate,
   formatThaiShortDate,
   isTopmanDailyBrief,
+  isTopmanDailyBriefApprovable,
   markTopmanDailyBriefSent as markSentCore,
   MAX_LINE_MESSAGE_CHARS,
   patchTopmanDailyBrief as patchCore,
@@ -54,11 +55,12 @@ export {
   formatThaiOfficialDate,
   formatThaiShortDate,
   isTopmanDailyBrief,
+  isTopmanDailyBriefApprovable,
   MAX_LINE_MESSAGE_CHARS,
 };
 
 const LOCAL_BRIEF_PREFIX = 'topman-daily-brief-local:';
-export const TOPMAN_BRIEF_ADMIN_SESSION_KEY = 'topman-brief-admin-secret';
+let inMemoryBriefAdminSecret = '';
 
 function asBrief(value: unknown): TopmanDailyBrief {
   if (!isTopmanDailyBrief(value)) {
@@ -132,20 +134,13 @@ export function saveLocalDailyBrief(brief: TopmanDailyBrief): void {
 }
 
 export function getBriefAdminSecret(): string {
-  try {
-    return sessionStorage.getItem(TOPMAN_BRIEF_ADMIN_SESSION_KEY) ?? '';
-  } catch {
-    return '';
-  }
+  return inMemoryBriefAdminSecret;
 }
 
 export function setBriefAdminSecret(secret: string): void {
-  try {
-    if (secret) sessionStorage.setItem(TOPMAN_BRIEF_ADMIN_SESSION_KEY, secret);
-    else sessionStorage.removeItem(TOPMAN_BRIEF_ADMIN_SESSION_KEY);
-  } catch {
-    // ignore
-  }
+  // Deliberately memory-only: never persist an administrative bearer in Web
+  // Storage where unrelated scripts or a later tab reload can recover it.
+  inMemoryBriefAdminSecret = secret;
 }
 
 export interface TopmanDailyBriefApiResponse {

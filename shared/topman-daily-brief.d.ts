@@ -14,6 +14,7 @@ export function buildTopmanDailyBrief(input?: {
 }): Record<string, unknown>;
 
 export function isTopmanDailyBrief(value: unknown): value is Record<string, unknown>;
+export function isTopmanDailyBriefApprovable(value: unknown): value is Record<string, unknown>;
 
 export function patchTopmanDailyBrief(
   brief: Record<string, unknown>,

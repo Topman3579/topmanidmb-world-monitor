@@ -681,7 +681,8 @@ html.topman-ui-mode-simple .main-content {
   overflow-x: hidden;
 }
 
-/* Order: summary/cards/chips → live map → missions → advanced panels */
+/* Order: summary/cards/chips → live map → missions. Detailed panels remain in
+   Advanced Mode so a first-time reader is not dropped into the full cockpit. */
 html.topman-ui-mode-simple #topmanSimpleModeRoot {
   order: 1;
   flex: 0 0 auto;
@@ -706,12 +707,11 @@ html.topman-ui-mode-simple #topmanSimpleModeBelow {
 }
 
 html.topman-ui-mode-simple .main-content .panels-grid {
-  order: 4;
-  width: 100%;
-  max-width: 100%;
-  opacity: 0.92;
-  /* Keep available but clearly secondary under missions */
-  max-height: none;
+  display: none !important;
+}
+
+html.topman-ui-mode-simple .site-footer {
+  display: none !important;
 }
 
 html.topman-ui-mode-simple .map-width-resize-handle,
@@ -887,4 +887,10 @@ html.topman-ui-mode-simple body,
 html.topman-ui-mode-simple #app {
   max-width: 100%;
   overflow-x: hidden;
+}
+
+/* Keep the executive workflow unobstructed; the upstream community promotion
+   remains available in Advanced Mode. */
+html.topman-ui-mode-simple .community-widget {
+  display: none !important;
 }

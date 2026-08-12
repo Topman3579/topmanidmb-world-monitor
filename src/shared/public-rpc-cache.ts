@@ -4,6 +4,11 @@ const PUBLIC_SHARED_RPC_PATHS = new Set([
   '/api/forecast/v1/get-forecasts',
 ]);
 
+const PUBLIC_HEALTH_PATHS = new Set([
+  '/api/topman-core-status',
+  '/api/health',
+]);
+
 const NEWS_VARIANTS = new Set(['full', 'tech', 'finance', 'happy', 'commodity', 'energy']);
 const NEWS_LANGUAGES = new Set([
   'en', 'bg', 'cs', 'fr', 'de', 'el', 'es', 'hr', 'hu', 'it', 'pl', 'pt', 'nl',
@@ -87,10 +92,15 @@ export function isPublicSharedRpcRequest(urlLike: string | URL, method = 'GET'):
   }
 
   const pathname = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
-  if (!PUBLIC_SHARED_RPC_PATHS.has(pathname)) return false;
-
   // Shape-check the caller's query, not the router's echo of the path segment.
   const search = stripRouterInjectedRpcEcho(url);
+  if (PUBLIC_HEALTH_PATHS.has(pathname)) {
+    return pathname === '/api/topman-core-status'
+      ? search === ''
+      : search === 'compact=1';
+  }
+  if (!PUBLIC_SHARED_RPC_PATHS.has(pathname)) return false;
+
   const params = new URLSearchParams(search);
   if (!hasSingleValue(params, 'public') || params.get('public') !== '1') return false;
 

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   MAX_AGE_MS,
+  PUBLIC_GDELT_MAX_AGE_MS,
+  buildServerInsightsFromPublicGdelt,
   fetchServerInsights,
   getServerInsights,
   __resetServerInsightsCacheForTests,
@@ -16,6 +18,10 @@ describe('insights-loader', () => {
     // one missed-tick of headroom on top of that.
     it('is at least 30 minutes (cron interval)', () => {
       assert.ok(MAX_AGE_MS >= 30 * 60 * 1000, `expected >=30min, got ${MAX_AGE_MS / 60000}min`);
+    });
+
+    it('keeps the degraded public GDELT fallback within its 12-hour health budget', () => {
+      assert.equal(PUBLIC_GDELT_MAX_AGE_MS, 12 * 60 * 60 * 1000);
     });
 
     it('is at least 60 minutes (cron interval × 2 for missed-tick headroom)', () => {
@@ -182,6 +188,50 @@ describe('insights-loader', () => {
         new Response(JSON.stringify({ data: { insights: stale } }), { status: 200 });
       const result = await fetchServerInsights();
       assert.equal(result, null);
+    });
+
+    it('falls back to cited public GDELT headlines when private insights are unavailable', async () => {
+      const fetchedAt = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const calls = [];
+      globalThis.fetch = async (url) => {
+        calls.push(String(url));
+        if (calls.length === 1) return new Response('API key required', { status: 401 });
+        return new Response(JSON.stringify({
+          data: {
+            gdeltIntel: {
+              fetchedAt,
+              topics: [{
+                id: 'military',
+                articles: [
+                  { title: 'Verified headline A', url: 'https://example.com/a', source: 'Source A', date: '20260812T020304Z' },
+                  { title: 'Verified headline B', url: 'https://example.com/b', source: 'Source B', date: '2026-08-12T03:04:05Z' },
+                ],
+              }],
+            },
+          },
+        }), { status: 200 });
+      };
+
+      const result = await fetchServerInsights();
+      assert.equal(result?.status, 'degraded');
+      assert.equal(result?.briefProvider, 'gdelt-public-fallback');
+      assert.equal(result?.generatedAt, fetchedAt);
+      assert.deepEqual(result?.topStories.map((story) => story.primaryTitle), [
+        'Verified headline A',
+        'Verified headline B',
+      ]);
+      assert.match(calls[1], /\/api\/bootstrap\?tier=fast&public=1$/);
+    });
+
+    it('rejects expired or uncited public GDELT payloads', () => {
+      assert.equal(buildServerInsightsFromPublicGdelt({
+        fetchedAt: new Date(Date.now() - PUBLIC_GDELT_MAX_AGE_MS - 1).toISOString(),
+        topics: [{ id: 'military', articles: [{ title: 'Old', url: 'https://example.com', source: 'Source' }] }],
+      }), null);
+      assert.equal(buildServerInsightsFromPublicGdelt({
+        fetchedAt: new Date().toISOString(),
+        topics: [{ id: 'military', articles: [{ title: 'Missing link', source: 'Source' }] }],
+      }), null);
     });
   });
 });
