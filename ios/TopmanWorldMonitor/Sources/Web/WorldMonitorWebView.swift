@@ -135,13 +135,24 @@ struct WorldMonitorWebView: UIViewRepresentable {
                 return
             }
 
+            // Embedded panels (map tiles, chart widgets, media embeds) load in a
+            // subframe and belong to the dashboard itself. Bouncing those to
+            // Safari kicks the user out of the app whenever a panel loads.
+            if navigationAction.targetFrame?.isMainFrame != true {
+                decisionHandler(.allow)
+                return
+            }
+
             if url.scheme == "about" || url.host == internalHost {
                 decisionHandler(.allow)
                 return
             }
 
             if url.scheme == "https" || url.scheme == "http" {
-                UIApplication.shared.open(url)
+                // Only a deliberate tap opens Safari; a stray redirect is dropped.
+                if navigationAction.navigationType == .linkActivated {
+                    UIApplication.shared.open(url)
+                }
                 decisionHandler(.cancel)
                 return
             }
