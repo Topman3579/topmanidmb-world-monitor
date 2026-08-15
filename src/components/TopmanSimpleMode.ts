@@ -364,11 +364,6 @@ export class TopmanSimpleMode {
 
   private async generateLocalBrief(): Promise<void> {
     const existing = this.dailyBrief;
-    this.dailyBrief = buildTopmanDailyBriefFromSummary({
-      summary: this.summary,
-      insights: this.lastInsights,
-      existing: existing?.status === 'draft' ? existing : null,
-    });
     if (existing && (existing.status === 'approved' || existing.status === 'sent')) {
       this.briefNotice = topmanText(
         'บรีฟวันนี้ถูกอนุมัติหรือส่งแล้ว — ไม่เขียนทับ ใช้ปุ่มคัดลอกได้',
@@ -377,6 +372,11 @@ export class TopmanSimpleMode {
       this.render();
       return;
     }
+    this.dailyBrief = buildTopmanDailyBriefFromSummary({
+      summary: this.summary,
+      insights: this.lastInsights,
+      existing: existing?.status === 'draft' ? existing : null,
+    });
     saveLocalDailyBrief(this.dailyBrief);
     this.briefNotice = topmanText('สร้างร่างจากสรุปหน้านี้แล้ว — ตรวจก่อนส่ง', 'Draft built from this page — review before send');
     this.render();
