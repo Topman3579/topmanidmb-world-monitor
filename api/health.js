@@ -68,6 +68,31 @@ const HEALTH_VERDICT_RELEASE_LOCK_SCRIPT = [
 // *_ENABLED env idiom (server/worldmonitor/resilience/v1/_shared.ts).
 const IRAN_EVENTS_ENABLED = (process.env.IRAN_EVENTS_ENABLED ?? 'false').toLowerCase() === 'true';
 
+// Fork data-plane scoping (2026-08-22). This deployment runs only the isolated
+// TOPMAN Core cron lane (6 datasets under topman:core:*) — it has no Railway
+// seed plane, so the inherited ~232-key registry reports ~174 phantom CRIT
+// (EMPTY) checks that no operator action on this deployment can clear.
+// WM_HEALTH_SCOPE=fork narrows /api/health to the data plane this deployment
+// actually owns: the 6 TOPMAN Core datasets plus static-reference seeds that
+// ship with long-lived data keys. Every other inherited registry entry is
+// reported once as a single informational `inheritedRegistry` problem entry
+// instead of individual CRITs, so the public contract reflects reality
+// (fail-closed) without pretending the fork is the upstream deployment.
+// Unset (upstream default) keeps the full registry sweep byte-identical.
+const HEALTH_SCOPE_FORK = (process.env.WM_HEALTH_SCOPE ?? '').toLowerCase() === 'fork';
+
+// Static-reference seeds retained under fork scope: long-lived data keys whose
+// seed-meta carries a month-scale staleness budget (44640 min = 31d ... 60d).
+// These are the only non-core registry entries kept as real checks when
+// WM_HEALTH_SCOPE=fork, because they still hold live data in this deployment.
+const FORK_STATIC_SEED_NAMES = Object.freeze([
+  'faoFoodPriceIndex',   // economic:fao-ffpi:v1 (60d budget)
+  'nationalDebt',        // economic:national-debt:v1 (60d budget)
+  'chokepointBaselines', // energy:chokepoint-baselines:v1 (400d budget)
+  'sprPolicies',         // energy:spr-policies:v1 (400d budget)
+  'goldCbReserves',      // market:gold-cb-reserves:v1 (31d budget)
+]);
+
 const BOOTSTRAP_KEYS = {
   earthquakes:       'seismology:earthquakes:v1',
   outages:           'infra:outages:v1',
@@ -984,6 +1009,10 @@ const STATUS_COUNTS = {
   // Must stay registered here: the summary does `STATUS_COUNTS[status] ?? 'warn'`,
   // so an unlisted status would silently re-become the warn this exists to stop.
   NOT_CONFIGURED: 'ok',
+  // Fork-scope marker for inherited registry entries this deployment does not
+  // own. Informational only — must bucket to ok so it can never flip the
+  // verdict, and must stay registered (see NOT_CONFIGURED note above).
+  NOT_OWNED: 'ok',
   STALE_SEED: 'warn',
   SEED_ERROR: 'warn',
   EMPTY_ON_DEMAND: 'warn',
@@ -1381,11 +1410,17 @@ export default async function handler(req, ctx) {
     }, 503, headers);
   }
 
+  // Fork scope also narrows the sweep pipeline itself: only the owned static
+  // seeds are measured, so the fork deployment issues ~10 Redis commands
+  // instead of ~390 on every cold sweep.
+  const scopedEntries = (registry) => (HEALTH_SCOPE_FORK
+    ? Object.entries(registry).filter(([name]) => FORK_STATIC_SEED_NAMES.includes(name))
+    : Object.entries(registry));
   const allDataKeys = [
-    ...Object.values(BOOTSTRAP_KEYS),
-    ...Object.values(STANDALONE_KEYS),
-  ];
-  const allMetaKeys = Object.values(SEED_META).map(s => s.key);
+    ...scopedEntries(BOOTSTRAP_KEYS),
+    ...scopedEntries(STANDALONE_KEYS),
+  ].map(([, redisKey]) => redisKey);
+  const allMetaKeys = scopedEntries(SEED_META).map(([, cfg]) => cfg.key);
   const activationEntries = Object.entries(ACTIVATION_MARKERS);
 
   // STRLEN for data keys avoids loading large blobs into memory (OOM prevention).
@@ -1455,7 +1490,20 @@ export default async function handler(req, ctx) {
   const sources = [
     [BOOTSTRAP_KEYS, { allowOnDemand: false }],
     [STANDALONE_KEYS, { allowOnDemand: true }],
-  ];
+  ].map(([registry, opts]) => {
+    if (!HEALTH_SCOPE_FORK) return [registry, opts];
+    // Fork scope: keep only the static-reference seeds; everything else in
+    // the inherited registries is owned by the upstream seed plane and is
+    // summarized (not individually checked) below.
+    const scoped = Object.fromEntries(
+      Object.entries(registry).filter(([name]) => FORK_STATIC_SEED_NAMES.includes(name)),
+    );
+    return [scoped, opts];
+  });
+  const forkOmittedCount = HEALTH_SCOPE_FORK
+    ? (Object.keys(BOOTSTRAP_KEYS).length + Object.keys(STANDALONE_KEYS).length)
+      - Object.keys(sources[0][0]).length - Object.keys(sources[1][0]).length
+    : 0;
   for (const [registry, opts] of sources) {
     for (const [name, redisKey] of Object.entries(registry)) {
       totalChecks++;
@@ -1473,6 +1521,22 @@ export default async function handler(req, ctx) {
       // frozen feed apart from an ordinary stale-seeder warn at a glance.
       if (entry.status === 'STALE_CONTENT') counts.staleContent++;
     }
+  }
+
+  // Fork scope: represent the omitted inherited registry as ONE informational
+  // entry — explicitly NOT a problem status, so it never flips the verdict and
+  // never reaches the compact `problems` map or the failure log. It exists so
+  // a full-registry operator reading `?history=1` / detailed health can still
+  // see how many inherited checks this fork chose not to own.
+  if (HEALTH_SCOPE_FORK && forkOmittedCount > 0) {
+    checks.inheritedRegistry = {
+      status: 'NOT_OWNED',
+      records: null,
+      note: 'inherited upstream registry entries not owned by this fork (no seed plane); see WM_HEALTH_SCOPE=fork',
+      count: forkOmittedCount,
+    };
+    totalChecks++;
+    counts[STATUS_COUNTS.NOT_OWNED]++;
   }
 
   // On-demand keys that simply haven't been requested yet should not flip
@@ -1622,6 +1686,8 @@ export const __testing__ = {
   // at module scope by design — this is the test-only escape hatch.
   BOOTSTRAP_KEYS,
   STANDALONE_KEYS,
+  HEALTH_SCOPE_FORK,
+  FORK_STATIC_SEED_NAMES,
   SEED_META,
   EMPTY_DATA_OK_KEYS,
   MISSING_DATA_IS_FAILURE_KEYS,
