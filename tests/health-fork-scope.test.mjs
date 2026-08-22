@@ -16,6 +16,35 @@ process.env.WM_HEALTH_SCOPE = 'fork';
 
 const { default: handler, __testing__ } = await import('../api/health.js');
 const { BOOTSTRAP_KEYS, STANDALONE_KEYS, FORK_STATIC_SEED_NAMES, STATUS_COUNTS } = __testing__;
+const { TOPMAN_CORE_DATASETS } = await import('../api/_topman-core.js');
+
+// Fresh core envelopes for mocking readTopmanCoreSnapshot pipelines.
+function isCoreRead(commands) {
+  return commands.length === TOPMAN_CORE_DATASETS.length * 3
+    && commands[0][1].startsWith('topman:core:');
+}
+function coreFreshResults(commands, now) {
+  return commands.map(([, key]) => {
+    if (key.includes(':data:')) {
+      const dataset = TOPMAN_CORE_DATASETS.find((d) => d.dataKey === key);
+      let payload;
+      switch (dataset.bootstrapName) {
+        case 'earthquakes': payload = { earthquakes: [{ id: 'q1' }] }; break;
+        case 'weatherAlerts': payload = { alerts: [] }; break;
+        case 'naturalEvents': payload = { events: [] }; break;
+        case 'gdeltIntel': payload = { topics: [{ id: 't', articles: [{ url: 'u' }] }] }; break;
+        case 'commodityQuotes': payload = { quotes: Array.from({ length: 7 }, (_, i) => ({ symbol: 'C' + i })) }; break;
+        case 'ecbFxRates': payload = { rates: Array.from({ length: 12 }, (_, i) => ({ pair: 'P' + i })), updatedAt: new Date(now).toISOString() }; break;
+        default: payload = {};
+      }
+      return { result: JSON.stringify({ _seed: { fetchedAt: now, state: 'OK' }, data: payload }) };
+    }
+    return { result: null };
+  });
+}
+function coreDeadResults() {
+  return Array.from({ length: TOPMAN_CORE_DATASETS.length * 3 }, () => ({ result: null }));
+}
 
 afterEach(() => { globalThis.fetch = undefined; });
 
@@ -42,17 +71,29 @@ function mockRedisPipeline({ dataLen = 5000, metaFetchedAt = Date.now() - 60_000
 }
 
 test('fork scope: registry sweep covers only owned checks + 1 informational entry', async () => {
-  mockRedisPipeline();
+  const now = Date.now();
+  globalThis.fetch = async (_url, init) => {
+    const commands = JSON.parse(init.body);
+    if (isCoreRead(commands)) {
+      return new Response(JSON.stringify(coreFreshResults(commands, now)), { status: 200 });
+    }
+    const results = commands.map(([op, key]) => {
+      if (op === 'STRLEN' || op === 'LLEN') return { result: 5000 };
+      if (op === 'GET' && key.startsWith('seed-meta:')) {
+        return { result: JSON.stringify({ fetchedAt: now - 60_000, recordCount: 42 }) };
+      }
+      return { result: 0 };
+    });
+    return new Response(JSON.stringify(results), { status: 200 });
+  };
   const res = await handler(new Request('https://topmanidmb-world-monitor.vercel.app/api/health?compact=1'));
   assert.equal(res.status, 200);
   const body = await res.json();
-  // total = static seeds (5) + inheritedRegistry (1) — the 6 core datasets are
-  // NOT part of this registry sweep (they live under topman:core:*, served by
-  // /api/topman-core-status). With all seeds fresh, verdict must be HEALTHY.
-  assert.equal(body.summary.total, 6);
+  // total = 5 static seeds + 1 inheritedRegistry + 6 core datasets = 12
+  assert.equal(body.summary.total, 12);
   assert.equal(body.status, 'HEALTHY');
   assert.equal(body.summary.crit, 0);
-  assert.equal(body.summary.ok, 6);
+  assert.equal(body.summary.ok, 12);
   assert.equal(body.summary.warn, 0);
   // informational entry must NOT appear in compact problems (it's ok-bucket)
   assert.equal(body.problems, undefined);
@@ -61,7 +102,22 @@ test('fork scope: registry sweep covers only owned checks + 1 informational entr
 test('fork scope: stale static seed still fails as STALE_SEED (fail-closed preserved)', async () =>  {
   // fetchedAt 500 days ago — beyond every FORK_STATIC_SEED budget
   // (chokepointBaselines/sprPolicies carry 400-day budgets; the rest 31-60d)
-  mockRedisPipeline({ metaFetchedAt: Date.now() - 500 * 24 * 3600 * 1000 });
+  const staleAt = Date.now() - 500 * 24 * 3600 * 1000;
+  const now = Date.now();
+  globalThis.fetch = async (_url, init) => {
+    const commands = JSON.parse(init.body);
+    if (isCoreRead(commands)) {
+      return new Response(JSON.stringify(coreFreshResults(commands, now)), { status: 200 });
+    }
+    const results = commands.map(([op, key]) => {
+      if (op === 'STRLEN' || op === 'LLEN') return { result: 5000 };
+      if (op === 'GET' && key.startsWith('seed-meta:')) {
+        return { result: JSON.stringify({ fetchedAt: staleAt, recordCount: 42 }) };
+      }
+      return { result: 0 };
+    });
+    return new Response(JSON.stringify(results), { status: 200 });
+  };
   const res = await handler(new Request('https://topmanidmb-world-monitor.vercel.app/api/health?compact=1'));
   const body = await res.json();
   // STALE_SEED is a warn-class failure (data present, seed run old) — warn
@@ -71,6 +127,7 @@ test('fork scope: stale static seed still fails as STALE_SEED (fail-closed prese
   assert.equal(body.status, 'WARNING');
   assert.equal(body.summary.crit, 0);
   assert.equal(body.summary.warn, 5);
+  assert.equal(body.summary.total, 12);
   assert.ok(body.problems && typeof body.problems === 'object');
   assert.ok(Object.keys(body.problems).every((k) => FORK_STATIC_SEED_NAMES.includes(k)));
   // informational entry is still not a problem
@@ -78,13 +135,17 @@ test('fork scope: stale static seed still fails as STALE_SEED (fail-closed prese
 });
 
 test('fork scope: MISSING data key on static seed is EMPTY (crit) — not softened', async () => {
+  const now = Date.now();
   globalThis.fetch = async (_url, init) => {
     const commands = JSON.parse(init.body);
+    if (isCoreRead(commands)) {
+      return new Response(JSON.stringify(coreFreshResults(commands, now)), { status: 200 });
+    }
     const results = commands.map(([op, key]) => {
       if (op === 'STRLEN' || op === 'LLEN') return { result: 0 };
       if (op === 'GET') {
         if (key.startsWith('seed-meta:')) {
-          return { result: JSON.stringify({ fetchedAt: Date.now() - 60_000, recordCount: 0 }) };
+          return { result: JSON.stringify({ fetchedAt: now - 60_000, recordCount: 0 }) };
         }
         return { result: null };
       }
@@ -94,6 +155,7 @@ test('fork scope: MISSING data key on static seed is EMPTY (crit) — not soften
   };
   const res = await handler(new Request('https://topmanidmb-world-monitor.vercel.app/api/health?compact=1'));
   const body = await res.json();
+  assert.equal(body.summary.total, 12);
   assert.equal(body.summary.crit, 5);
   assert.equal(body.status, 'UNHEALTHY');
 });
@@ -103,6 +165,60 @@ test('fork scope config: NOT_OWNED buckets to ok and static seeds all have SEED_
   for (const name of FORK_STATIC_SEED_NAMES) {
     assert.ok(BOOTSTRAP_KEYS[name] || STANDALONE_KEYS[name], `static seed ${name} must exist in a registry`);
   }
+});
+
+test('fork scope: dead core lane must NOT read as healthy (fail-closed)', async () => {
+  // Mock two Redis pipelines: first the health sweep (static seeds fresh),
+  // then the TOPMAN core read with every data/meta/attempt key absent.
+  let call = 0;
+  globalThis.fetch = async (_url, init) => {
+    const commands = JSON.parse(init.body);
+    call++;
+    const isCoreRead = commands.length === TOPMAN_CORE_DATASETS.length * 3
+      && commands[0][1].startsWith('topman:core:');
+    const results = commands.map(([op, key]) => {
+      if (isCoreRead) return { result: null };
+      if (op === 'STRLEN' || op === 'LLEN') return { result: 5000 };
+      if (op === 'GET' && key.startsWith('seed-meta:')) {
+        return { result: JSON.stringify({ fetchedAt: Date.now() - 60_000, recordCount: 7 }) };
+      }
+      return { result: 0 };
+    });
+    return new Response(JSON.stringify(results), { status: 200 });
+  };
+  const res = await handler(new Request('https://topmanidmb-world-monitor.vercel.app/api/health?compact=1'));
+  const body = await res.json();
+  // 5 static seeds OK + 1 NOT_OWNED ok + 6 core EMPTY crit
+  assert.equal(body.summary.total, 12);
+  assert.equal(body.summary.crit, 6);
+  assert.equal(body.status, 'UNHEALTHY');
+  for (const name of ['earthquakes', 'weatherAlerts', 'naturalEvents', 'gdeltIntel', 'commodityQuotes', 'ecbFxRates']) {
+    assert.ok(body.problems && name in body.problems, `${name} must appear in problems`);
+  }
+});
+
+test('fork scope: healthy core lane keeps verdict healthy and shows 6 core OKs', async () => {
+  const now = Date.now();
+  globalThis.fetch = async (_url, init) => {
+    const commands = JSON.parse(init.body);
+    if (isCoreRead(commands)) {
+      return new Response(JSON.stringify(coreFreshResults(commands, now)), { status: 200 });
+    }
+    const results = commands.map(([op, key]) => {
+      if (op === 'STRLEN' || op === 'LLEN') return { result: 5000 };
+      if (op === 'GET' && key.startsWith('seed-meta:')) {
+        return { result: JSON.stringify({ fetchedAt: now - 60_000, recordCount: 7 }) };
+      }
+      return { result: 0 };
+    });
+    return new Response(JSON.stringify(results), { status: 200 });
+  };
+  const res = await handler(new Request('https://topmanidmb-world-monitor.vercel.app/api/health?compact=1'));
+  const body = await res.json();
+  assert.equal(body.summary.total, 12);
+  assert.equal(body.summary.crit, 0);
+  assert.equal(body.summary.ok, 12);
+  assert.equal(body.status, 'HEALTHY');
 });
 
 test('scope off (control): full registry sweep is untouched', async () => {

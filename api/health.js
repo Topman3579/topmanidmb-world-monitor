@@ -9,6 +9,13 @@ import { unwrapEnvelope } from './_seed-envelope.js';
 // @ts-expect-error — JS module, no declaration file
 import { redisPipeline, getRedisCredentials } from './_upstash-json.js';
 import { CII_RISK_SCORE_CACHE_KEYS } from './_cii-risk-cache-keys.js';
+// Fork scope: the 6 TOPMAN Core datasets (topman:core:*) are this fork's
+// primary owned workload. Under WM_HEALTH_SCOPE=fork their freshness is
+// folded into /api/health itself (one extra pipeline) so a dead core lane
+// can never read as HEALTHY. Unset scope keeps /api/health byte-identical
+// and the core contract stays at /api/topman-core-status.
+// @ts-expect-error — JS module, no declaration file
+import { TOPMAN_CORE_DATASETS, readTopmanCoreSnapshot } from './_topman-core.js';
 
 export const config = { runtime: 'edge' };
 
@@ -1537,6 +1544,49 @@ export default async function handler(req, ctx) {
     };
     totalChecks++;
     counts[STATUS_COUNTS.NOT_OWNED]++;
+  }
+
+  // Fork scope: fold the 6 TOPMAN Core datasets into this contract. Mapping
+  // (topman-core state -> health status/bucket) preserves fail-closed:
+  //   MISSING -> EMPTY (crit) · STALE/FAILED_USING_LAST_GOOD -> STALE_SEED (warn)
+  //   PARTIAL -> COVERAGE_PARTIAL (warn) · OK -> OK
+  // A dead core lane therefore flips the public verdict exactly as it
+  // already does on /api/topman-core-status.
+  if (HEALTH_SCOPE_FORK) {
+    let coreSnapshot = null;
+    try {
+      coreSnapshot = await readTopmanCoreSnapshot();
+    } catch {
+      coreSnapshot = null;
+    }
+    const CORE_STATE_TO_STATUS = {
+      OK: 'OK',
+      PARTIAL: 'COVERAGE_PARTIAL',
+      STALE: 'STALE_SEED',
+      FAILED_USING_LAST_GOOD: 'STALE_SEED',
+      MISSING: 'EMPTY',
+    };
+    if (coreSnapshot) {
+      for (const dataset of coreSnapshot.datasets) {
+        const status = CORE_STATE_TO_STATUS[dataset.state] ?? 'SEED_ERROR';
+        checks[dataset.bootstrapName] = {
+          status,
+          records: dataset.recordCount,
+          core: true,
+          ageSeconds: dataset.ageSeconds,
+        };
+        const bucket = STATUS_COUNTS[status] ?? 'warn';
+        counts[bucket]++;
+        totalChecks++;
+      }
+    } else {
+      // Core read itself failed — fail-closed: crit on every core dataset.
+      for (const dataset of TOPMAN_CORE_DATASETS) {
+        checks[dataset.bootstrapName] = { status: 'EMPTY', records: null, core: true };
+        counts.crit++;
+        totalChecks++;
+      }
+    }
   }
 
   // On-demand keys that simply haven't been requested yet should not flip
