@@ -69,12 +69,19 @@ describe('TOPMAN core refresh authorization', () => {
     const vercelConfig = JSON.parse(readFileSync(
       fileURLToPath(new URL('../vercel.json', import.meta.url)),
       'utf8',
-    )) as { crons?: Array<{ path: string; schedule: string }> };
+    )) as {
+      crons?: Array<{ path: string; schedule: string }>;
+      functions?: Record<string, { maxDuration?: number }>;
+    };
     assert.deepEqual(vercelConfig.crons?.filter(({ path }) => path.startsWith('/api/topman-core-refresh')), [
       { path: '/api/topman-core-refresh?group=fast', schedule: '*/15 * * * *' },
       { path: '/api/topman-core-refresh?group=market', schedule: '3,23,43 * * * *' },
       { path: '/api/topman-core-refresh?group=slow', schedule: '7 */3 * * *' },
     ]);
+    assert.ok(
+      (vercelConfig.functions?.['api/topman-core-refresh.ts']?.maxDuration ?? 0) >= 60,
+      'Pro default 15s kills GDELT (~20s); vercel.json must raise maxDuration',
+    );
   });
 
   it('gives GDELT a Node budget that exceeds the measured 20s DOC latency', () => {
