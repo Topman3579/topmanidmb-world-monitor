@@ -91,6 +91,32 @@ describe('TOPMAN core refresh authorization', () => {
     assert.match(source, /maxrecords=25/);
     assert.doesNotMatch(source, /OR conflict OR military OR typhoon/);
   });
+
+  it('adapts Node IncomingMessage handlers that lack headers.get', async () => {
+    const previousSecret = process.env.CRON_SECRET;
+    delete process.env.CRON_SECRET;
+    const headers: Record<string, string> = {};
+    let body = '';
+    const res = {
+      statusCode: 0,
+      setHeader(name: string, value: string) { headers[name.toLowerCase()] = value; },
+      end(chunk?: string | Uint8Array) {
+        body = typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? []).toString('utf8');
+      },
+    };
+
+    try {
+      await handler({
+        method: 'GET',
+        url: '/api/topman-core-refresh?group=slow',
+        headers: { host: 'example.test' },
+      }, res);
+      assert.equal(res.statusCode, 503);
+      assert.equal(JSON.parse(body).status, 'NOT_CONFIGURED');
+    } finally {
+      restoreEnvironment('CRON_SECRET', previousSecret);
+    }
+  });
 });
 
 describe('TOPMAN core Redis publication', () => {
