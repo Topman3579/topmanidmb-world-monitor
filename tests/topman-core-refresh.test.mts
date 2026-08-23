@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   type PublishableDataset,
+  GDELT_FETCH_TIMEOUT_MS,
   assertUpstreamArrayPayload,
   classifyRefreshError,
   countUniqueGdeltTopicArticles,
@@ -19,7 +20,7 @@ import {
   publishDatasets,
   recordRefreshAttempts,
 } from '../api/topman-core-refresh.ts';
-import handler from '../api/topman-core-refresh.ts';
+import handler, { config as refreshConfig } from '../api/topman-core-refresh.ts';
 
 function datasetFixture(name: string): PublishableDataset {
   return {
@@ -74,6 +75,21 @@ describe('TOPMAN core refresh authorization', () => {
       { path: '/api/topman-core-refresh?group=market', schedule: '3,23,43 * * * *' },
       { path: '/api/topman-core-refresh?group=slow', schedule: '7 */3 * * *' },
     ]);
+  });
+
+  it('gives GDELT a Node budget that exceeds the measured 20s DOC latency', () => {
+    assert.equal(refreshConfig.runtime, 'nodejs');
+    assert.ok((refreshConfig.maxDuration ?? 0) >= 60);
+    assert.ok(GDELT_FETCH_TIMEOUT_MS >= 30_000);
+    assert.ok(GDELT_FETCH_TIMEOUT_MS + 5_000 <= (refreshConfig.maxDuration ?? 0) * 1000);
+
+    const source = readFileSync(
+      fileURLToPath(new URL('../api/topman-core-refresh.ts', import.meta.url)),
+      'utf8',
+    );
+    assert.doesNotMatch(source, /classifyRefreshError\(error\) === 'TIMEOUT'/);
+    assert.match(source, /maxrecords=25/);
+    assert.doesNotMatch(source, /OR conflict OR military OR typhoon/);
   });
 });
 

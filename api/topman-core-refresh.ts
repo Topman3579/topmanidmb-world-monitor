@@ -12,7 +12,10 @@ import { buildEnvelope } from './_seed-envelope.js';
 // @ts-expect-error -- shared JavaScript helper is edge-safe and covered by API tests.
 import { redisPipeline } from './_upstash-json.js';
 
-export const config = { runtime: 'edge' };
+// Node, not Edge: GDELT DOC API measured ~20s for the ASEAN query (rose,
+// 23 Aug 2026) and Vercel Edge aborted it at 18s every slow cron after the
+// last success. Edge maxDuration cannot cover a 35s fetch + Redis publish.
+export const config = { runtime: 'nodejs', maxDuration: 60 };
 
 type RefreshGroup = 'fast' | 'slow' | 'market';
 
@@ -62,7 +65,9 @@ interface RefreshAttempt {
 
 const GROUPS = new Set<RefreshGroup>(['fast', 'slow', 'market']);
 const FETCH_TIMEOUT_MS = 12_000;
-const GDELT_FETCH_TIMEOUT_MS = 18_000;
+// Must exceed observed GDELT DOC latency (~20s). 18s AbortSignal was the
+// production TIMEOUT loop: durationMs 17923 / 18483 on 00:07Z and 03:07Z.
+export const GDELT_FETCH_TIMEOUT_MS = 35_000;
 const META_TTL_SECONDS = 7 * 24 * 60 * 60;
 const LOCK_TTL_SECONDS = 90;
 const TOPMAN_CORE_PREFIX = 'topman:core';
@@ -235,42 +240,34 @@ async function fetchJson(
   retries = 0,
 ): Promise<unknown> {
   for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': USER_AGENT,
-        },
-        signal: AbortSignal.timeout(attempt === 0 ? timeoutMs : Math.min(timeoutMs, 6_000)),
-      });
-      if (!response.ok) {
-        const retryDelay = retryAfterMs(response);
-        const category = response.status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_HTTP';
-        if (
-          attempt < retries
-          && (response.status === 429 || response.status === 503)
-          && (retryDelay === null || retryDelay <= 1_000)
-        ) {
-          await delay(retryDelay ?? 500);
-          continue;
-        }
-        throw new TopmanUpstreamError(
-          `${label} HTTP ${response.status}`,
-          category,
-          retryDelay,
-        );
-      }
-      try {
-        return await response.json();
-      } catch {
-        throw new TopmanUpstreamError(`${label} returned invalid JSON`, 'INVALID_PAYLOAD');
-      }
-    } catch (error) {
-      if (attempt < retries && classifyRefreshError(error) === 'TIMEOUT') {
-        await delay(250);
+    const response = await fetch(url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': USER_AGENT,
+      },
+      signal: AbortSignal.timeout(attempt === 0 ? timeoutMs : Math.min(timeoutMs, 6_000)),
+    });
+    if (!response.ok) {
+      const retryDelay = retryAfterMs(response);
+      const category = response.status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_HTTP';
+      if (
+        attempt < retries
+        && (response.status === 429 || response.status === 503)
+        && (retryDelay === null || retryDelay <= 1_000)
+      ) {
+        await delay(retryDelay ?? 500);
         continue;
       }
-      throw error;
+      throw new TopmanUpstreamError(
+        `${label} HTTP ${response.status}`,
+        category,
+        retryDelay,
+      );
+    }
+    try {
+      return await response.json();
+    } catch {
+      throw new TopmanUpstreamError(`${label} returned invalid JSON`, 'INVALID_PAYLOAD');
     }
   }
   throw new TopmanUpstreamError(`${label} retries exhausted`, 'UPSTREAM_ERROR');
@@ -560,10 +557,10 @@ async function naturalDataset(): Promise<PublishableDataset> {
 
 async function gdeltDataset(): Promise<PublishableDataset> {
   const query = encodeURIComponent(
-    '(Thailand OR ASEAN OR Myanmar OR Cambodia OR "South China Sea" OR conflict OR military OR typhoon) sourcelang:eng',
+    '(Thailand OR ASEAN OR Myanmar OR Cambodia OR "South China Sea") sourcelang:eng',
   );
   const raw = await fetchJson(
-    `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=50&format=json&sort=date&timespan=24h`,
+    `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=25&format=json&sort=date&timespan=12h`,
     'GDELT',
     GDELT_FETCH_TIMEOUT_MS,
     1,
