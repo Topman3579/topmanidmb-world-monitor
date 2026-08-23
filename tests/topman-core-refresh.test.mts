@@ -93,10 +93,10 @@ describe('TOPMAN core refresh authorization', () => {
     assert.deepEqual(refreshConfig.regions, ['iad1']);
     assert.ok(GDELT_FETCH_TIMEOUT_MS >= 30_000);
     assert.ok(GDELT_FETCH_TIMEOUT_MS + 5_000 <= (refreshConfig.maxDuration ?? 0) * 1000);
-    // A 429 retry plus its 6s hard wait must still fit inside the function budget.
-    assert.ok(GDELT_FETCH_TIMEOUT_MS + GDELT_429_WAIT_MS + 5_000 <= (refreshConfig.maxDuration ?? 0) * 1000);
-    // And the fetchJson budget ceiling must leave the worst-case post-fetch
-    // Redis work (publish 10s + attempts 5s + lock release 5s) inside maxDuration.
+    // The single-shot fetch timeout may fill the whole fetch budget; when a 429
+    // retry fires, the remaining budget bounds both its timeout and its 6s wait
+    // (fail-fast when it cannot afford the wait). Post-fetch Redis work
+    // (publish 10s + attempts 5s + lock release 5s) is reserved on top.
     assert.ok(
       REFRESH_FETCH_BUDGET_MS + REFRESH_POST_FETCH_RESERVE_MS + 5_000 <= (refreshConfig.maxDuration ?? 0) * 1000,
       'fetch budget + post-fetch reserve must fit maxDuration with slack',

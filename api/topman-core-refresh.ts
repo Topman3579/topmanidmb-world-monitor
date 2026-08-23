@@ -75,8 +75,8 @@ export const GDELT_429_WAIT_MS = 6_000;
 // One fetchJson call (all attempts + waits) may never exceed this. The slow
 // group must also afford its worst-case post-fetch Redis work after the fetch:
 // publish 10s + attempt record 5s + lock release 5s = 20s reserved (Vercel
-// review P1 #2 on PR #30), leaving 40s for fetching inside the 60s budget.
-export const REFRESH_FETCH_BUDGET_MS = 40_000;
+// review P1 #2 on PR #30), leaving 35s for fetching inside the 60s budget.
+export const REFRESH_FETCH_BUDGET_MS = 35_000;
 // Worst-case post-fetch Redis work the slow group still has to afford after
 // fetching: publish 10s + attempt record 5s + lock release 5s.
 export const REFRESH_POST_FETCH_RESERVE_MS = 20_000;
