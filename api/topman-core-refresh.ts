@@ -837,7 +837,49 @@ async function releaseRefreshLock(
     || validSinglePipelineResult(response, 0);
 }
 
-export default async function handler(request: Request): Promise<Response> {
+type NodeLikeRequest = {
+  method?: string;
+  url?: string;
+  headers: Record<string, string | string[] | undefined>;
+};
+
+type NodeLikeResponse = {
+  statusCode: number;
+  setHeader: (name: string, value: string) => void;
+  end: (body?: string | Uint8Array) => void;
+};
+
+function isNodeLikeResponse(value: unknown): value is NodeLikeResponse {
+  return value != null
+    && typeof value === 'object'
+    && typeof (value as NodeLikeResponse).end === 'function'
+    && typeof (value as NodeLikeResponse).setHeader === 'function';
+}
+
+function incomingToRequest(req: NodeLikeRequest): Request {
+  const host = typeof req.headers.host === 'string' ? req.headers.host : 'localhost';
+  const protoHeader = req.headers['x-forwarded-proto'];
+  const proto = typeof protoHeader === 'string' ? protoHeader.split(',')[0]!.trim() : 'https';
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value == null) continue;
+    headers.set(key, Array.isArray(value) ? value.join(', ') : value);
+  }
+  return new Request(`${proto}://${host}${req.url ?? '/'}`, {
+    method: req.method ?? 'GET',
+    headers,
+  });
+}
+
+async function writeNodeResponse(res: NodeLikeResponse, response: Response): Promise<void> {
+  res.statusCode = response.status;
+  response.headers.forEach((value, key) => {
+    res.setHeader(key, value);
+  });
+  res.end(Buffer.from(await response.arrayBuffer()));
+}
+
+export async function handleRefresh(request: Request): Promise<Response> {
   if (!process.env.CRON_SECRET) {
     return jsonResponse({ ok: false, status: 'NOT_CONFIGURED' }, 503, {
       'Cache-Control': 'no-store',
@@ -982,4 +1024,15 @@ export default async function handler(request: Request): Promise<Response> {
   } finally {
     await releaseRefreshLock(group, lockToken);
   }
+}
+
+export default async function handler(
+  req: Request | NodeLikeRequest,
+  res?: NodeLikeResponse,
+): Promise<Response | void> {
+  if (isNodeLikeResponse(res)) {
+    await writeNodeResponse(res, await handleRefresh(incomingToRequest(req as NodeLikeRequest)));
+    return;
+  }
+  return handleRefresh(req as Request);
 }
