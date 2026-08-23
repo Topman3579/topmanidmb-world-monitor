@@ -72,6 +72,9 @@ export const GDELT_FETCH_TIMEOUT_MS = 35_000;
 // Retry-After header, so retries must hard-wait past that window (6s) instead
 // of the generic 500ms backoff that re-fired inside the same window.
 export const GDELT_429_WAIT_MS = 6_000;
+// One fetchJson call (all attempts + waits) may never exceed this, keeping the
+// slow group inside its 60s maxDuration with room for Redis publish.
+export const REFRESH_FETCH_BUDGET_MS = 45_000;
 const META_TTL_SECONDS = 7 * 24 * 60 * 60;
 const LOCK_TTL_SECONDS = 90;
 const TOPMAN_CORE_PREFIX = 'topman:core';
@@ -243,7 +246,15 @@ async function fetchJson(
   timeoutMs = FETCH_TIMEOUT_MS,
   retries = 0,
 ): Promise<unknown> {
+  // Total wall-clock ceiling for every attempt + wait inside this helper, so a
+  // retry can never push the caller past its function maxDuration (Vercel
+  // review P1 on PR #30: worst case was 35s + 6s + 35s = 76s against a 60s
+  // budget). Budgets below the floor are clamped, never exceeded.
+  const budgetMs = REFRESH_FETCH_BUDGET_MS;
+  const startedAt = Date.now();
   for (let attempt = 0; attempt <= retries; attempt += 1) {
+    const remaining = budgetMs - (Date.now() - startedAt);
+    const attemptTimeout = Math.max(1_000, Math.min(timeoutMs, remaining));
     let response: Response;
     try {
       response = await fetch(url, {
@@ -251,7 +262,7 @@ async function fetchJson(
           Accept: 'application/json',
           'User-Agent': USER_AGENT,
         },
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(attemptTimeout),
       });
     } catch (error) {
       if (attempt < retries && classifyRefreshError(error) === 'UPSTREAM_ERROR') {
@@ -271,9 +282,18 @@ async function fetchJson(
         // GDELT DOC has no Retry-After on 429 (measured 23 Aug 2026: rose and
         // travis, different IPs, both throttled; 500ms re-fire stayed 429).
         // Its error body says "one request every 5 seconds" — honor that as
-        // the floor whenever the header is missing.
-        const waitMs = retryDelay ?? (response.status === 429 ? GDELT_429_WAIT_MS : 500);
-        await delay(waitMs);
+        // the floor whenever the header is missing, bounded by what is left
+        // of the fetch budget so the wait itself cannot blow the function.
+        const wanted = retryDelay ?? (response.status === 429 ? GDELT_429_WAIT_MS : 500);
+        const left = budgetMs - (Date.now() - startedAt);
+        if (left < wanted) {
+          throw new TopmanUpstreamError(
+            `${label} HTTP ${response.status} (budget exhausted before retry)`,
+            category,
+            retryDelay,
+          );
+        }
+        await delay(wanted);
         continue;
       }
       throw new TopmanUpstreamError(
