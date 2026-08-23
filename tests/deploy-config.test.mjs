@@ -2011,17 +2011,19 @@ describe('agent readiness: auth.md walkthrough', () => {
 // dynamic segment placeholder. Use `api/foo/**` for routes with
 // dynamic brackets. See skill `vercel-native-binding-peer-dep-missing`
 // for the full story.
-describe('vercel.json functions config (none expected after carousel moved to edge)', () => {
-  it('does not define any `functions` block (carousel now uses @vercel/og on edge)', () => {
-    assert.equal(
-      vercelConfig.functions,
-      undefined,
-      'No routes currently require a functions config. If adding one, ' +
-        'remember Vercel treats the key as a micromatch glob — ' +
-        '`[userId]` will silently match one of {u,s,e,r,I,d} and your ' +
-        'rule will apply to nothing. See skill ' +
-        'vercel-native-binding-peer-dep-missing for the gotcha.',
-    );
+describe('vercel.json functions config', () => {
+  it('raises only the TOPMAN core refresh budget, with a literal path (no micromatch traps)', () => {
+    const functions = vercelConfig.functions ?? {};
+    assert.deepEqual(Object.keys(functions), ['api/topman-core-refresh.ts']);
+    assert.equal(functions['api/topman-core-refresh.ts']?.maxDuration, 60);
+    assert.equal(functions['api/topman-core-refresh.ts']?.memory, 1024);
+    for (const key of Object.keys(functions)) {
+      assert.equal(
+        key.includes('['),
+        false,
+        `${key} uses brackets; Vercel treats functions keys as micromatch globs so [userId] matches one of {u,s,e,r,I,d}`,
+      );
+    }
   });
 });
 
