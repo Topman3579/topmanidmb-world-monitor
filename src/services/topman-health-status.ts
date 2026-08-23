@@ -476,6 +476,9 @@ export interface SystemHealthBrief {
   total: number;
   crit: number;
   checkedAtMs: number | null;
+  /** true when the payload declared scope 'fork' — total/ok cover only the
+   *  owned data plane, so 'healthy' must never render as full-system. */
+  forkScoped?: boolean;
 }
 
 const SYSTEM_HEALTH_ENDPOINT = '/api/health?compact=1';
@@ -515,6 +518,7 @@ export function classifyCompactSystemHealth(
   }
 
   const sourceStatus = payload.status.toUpperCase();
+  const forkScoped = payload.scope === 'fork';
   let state: SystemHealthState;
   if (sourceStatus === 'HEALTHY' && crit === 0 && ok === total) {
     state = 'healthy';
@@ -531,6 +535,7 @@ export function classifyCompactSystemHealth(
     total,
     crit,
     checkedAtMs,
+    ...(forkScoped ? { forkScoped: true } : {}),
   };
 }
 
@@ -557,6 +562,15 @@ export function formatSystemHealthBrief(
       ? 'not ready'
       : 'partial';
 
+  if (brief.forkScoped) {
+    // Fork scope: numbers cover only the owned data plane (TOPMAN Core lane).
+    // Never present this as full-system health (Vercel review P1).
+    return bilingualText(
+      `ข้อมูลหลัก (fork): ${thaiState} ${brief.ok}/${brief.total}${brief.crit > 0 ? ` · วิกฤต ${brief.crit}` : ''}`,
+      `Owned core (fork): ${enState} ${brief.ok}/${brief.total}${brief.crit > 0 ? ` · critical ${brief.crit}` : ''}`,
+      mode,
+    );
+  }
   return bilingualText(
     `ระบบเต็ม: ${thaiState} ${brief.ok}/${brief.total}${brief.crit > 0 ? ` · วิกฤต ${brief.crit}` : ''}`,
     `Full system: ${enState} ${brief.ok}/${brief.total}${brief.crit > 0 ? ` · critical ${brief.crit}` : ''}`,
