@@ -112,10 +112,168 @@ function titlesLine(stories, emptyFallback) {
   return clip(titles.join(' · '), 320);
 }
 
+const ASEAN_PLACE_RE = /thailand|myanmar|burma|laos|cambodia|vietnam|malaysia|singapore|indonesia|philippines|andaman|sumatra|java|sulawesi|aceh|bangkok|chiang|phuket|malacca|south china|thai|ไทย|เมียนมา|ลาว|กัมพูชา|เวียดนาม|มาเลเซีย|สิงคโปร์|อินโดนีเซีย|ฟิลิปปินส์|มะละกา/i;
+
+function asRecordList(value) {
+  if (Array.isArray(value)) return value.filter((item) => item && typeof item === 'object');
+  if (!value || typeof value !== 'object') return [];
+  const root = /** @type {Record<string, unknown>} */ (value);
+  if (Array.isArray(root.earthquakes)) return asRecordList(root.earthquakes);
+  if (Array.isArray(root.alerts)) return asRecordList(root.alerts);
+  if (Array.isArray(root.events)) return asRecordList(root.events);
+  if (Array.isArray(root.items)) return asRecordList(root.items);
+  if (Array.isArray(root.quotes)) return asRecordList(root.quotes);
+  if (Array.isArray(root.rates)) return asRecordList(root.rates);
+  if (Array.isArray(root.articles)) return asRecordList(root.articles);
+  if (Array.isArray(root.topics)) {
+    return root.topics.flatMap((topic) => asRecordList(topic));
+  }
+  return [];
+}
+
+function firstBagValue(bag, ...keys) {
+  for (const key of keys) {
+    if (bag[key] != null) return bag[key];
+  }
+  return null;
+}
+
+function formatSignedPercent(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+}
+
+function formatSignedNumber(value, digits = 4) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(digits)}`;
+}
+
+/**
+ * Turn TOPMAN Core 6 payloads into Thai section fallbacks.
+ * Never invents security certainty. US weather alerts are labeled as foreign.
+ * @param {unknown} core
+ */
+export function summarizeTopmanCoreForBrief(core) {
+  const empty = { security: '', disaster: '', energy: '', markets: '', sources: [], used: [] };
+  if (!core || typeof core !== 'object') return empty;
+
+  const bag = /** @type {Record<string, unknown>} */ (core);
+  const sources = [];
+  const used = [];
+
+  const quakes = asRecordList(firstBagValue(bag, 'earthquakes')).map((item) => {
+    const mag = Number(item.magnitude);
+    const place = String(item.place || item.title || '').trim();
+    return {
+      mag,
+      place,
+      asean: ASEAN_PLACE_RE.test(place),
+    };
+  }).filter((item) => Number.isFinite(item.mag) && item.place && (item.asean ? item.mag >= 4.5 : item.mag >= 6));
+  quakes.sort((a, b) => Number(b.asean) - Number(a.asean) || b.mag - a.mag);
+  const quakeTop = quakes.slice(0, 3);
+  let disaster = '';
+  if (quakeTop.length) {
+    disaster = quakeTop.map((item) => (
+      `แผ่นดินไหว M${item.mag.toFixed(1)} ${item.place}${item.asean ? ' (ใกล้ไทย/อาเซียน)' : ''}`
+    )).join(' · ');
+    sources.push('USGS');
+    used.push('earthquakes');
+  }
+
+  const events = asRecordList(firstBagValue(bag, 'naturalEvents', 'natural-events'))
+    .map((item) => String(item.title || item.categoryTitle || '').trim())
+    .filter((title) => title && (ASEAN_PLACE_RE.test(title) || /storm|volcano|wildfire|cyclone|typhoon|flood/i.test(title)))
+    .slice(0, 2);
+  if (events.length) {
+    disaster = disaster ? `${disaster} · ${events.join(' · ')}` : events.join(' · ');
+    sources.push('EONET');
+    used.push('natural-events');
+  }
+
+  const weather = asRecordList(firstBagValue(bag, 'weatherAlerts', 'weather-alerts'));
+  const thaiWeather = weather.filter((item) => ASEAN_PLACE_RE.test(String(`${item.headline || ''} ${item.areaDesc || ''} ${item.event || ''}`)));
+  if (thaiWeather.length) {
+    const line = thaiWeather.slice(0, 2).map((item) => String(item.headline || item.event || '').trim()).filter(Boolean).join(' · ');
+    if (line) disaster = disaster ? `${disaster} · ${line}` : line;
+    sources.push('NWS');
+    used.push('weather-alerts');
+  } else if (weather.length && !disaster) {
+    disaster = `มีประกาศเตือนอากาศต่างประเทศ ${weather.length} รายการ (ชุดหลักเป็น NWS) — ยังไม่ใช่ประกาศ ปภ./กรมอุตุฯ ของไทย`;
+    sources.push('NWS');
+    used.push('weather-alerts');
+  }
+
+  const quotes = asRecordList(firstBagValue(bag, 'commodities', 'commodityQuotes'));
+  const pickQuote = (...names) => quotes.find((item) => names.includes(String(item.display || item.name || '')));
+  const energyBits = [];
+  for (const quote of [pickQuote('OIL', 'Crude Oil WTI'), pickQuote('BRENT', 'Brent Crude'), pickQuote('NATGAS', 'Natural Gas')]) {
+    if (!quote || !Number.isFinite(Number(quote.price))) continue;
+    const label = quote.display === 'OIL' || quote.name === 'Crude Oil WTI' ? 'WTI' : quote.display === 'BRENT' || quote.name === 'Brent Crude' ? 'Brent' : 'ก๊าซธรรมชาติ';
+    const pct = formatSignedPercent(quote.change);
+    energyBits.push(`${label} ${Number(quote.price).toFixed(2)}${pct ? ` (${pct})` : ''}`);
+  }
+  const energy = energyBits.length ? `ราคาน้ำมัน/ก๊าซโลก: ${energyBits.join(' · ')} — ยังไม่ใช่ราคาขายปลีกในประเทศ` : '';
+  if (energy) {
+    sources.push('Yahoo Finance');
+    used.push('commodities');
+  }
+
+  const gold = pickQuote('GOLD', 'Gold');
+  const fxList = asRecordList(firstBagValue(bag, 'fxRates', 'ecbFxRates'));
+  const thb = fxList.find((item) => /THB/i.test(String(item.pair || '')));
+  const usd = fxList.find((item) => String(item.pair || '') === 'EURUSD');
+  const fx = thb || usd;
+  const marketBits = [];
+  if (gold && Number.isFinite(Number(gold.price))) {
+    const pct = formatSignedPercent(gold.change);
+    marketBits.push(`ทองคำ ${Number(gold.price).toFixed(2)} ดอลลาร์/ออนซ์${pct ? ` (${pct})` : ''}`);
+  }
+  if (fx && Number.isFinite(Number(fx.rate))) {
+    const delta = formatSignedNumber(fx.change1d, 4);
+    const pairLabel = /THB/i.test(String(fx.pair || '')) ? `${fx.pair} (ECB)` : String(fx.pair);
+    marketBits.push(`${pairLabel} ${Number(fx.rate).toFixed(4)}${delta ? ` (${delta})` : ''}`);
+  }
+  const markets = marketBits.length
+    ? `${marketBits.join(' · ')} — ยังไม่มีตัวเลข SET ในชุด Core นี้`
+    : '';
+  if (gold) used.push('commodities');
+  if (fx) {
+    sources.push('ECB');
+    used.push('fx-rates');
+  }
+
+  const gdelt = asRecordList(firstBagValue(bag, 'gdeltIntel', 'gdelt-intel'))
+    .map((item) => String(item.title || '').trim())
+    .filter((title) => title && (ASEAN_PLACE_RE.test(title) || SECURITY_RE.test(title)))
+    .slice(0, 2);
+  const security = gdelt.length
+    ? `หัวข้อข่าวเปิดที่เข้าข่าย: ${gdelt.join(' · ')}`
+    : '';
+  if (gdelt.length) {
+    sources.push('GDELT');
+    used.push('gdelt-intel');
+  }
+
+  return {
+    security: clip(security, 320),
+    disaster: clip(disaster, 360),
+    energy: clip(energy, 280),
+    markets: clip(markets, 280),
+    sources: [...new Set(sources)],
+    used: [...new Set(used)],
+  };
+}
+
 /**
  * Build a daily brief document from verified insights (+ optional simple cards).
  * @param {{
  *   insights?: unknown,
+ *   core?: unknown,
  *   cards?: Array<{ id?: string, title?: string, summary?: string, sources?: string[] }>,
  *   nowMs?: number,
  *   existing?: Record<string, unknown> | null,
@@ -144,12 +302,13 @@ export function buildTopmanDailyBrief(input = {}) {
   const aseanCard = cardById.get('asean');
   const watchCard = cardById.get('watch');
   const worldCard = cardById.get('world');
+  const coreSummary = summarizeTopmanCoreForBrief(input.core);
 
   const securityBody = securityStories.length > 0
     ? titlesLine(securityStories, '')
-    : (aseanCard?.summary
-      ? clip(aseanCard.summary, 320)
-      : 'ในชุดข้อมูลที่ตรวจสอบได้รอบนี้ ยังไม่มีประเด็นความมั่นคงที่ระบุชัดพอจะสรุปเป็นการยืนยัน');
+    : (coreSummary.security
+      || (aseanCard?.summary ? clip(aseanCard.summary, 320) : '')
+      || 'ในชุดข้อมูลที่ตรวจสอบได้รอบนี้ ยังไม่มีประเด็นความมั่นคงที่ระบุชัดพอจะสรุปเป็นการยืนยัน');
 
   const securityCaveat = securityStories.length === 0
     ? 'ต้องยืนยันจากช่องทางทางการ (เช่น ศบ.ทก. / กต. / มท.) ก่อนใช้ประกอบการสั่งการ'
@@ -157,15 +316,18 @@ export function buildTopmanDailyBrief(input = {}) {
 
   const disasterBody = disasterStories.length > 0
     ? titlesLine(disasterStories, '')
-    : 'ในชุดข้อมูลรอบนี้ยังไม่พบประเด็นภัยพิบัติ/อากาศที่ระบุชัดในสรุปหลัก';
+    : (coreSummary.disaster || 'ในชุดข้อมูลรอบนี้ยังไม่พบประเด็นภัยพิบัติ/อากาศที่ระบุชัดในสรุปหลัก');
 
   const energyBody = energyStories.length > 0
     ? titlesLine(energyStories, '')
-    : 'ในชุดข้อมูลรอบนี้ยังไม่พบประเด็นพลังงานที่ระบุชัดในสรุปหลัก';
+    : (coreSummary.energy || 'ในชุดข้อมูลรอบนี้ยังไม่พบประเด็นพลังงานที่ระบุชัดในสรุปหลัก');
 
   const marketsBody = marketStories.length > 0
     ? titlesLine(marketStories, '')
-    : (worldBrief || (worldCard?.summary ? clip(worldCard.summary, 280) : 'ในชุดข้อมูลรอบนี้ยังไม่พบตัวเลขตลาดที่ระบุชัดในสรุปหลัก'));
+    : (worldBrief
+      || (worldCard?.summary ? clip(worldCard.summary, 280) : '')
+      || coreSummary.markets
+      || 'ในชุดข้อมูลรอบนี้ยังไม่พบตัวเลขตลาดที่ระบุชัดในสรุปหลัก');
 
   const sources = [];
   for (const story of [...securityStories, ...disasterStories, ...energyStories, ...marketStories].slice(0, 8)) {
@@ -178,20 +340,23 @@ export function buildTopmanDailyBrief(input = {}) {
       if (typeof src === 'string' && src && !sources.includes(src)) sources.push(src);
     }
   }
+  for (const src of coreSummary.sources) {
+    if (src && !sources.includes(src)) sources.push(src);
+  }
 
   const facts = [];
-  if (disasterStories.length) facts.push('ภัยพิบัติ/อากาศ: มีหัวข้อในชุดข่าวที่ตรวจสอบได้');
-  if (energyStories.length) facts.push('พลังงาน: มีหัวข้อในชุดข่าวที่ตรวจสอบได้');
-  if (marketStories.length || worldBrief) facts.push('ตลาด/ภาพรวม: มีข้อความสรุปจากแหล่งที่ระบบดึงมาได้');
-  if (securityStories.length) facts.push('ความมั่นคง: มีหัวข้อข่าวที่เข้าข่าย — ยังต้องยืนยันทางการ');
+  if (disasterStories.length || coreSummary.disaster) facts.push('ภัยพิบัติ/อากาศ: มีหัวข้อหรือตัวเลขจากแหล่งที่ตรวจสอบได้');
+  if (energyStories.length || coreSummary.energy) facts.push('พลังงาน: มีหัวข้อหรือราคาน้ำมันโลกจากแหล่งที่ตรวจสอบได้');
+  if (marketStories.length || worldBrief || coreSummary.markets) facts.push('ตลาด/ภาพรวม: มีข้อความสรุปหรือราคาเปิดจากแหล่งที่ระบบดึงมาได้');
+  if (securityStories.length || coreSummary.security) facts.push('ความมั่นคง: มีหัวข้อข่าวที่เข้าข่าย — ยังต้องยืนยันทางการ');
 
   const gaps = [];
   if (!securityStories.length) {
     gaps.push('สถานะความมั่นคงชายแดน/ความขัดแย้ง — ใช้ได้เฉพาะระดับเฝ้าระวังจนกว่าจะมีแถลงการณ์ทางการ');
   }
-  if (!disasterStories.length) gaps.push('ภัยพิบัติ — ไม่มีหัวข้อชัดในชุดสรุปรอบนี้');
-  if (!energyStories.length) gaps.push('พลังงาน — ไม่มีหัวข้อชัดในชุดสรุปรอบนี้');
-  if (!marketStories.length && !worldBrief) gaps.push('ตลาด — ไม่มีตัวเลขชัดในชุดสรุปรอบนี้');
+  if (!disasterStories.length && !coreSummary.disaster) gaps.push('ภัยพิบัติ — ไม่มีหัวข้อชัดในชุดสรุปรอบนี้');
+  if (!energyStories.length && !coreSummary.energy) gaps.push('พลังงาน — ไม่มีหัวข้อชัดในชุดสรุปรอบนี้');
+  if (!marketStories.length && !worldBrief && !coreSummary.markets) gaps.push('ตลาด — ไม่มีตัวเลขชัดในชุดสรุปรอบนี้');
 
   const followUps = [
     { item: 'ยืนยันประเด็นความมั่นคงจากช่องทางทางการที่เกี่ยวข้อง', reason: securityCaveat },
@@ -290,6 +455,7 @@ export function buildTopmanDailyBrief(input = {}) {
     generatedFrom: [
       stories.length ? 'news:insights' : null,
       cardById.size ? 'simple-summary' : null,
+      ...coreSummary.used.map((id) => `topman-core:${id}`),
     ].filter(Boolean),
   };
 
