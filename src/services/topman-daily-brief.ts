@@ -74,12 +74,14 @@ function toCoreRecord(brief: TopmanDailyBrief): Record<string, unknown> {
 export function buildTopmanDailyBriefFromSummary(input: {
   summary: SimpleExecutiveSummary | null;
   insights?: unknown;
+  core?: unknown;
   nowMs?: number;
   existing?: TopmanDailyBrief | null;
 }): TopmanDailyBrief {
   const cards: SimpleSummaryCard[] = input.summary?.cards ?? [];
   return asBrief(buildCore({
     insights: input.insights ?? null,
+    core: input.core ?? null,
     cards,
     nowMs: input.nowMs,
     existing: input.existing ? toCoreRecord(input.existing) : null,
@@ -89,6 +91,7 @@ export function buildTopmanDailyBriefFromSummary(input: {
 export function generateLocalTopmanDailyBrief(input: {
   summary: SimpleExecutiveSummary | null;
   insights?: unknown;
+  core?: unknown;
   nowMs?: number;
   existing?: TopmanDailyBrief | null;
 }): { brief: TopmanDailyBrief; generated: boolean } {

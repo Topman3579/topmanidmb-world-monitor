@@ -7,6 +7,8 @@ import { jsonResponse } from './_json-response.js';
 import { readJsonFromUpstash, redisPipeline } from './_upstash-json.js';
 // @ts-expect-error -- LINE helper
 import { isLineConfigured, pushLineTextMessage } from './_topman-line-push.js';
+// @ts-expect-error -- Core 6 snapshot for empty-insight fallbacks
+import { loadTopmanCoreForBrief } from './_topman-core.js';
 import {
   approveTopmanDailyBrief,
   bangkokDateKey,
@@ -93,9 +95,10 @@ export default async function handler(request: Request): Promise<Response> {
           reason: 'already_locked',
         }, 200);
       }
-      const insights = await loadInsights();
+      const [insights, core] = await Promise.all([loadInsights(), loadTopmanCoreForBrief()]);
       const brief = buildTopmanDailyBrief({
         insights,
+        core,
         existing,
         nowMs: Date.now(),
       });
@@ -153,9 +156,10 @@ export default async function handler(request: Request): Promise<Response> {
         detail: 'บรีฟที่อนุมัติหรือส่งแล้วจะไม่ถูกสร้างใหม่',
       }, 409);
     }
-    const insights = await loadInsights();
+    const [insights, core] = await Promise.all([loadInsights(), loadTopmanCoreForBrief()]);
     let toSave = buildTopmanDailyBrief({
       insights,
+      core,
       existing,
       nowMs: Date.now(),
     });
@@ -185,8 +189,8 @@ export default async function handler(request: Request): Promise<Response> {
     brief = payload.brief as Record<string, unknown>;
   }
   if (!brief) {
-    const insights = await loadInsights();
-    brief = buildTopmanDailyBrief({ insights, nowMs: Date.now() });
+    const [insights, core] = await Promise.all([loadInsights(), loadTopmanCoreForBrief()]);
+    brief = buildTopmanDailyBrief({ insights, core, nowMs: Date.now() });
   }
 
   if (action === 'save') {

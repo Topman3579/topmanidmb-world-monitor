@@ -6,8 +6,18 @@ export function formatThaiOfficialDate(dateKey: string): string;
 export function formatThaiShortDate(dateKey: string): string;
 export function briefRedisKey(dateKey: string): string;
 
+export function summarizeTopmanCoreForBrief(core?: unknown): {
+  security: string;
+  disaster: string;
+  energy: string;
+  markets: string;
+  sources: string[];
+  used: string[];
+};
+
 export function buildTopmanDailyBrief(input?: {
   insights?: unknown;
+  core?: unknown;
   cards?: Array<{ id?: string; title?: string; summary?: string; sources?: string[] }>;
   nowMs?: number;
   existing?: Record<string, unknown> | null;

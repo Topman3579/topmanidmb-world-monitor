@@ -4,6 +4,8 @@
 import { jsonResponse } from './_json-response.js';
 // @ts-expect-error -- Upstash helpers
 import { readJsonFromUpstash, redisPipeline } from './_upstash-json.js';
+// @ts-expect-error -- Core 6 snapshot for empty-insight fallbacks
+import { loadTopmanCoreForBrief } from './_topman-core.js';
 import {
   bangkokDateKey,
   briefRedisKey,
@@ -53,9 +55,11 @@ export default async function handler(request: Request): Promise<Response> {
   } catch {
     insights = null;
   }
+  const core = await loadTopmanCoreForBrief();
 
   const brief = buildTopmanDailyBrief({
     insights,
+    core,
     existing,
     nowMs: Date.now(),
   });
@@ -71,5 +75,6 @@ export default async function handler(request: Request): Promise<Response> {
     dateKey,
     status: brief.status,
     sources: brief.sources,
+    generatedFrom: brief.generatedFrom,
   }, 200);
 }
