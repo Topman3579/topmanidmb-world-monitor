@@ -80,6 +80,7 @@ describe('TOPMAN core refresh authorization', () => {
       { path: '/api/topman-core-refresh?group=fast', schedule: '*/15 * * * *' },
       { path: '/api/topman-core-refresh?group=market', schedule: '3,23,43 * * * *' },
       { path: '/api/topman-core-refresh?group=slow', schedule: '7 */3 * * *' },
+      { path: '/api/topman-core-refresh?group=slow', schedule: '18 0 * * *' },
     ]);
     assert.ok(
       (vercelConfig.functions?.['api/topman-core-refresh.ts']?.maxDuration ?? 0) >= 60,

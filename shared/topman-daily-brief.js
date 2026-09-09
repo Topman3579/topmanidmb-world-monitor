@@ -78,10 +78,12 @@ function storyText(story) {
   ].filter((v) => typeof v === 'string').join(' ');
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+const BRIEF_LOOKBACK_MS = 24 * HOUR_MS;
 const DISASTER_RE = /flood|quake|earthquake|storm|typhoon|cyclone|wildfire|landslide|disaster|weather|alert|ฝน|น้ำท่วม|แผ่นดินไหว|พายุ|ภัย|อุตุ|ปภ/i;
 const ENERGY_RE = /oil|gas|energy|opec|pipeline|fuel|diesel|gasoline|lng|พลังงาน|น้ำมัน|ดีเซล|แก๊ส/i;
 const MARKET_RE = /market|stock|set|equity|bond|fed|ทอง|ตลาด|หุ้น|เศรษฐกิจ|baht|บาท/i;
-const SECURITY_RE = /border|conflict|military|strike|attack|ceasefire|missile|ชายแดน|ปะทะ|ความมั่นคง|กองทัพ|หยุดยิง|กัมพูชา|เมียนมา/i;
+const SECURITY_RE = /border|conflict|military|defence|defense|troop|exercise|strike|attack|ceasefire|missile|ชายแดน|ปะทะ|ความมั่นคง|กองทัพ|ทหาร|หยุดยิง/i;
 
 /**
  * @param {unknown} insights
@@ -126,9 +128,46 @@ function asRecordList(value) {
   if (Array.isArray(root.rates)) return asRecordList(root.rates);
   if (Array.isArray(root.articles)) return asRecordList(root.articles);
   if (Array.isArray(root.topics)) {
-    return root.topics.flatMap((topic) => asRecordList(topic));
+    const military = root.topics.filter((topic) => topic && /** @type {{ id?: unknown }} */ (topic).id === 'military');
+    const rest = root.topics.filter((topic) => !topic || /** @type {{ id?: unknown }} */ (topic).id !== 'military');
+    return [...military, ...rest].flatMap((topic) => asRecordList(topic));
   }
   return [];
+}
+
+/**
+ * @param {Record<string, unknown>} item
+ */
+function parseEventTimeMs(item) {
+  const raw = item.occurredAt ?? item.time ?? item.date ?? item.updated;
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+    return raw < 1e12 ? raw * 1000 : raw;
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+/**
+ * Missing timestamps stay eligible so tests/legacy bags still compose.
+ * Dated events older than 24h (or in the future) drop out of the daily brief.
+ * @param {Record<string, unknown>} item
+ * @param {number} nowMs
+ */
+function withinBriefWindow(item, nowMs) {
+  const ts = parseEventTimeMs(item);
+  if (ts == null) return true;
+  return ts <= nowMs + HOUR_MS && nowMs - ts <= BRIEF_LOOKBACK_MS;
+}
+
+function storyKey(title, url) {
+  return `${title.toLowerCase().replace(/\s+/g, ' ').trim()}|${String(url || '').trim()}`;
+}
+
+function isAseanOrThaiSecurityTitle(title) {
+  return SECURITY_RE.test(title) && ASEAN_PLACE_RE.test(title);
 }
 
 function firstBagValue(bag, ...keys) {
@@ -156,8 +195,9 @@ function formatSignedNumber(value, digits = 4) {
  * Turn TOPMAN Core 6 payloads into Thai section fallbacks.
  * Never invents security certainty. US weather alerts are labeled as foreign.
  * @param {unknown} core
+ * @param {number} [nowMs]
  */
-export function summarizeTopmanCoreForBrief(core) {
+export function summarizeTopmanCoreForBrief(core, nowMs = Date.now()) {
   const empty = { security: '', disaster: '', energy: '', markets: '', sources: [], used: [] };
   if (!core || typeof core !== 'object') return empty;
 
@@ -165,7 +205,9 @@ export function summarizeTopmanCoreForBrief(core) {
   const sources = [];
   const used = [];
 
-  const quakes = asRecordList(firstBagValue(bag, 'earthquakes')).map((item) => {
+  const quakes = asRecordList(firstBagValue(bag, 'earthquakes'))
+    .filter((item) => withinBriefWindow(item, nowMs))
+    .map((item) => {
     const mag = Number(item.magnitude);
     const place = String(item.place || item.title || '').trim();
     return {
@@ -186,8 +228,9 @@ export function summarizeTopmanCoreForBrief(core) {
   }
 
   const events = asRecordList(firstBagValue(bag, 'naturalEvents', 'natural-events'))
+    .filter((item) => withinBriefWindow(item, nowMs))
     .map((item) => String(item.title || item.categoryTitle || '').trim())
-    .filter((title) => title && (ASEAN_PLACE_RE.test(title) || /storm|volcano|wildfire|cyclone|typhoon|flood/i.test(title)))
+    .filter((title) => title && ASEAN_PLACE_RE.test(title))
     .slice(0, 2);
   if (events.length) {
     disaster = disaster ? `${disaster} · ${events.join(' · ')}` : events.join(' · ');
@@ -232,6 +275,8 @@ export function summarizeTopmanCoreForBrief(core) {
   if (gold && Number.isFinite(Number(gold.price))) {
     const pct = formatSignedPercent(gold.change);
     marketBits.push(`ทองคำ ${Number(gold.price).toFixed(2)} ดอลลาร์/ออนซ์${pct ? ` (${pct})` : ''}`);
+    used.push('commodities');
+    if (!sources.includes('Yahoo Finance')) sources.push('Yahoo Finance');
   }
   if (fx && Number.isFinite(Number(fx.rate))) {
     const delta = formatSignedNumber(fx.change1d, 4);
@@ -241,16 +286,22 @@ export function summarizeTopmanCoreForBrief(core) {
   const markets = marketBits.length
     ? `${marketBits.join(' · ')} — ยังไม่มีตัวเลข SET ในชุด Core นี้`
     : '';
-  if (gold) used.push('commodities');
   if (fx) {
     sources.push('ECB');
     used.push('fx-rates');
   }
 
-  const gdelt = asRecordList(firstBagValue(bag, 'gdeltIntel', 'gdelt-intel'))
-    .map((item) => String(item.title || '').trim())
-    .filter((title) => title && (ASEAN_PLACE_RE.test(title) || SECURITY_RE.test(title)))
-    .slice(0, 2);
+  const gdelt = [];
+  const seenGdelt = new Set();
+  for (const item of asRecordList(firstBagValue(bag, 'gdeltIntel', 'gdelt-intel'))) {
+    const title = String(item.title || '').trim();
+    if (!title || !isAseanOrThaiSecurityTitle(title)) continue;
+    const key = storyKey(title, item.url);
+    if (seenGdelt.has(key)) continue;
+    seenGdelt.add(key);
+    gdelt.push(title);
+    if (gdelt.length >= 2) break;
+  }
   const security = gdelt.length
     ? `หัวข้อข่าวเปิดที่เข้าข่าย: ${gdelt.join(' · ')}`
     : '';
@@ -302,7 +353,7 @@ export function buildTopmanDailyBrief(input = {}) {
   const aseanCard = cardById.get('asean');
   const watchCard = cardById.get('watch');
   const worldCard = cardById.get('world');
-  const coreSummary = summarizeTopmanCoreForBrief(input.core);
+  const coreSummary = summarizeTopmanCoreForBrief(input.core, nowMs);
 
   const securityBody = securityStories.length > 0
     ? titlesLine(securityStories, '')

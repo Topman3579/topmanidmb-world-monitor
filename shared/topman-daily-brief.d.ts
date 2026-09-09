@@ -6,7 +6,7 @@ export function formatThaiOfficialDate(dateKey: string): string;
 export function formatThaiShortDate(dateKey: string): string;
 export function briefRedisKey(dateKey: string): string;
 
-export function summarizeTopmanCoreForBrief(core?: unknown): {
+export function summarizeTopmanCoreForBrief(core?: unknown, nowMs?: number): {
   security: string;
   disaster: string;
   energy: string;
