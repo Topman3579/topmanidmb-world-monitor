@@ -408,6 +408,70 @@ describe('TOPMAN core status', () => {
     assert.equal(snapshot.status, 'WARNING');
   });
 
+  it('omits STALE and MISSING Core datasets from the daily-brief bag', async () => {
+    const commodity = TOPMAN_CORE_DATASETS.find((dataset) => dataset.id === 'commodities');
+    const gdelt = TOPMAN_CORE_DATASETS.find((dataset) => dataset.id === 'gdelt-intel');
+    const earthquake = TOPMAN_CORE_DATASETS.find((dataset) => dataset.id === 'earthquakes');
+    const weather = TOPMAN_CORE_DATASETS.find((dataset) => dataset.id === 'weather-alerts');
+    assert.ok(commodity && gdelt && earthquake && weather);
+
+    const snapshot = await readTopmanCoreSnapshot({
+      includeData: true,
+      executePipeline: makePipeline({
+        [commodity.dataKey]: JSON.stringify({
+          _seed: {
+            fetchedAt: NOW_MS - 60_000,
+            recordCount: 3,
+            sourceVersion: 'partial',
+            schemaVersion: 1,
+            state: 'PARTIAL',
+          },
+          data: { quotes: [{}, {}, {}] },
+        }),
+        [commodity.metaKey]: JSON.stringify({
+          fetchedAt: NOW_MS - 60_000,
+          recordCount: 3,
+          sourceVersion: 'partial',
+          coverage: 'partial',
+        }),
+        [gdelt.attemptKey]: JSON.stringify({
+          attemptedAt: NOW_MS - 30_000,
+          status: 'FAILED',
+          durationMs: 18_000,
+          errorCategory: 'RATE_LIMITED',
+        }),
+        [earthquake.metaKey]: JSON.stringify({
+          fetchedAt: NOW_MS - 2 * 60 * 60_000,
+          recordCount: 1,
+          sourceVersion: 'stale',
+          coverage: 'focused',
+        }),
+        [earthquake.dataKey]: JSON.stringify({
+          _seed: {
+            fetchedAt: NOW_MS - 2 * 60 * 60_000,
+            recordCount: 1,
+            sourceVersion: 'stale',
+            schemaVersion: 1,
+            state: 'OK',
+          },
+          data: healthyData('earthquakes'),
+        }),
+        [weather.dataKey]: null,
+        [weather.metaKey]: null,
+      }),
+      now: () => NOW_MS,
+    });
+
+    const briefCore = corePayloadForDailyBrief(snapshot);
+    assert.ok(briefCore);
+    assert.equal(briefCore.earthquakes, null);
+    assert.equal(briefCore.weatherAlerts, null);
+    assert.ok(briefCore.gdeltIntel);
+    assert.ok(briefCore.commodities);
+    assert.ok(briefCore.fxRates);
+    assert.ok(briefCore.naturalEvents);
+  });
+
   it('maps usable Core 6 snapshot data into the daily-brief bag', async () => {
     const core = await loadTopmanCoreForBrief({
       executePipeline: makePipeline(),

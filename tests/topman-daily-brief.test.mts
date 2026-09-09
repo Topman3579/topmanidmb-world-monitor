@@ -150,11 +150,12 @@ describe('TOPMAN daily executive brief', () => {
   });
 
   it('fills empty insight sections from Core 6 without inventing a no-clash claim', () => {
+    const nowMs = Date.parse('2026-09-01T00:30:00.000Z');
     const core = {
       earthquakes: {
         earthquakes: [
-          { place: '96 km W of Palu, Indonesia', magnitude: 5.2 },
-          { place: '15 km E of Ridgecrest, CA', magnitude: 6.4 },
+          { place: '96 km W of Palu, Indonesia', magnitude: 5.2, occurredAt: nowMs - 2 * 60 * 60 * 1000 },
+          { place: '15 km E of Ridgecrest, CA', magnitude: 6.4, occurredAt: nowMs - 8 * 24 * 60 * 60 * 1000 },
         ],
       },
       weatherAlerts: {
@@ -165,6 +166,7 @@ describe('TOPMAN daily executive brief', () => {
       naturalEvents: {
         events: [
           { title: 'Typhoon near Philippines', categoryTitle: 'Severe Storms' },
+          { title: 'Tropical Storm Edouard', categoryTitle: 'Severe Storms' },
         ],
       },
       commodityQuotes: {
@@ -188,10 +190,12 @@ describe('TOPMAN daily executive brief', () => {
       },
     };
 
-    const summary = summarizeTopmanCoreForBrief(core);
+    const summary = summarizeTopmanCoreForBrief(core, nowMs);
     assert.match(summary.disaster, /M5\.2/);
     assert.match(summary.disaster, /Indonesia/);
     assert.match(summary.disaster, /Typhoon near Philippines/);
+    assert.doesNotMatch(summary.disaster, /Ridgecrest/);
+    assert.doesNotMatch(summary.disaster, /Edouard/);
     assert.doesNotMatch(summary.disaster, /Texas/);
     assert.match(summary.energy, /WTI 78\.12/);
     assert.match(summary.energy, /ยังไม่ใช่ราคาขายปลีกในประเทศ/);
@@ -203,7 +207,7 @@ describe('TOPMAN daily executive brief', () => {
     assert.ok(summary.used.includes('commodities'));
 
     const brief = buildTopmanDailyBrief({
-      nowMs: Date.parse('2026-09-01T00:30:00.000Z'),
+      nowMs,
       insights: { topStories: [] },
       core,
     });
@@ -219,6 +223,43 @@ describe('TOPMAN daily executive brief', () => {
     assert.ok((brief.generatedFrom as string[]).includes('topman-core:commodities'));
     assert.ok((brief.sources as string[]).includes('USGS'));
     assert.ok((brief.sources as string[]).includes('Yahoo Finance'));
+  });
+
+  it('keeps only ASEAN+security GDELT titles, drops haze, and dedups topic copies', () => {
+    const summary = summarizeTopmanCoreForBrief({
+      gdeltIntel: {
+        topics: [
+          {
+            id: 'intelligence',
+            articles: [
+              { title: 'Malaysian PM says ASEAN haze mechanism in need of review', url: 'https://example.test/haze' },
+              { title: 'Thailand and Cambodia hold border talks', url: 'https://example.test/border' },
+            ],
+          },
+          {
+            id: 'military',
+            articles: [
+              { title: 'Thailand and Cambodia hold border talks', url: 'https://example.test/border' },
+            ],
+          },
+        ],
+      },
+    });
+    assert.match(summary.security, /Thailand and Cambodia hold border talks/);
+    assert.doesNotMatch(summary.security, /haze/);
+    assert.equal(summary.security.match(/Thailand and Cambodia hold border talks/g)?.length, 1);
+  });
+
+  it('attributes Yahoo Finance when gold is the only commodity used', () => {
+    const summary = summarizeTopmanCoreForBrief({
+      commodityQuotes: {
+        quotes: [{ display: 'GOLD', name: 'Gold', price: 2480.5, change: 0.35 }],
+      },
+    });
+    assert.match(summary.markets, /ทองคำ 2480\.50/);
+    assert.ok(summary.sources.includes('Yahoo Finance'));
+    assert.ok(summary.used.includes('commodities'));
+    assert.equal(summary.energy, '');
   });
 
   it('labels US-only NWS weather as foreign when no ASEAN disaster signal exists', () => {

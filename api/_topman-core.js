@@ -475,20 +475,31 @@ export async function readTopmanCoreSnapshot({
   };
 }
 
+/** Last-good that is still inside the freshness gate may fill a 07:30 brief. */
+export const BRIEF_USABLE_CORE_STATES = Object.freeze(['OK', 'PARTIAL', 'FAILED_USING_LAST_GOOD']);
+
 /**
  * Map a Core 6 snapshot into the bag expected by buildTopmanDailyBrief().
- * Missing datasets stay null so the composer can skip them honestly.
+ * STALE / MISSING datasets stay null so a 24h brief cannot treat old GDELT
+ * or week-old USGS as this morning's picture.
  */
 export function corePayloadForDailyBrief(snapshot) {
   const data = snapshot?.data;
   if (!data || typeof data !== 'object') return null;
+  const datasets = Array.isArray(snapshot.datasets) ? snapshot.datasets : [];
+  const usable = new Set(
+    datasets
+      .filter((dataset) => BRIEF_USABLE_CORE_STATES.includes(dataset.state))
+      .map((dataset) => dataset.bootstrapName),
+  );
+  const allow = (name) => datasets.length === 0 || usable.has(name);
   const payload = {
-    earthquakes: data.earthquakes ?? null,
-    weatherAlerts: data.weatherAlerts ?? null,
-    naturalEvents: data.naturalEvents ?? null,
-    gdeltIntel: data.gdeltIntel ?? null,
-    commodities: data.commodityQuotes ?? data.commodities ?? null,
-    fxRates: data.ecbFxRates ?? data.fxRates ?? null,
+    earthquakes: allow('earthquakes') ? (data.earthquakes ?? null) : null,
+    weatherAlerts: allow('weatherAlerts') ? (data.weatherAlerts ?? null) : null,
+    naturalEvents: allow('naturalEvents') ? (data.naturalEvents ?? null) : null,
+    gdeltIntel: allow('gdeltIntel') ? (data.gdeltIntel ?? null) : null,
+    commodities: allow('commodityQuotes') ? (data.commodityQuotes ?? data.commodities ?? null) : null,
+    fxRates: allow('ecbFxRates') ? (data.ecbFxRates ?? data.fxRates ?? null) : null,
   };
   return Object.values(payload).some((value) => value != null) ? payload : null;
 }

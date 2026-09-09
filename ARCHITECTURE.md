@@ -6,6 +6,23 @@
 
 > **Design philosophy**: For the "why" behind architectural decisions, intelligence tradecraft, and algorithmic choices, see [Design Philosophy](docs/architecture.mdx).
 
+## Production topology (TOPMANIDMB fork)
+
+This GitHub repository (`Topman3579/topmanidmb-world-monitor`) is a fork. The live Vercel app at https://topmanidmb-world-monitor.vercel.app does **not** run the upstream Railway seed plane. Treat the sections below as the **inherited upstream codebase**, not as this project's live topology.
+
+Owned production surface on this deploy:
+
+| Piece | What actually runs |
+|-------|--------------------|
+| Data plane | Six Redis keys `topman:core:*` — USGS earthquakes, NWS alerts, NASA EONET, GDELT DOC, Yahoo commodities, ECB FX |
+| Refresh | Vercel crons: fast `*/15`, market `3,23,43`, slow `7 */3`, plus a morning slow retry at `18 0` (07:18 ICT) so a 00:07 UTC GDELT 429 can recover before the brief |
+| Daily brief | `/api/topman-daily-brief-generate` at `30 0 * * *` (07:30 ICT). Draft only — never auto-send LINE |
+| Brief honesty | STALE / MISSING Core bags are omitted; USGS/EONET dated events older than 24h drop out; GDELT security needs an ASEAN/Thai place **and** a security term |
+| Health | `WM_HEALTH_SCOPE=fork` → public `/api/health?compact=1`; detailed `/api/health` is API-key gated |
+| Dual desk | World Monitor Pro (`worldmonitor.app`) is a separate paid product for AI / MCP / export. This fork is Thai executive briefing UX for ผบ.ตร. / นายกรัฐมนตรี |
+
+**Source files**: `api/_topman-core.js`, `api/topman-core-refresh.ts`, `shared/topman-daily-brief.js`, `vercel.json`
+
 World Monitor is a real-time global intelligence dashboard built as a TypeScript single-page application. It aggregates data from dozens of external sources covering geopolitics, military activity, financial markets, cyber threats, climate events, maritime tracking, and aviation into a unified operational picture rendered through an interactive map and a grid of specialized panels.
 
 ---
@@ -54,6 +71,8 @@ World Monitor is a real-time global intelligence dashboard built as a TypeScript
 ---
 
 ## 2. Deployment Topology
+
+This fork's Vercel project does not attach Railway AIS/seed services. The table is the inherited upstream map.
 
 | Service | Platform | Role |
 |---------|----------|------|
