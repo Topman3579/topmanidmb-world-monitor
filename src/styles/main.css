@@ -76,6 +76,11 @@
   --font-body: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', var(--font-body-base);
 }
 
+:lang(th),
+.topman-simple-mode {
+  --font-body: 'Thonburi', 'Leelawadee UI', 'Noto Sans Thai', Tahoma, system-ui, sans-serif;
+}
+
 /* ============================================================
    Semantic Colors — dark-mode defaults, light overrides below
    ============================================================ */

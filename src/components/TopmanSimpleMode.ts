@@ -410,6 +410,15 @@ export class TopmanSimpleMode {
     }
     this.dailyBrief = patchTopmanDailyBrief(this.dailyBrief, editors);
 
+    if (action === 'send' && !this.lineConfigured) {
+      this.briefNotice = topmanText(
+        'เว็บนี้ยังไม่ได้เชื่อม LINE OA — คัดลอกข้อความไปส่งเองได้ บรีฟเช้ายังไป LINE intel ตามเดิม',
+        'This site is not linked to LINE OA — copy the text. Morning intel LINE still runs separately.',
+      );
+      this.render();
+      return;
+    }
+
     if (action === 'approve') {
       this.dailyBrief = approveTopmanDailyBrief(this.dailyBrief);
     }
@@ -839,7 +848,8 @@ export class TopmanSimpleMode {
     const dateLabel = formatThaiOfficialDate(brief.dateKey);
     const lineNote = this.lineConfigured
       ? topmanText('เชื่อม LINE OA แล้ว — กดอนุมัติแล้วจึงส่ง', 'LINE OA linked — approve then send')
-      : topmanText('ยังไม่ได้เชื่อม LINE OA — คัดลอกข้อความไปส่งเองได้', 'LINE OA not linked — copy text to send manually');
+      : topmanText('เว็บนี้ยังไม่ได้เชื่อม LINE OA — คัดลอกข้อความไปส่งเองได้', 'This site is not linked to LINE OA — copy text to send manually');
+    const sendDisabled = brief.status === 'draft' || !this.lineConfigured;
     const hasSecret = Boolean(getBriefAdminSecret());
 
     return `
@@ -888,7 +898,7 @@ export class TopmanSimpleMode {
           <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-approve">
             ${escapeHtml(topmanText('อนุมัติ', 'Approve'))}
           </button>
-          <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-send" ${brief.status === 'draft' ? 'disabled' : ''}>
+          <button type="button" class="topman-simple-btn topman-simple-btn--primary" data-action="brief-send" ${sendDisabled ? 'disabled' : ''} title="${escapeHtml(this.lineConfigured ? topmanText('ส่งเข้า LINE OA ที่เชื่อมไว้', 'Send to the linked LINE OA') : topmanText('ยังไม่ได้เชื่อม LINE OA บนเว็บนี้', 'LINE OA is not linked on this site'))}">
             ${escapeHtml(topmanText('ส่ง LINE OA', 'Send LINE OA'))}
           </button>
         </div>
