@@ -458,6 +458,100 @@ export function normalizeGdeltArticles(raw: unknown): Array<Record<string, unkno
   });
 }
 
+export const ASEAN_INTEL_RSS_FEEDS = [
+  { name: 'BBC Asia', url: 'https://feeds.bbci.co.uk/news/world/asia/rss.xml' },
+  { name: 'CNA', url: 'https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml' },
+] as const;
+
+const ASEAN_INTEL_TITLE_TERMS = /thailand|thai|bangkok|asean|myanmar|cambodia|laos|vietnam|indonesia|malaysia|singapore|philippines|south china sea|mekong/i;
+const RSS_FETCH_TIMEOUT_MS = 8_000;
+
+export function decodeXmlText(value: string): string {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .trim();
+}
+
+function firstXmlTag(block: string, tag: string): string {
+  const matched = block.match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`, 'i'));
+  return matched?.[1] ?? '';
+}
+
+export function parseRssItems(xml: string, sourceName: string): Array<Record<string, unknown>> {
+  const items: Array<Record<string, unknown>> = [];
+  const seen = new Set<string>();
+  const blocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) ?? [];
+  for (const block of blocks) {
+    const title = decodeXmlText(firstXmlTag(block, 'title'));
+    const url = decodeXmlText(firstXmlTag(block, 'link') || firstXmlTag(block, 'guid'));
+    if (!title || !isHttpUrl(url) || seen.has(url)) continue;
+    seen.add(url);
+    items.push({
+      title: title.slice(0, 500),
+      url,
+      source: sourceName,
+      date: decodeXmlText(firstXmlTag(block, 'pubDate')),
+      image: '',
+      language: '',
+      tone: 0,
+    });
+  }
+  return items;
+}
+
+export function selectAseanIntelArticles(
+  articles: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const focused = articles.filter((article) => ASEAN_INTEL_TITLE_TERMS.test(asString(article.title)));
+  return (focused.length > 0 ? focused : articles).slice(0, 20);
+}
+
+export function buildGdeltIntelDataset(
+  articles: Array<Record<string, unknown>>,
+  options: {
+    sourceVersion: string;
+    coverage: 'full' | 'focused' | 'partial';
+    state?: 'OK' | 'PARTIAL';
+  },
+): PublishableDataset {
+  const fetchedAt = new Date().toISOString();
+  const militaryTerms = /\b(military|army|navy|airstrike|missile|troop|warship|conflict|war)\b/i;
+  const maritimeTerms = /\b(sea|naval|ship|maritime|strait|port|coast)\b/i;
+  const military = articles.filter((article) => militaryTerms.test(asString(article.title)));
+  const maritime = articles.filter((article) => maritimeTerms.test(asString(article.title)));
+  const topics = [
+    ...(military.length > 0
+      ? [{ id: 'military', articles: military.slice(0, 15), fetchedAt }]
+      : []),
+    { id: 'intelligence', articles: articles.slice(0, 20), fetchedAt },
+    ...(maritime.length > 0
+      ? [{ id: 'maritime', articles: maritime.slice(0, 15), fetchedAt }]
+      : []),
+  ];
+  const hasFocusedCoverage = options.coverage !== 'partial'
+    && military.length > 0
+    && maritime.length > 0;
+  const publishedRecordCount = countUniqueGdeltTopicArticles(topics);
+  return {
+    name: 'gdelt-intel',
+    key: `${TOPMAN_CORE_PREFIX}:data:gdelt-intel:v1`,
+    metaKey: `${TOPMAN_CORE_PREFIX}:meta:gdelt-intel:v1`,
+    ttlSeconds: 24 * 60 * 60,
+    sourceVersion: options.sourceVersion,
+    schemaVersion: 1,
+    state: options.state ?? (hasFocusedCoverage ? 'OK' : 'PARTIAL'),
+    coverage: options.coverage === 'partial' || !hasFocusedCoverage ? 'partial' : options.coverage,
+    data: { topics, fetchedAt },
+    recordCount: publishedRecordCount,
+  };
+}
+
 export function countUniqueGdeltTopicArticles(topics: unknown[]): number {
   const identities = new Set<string>();
   for (const topicValue of topics) {
@@ -598,46 +692,54 @@ async function naturalDataset(): Promise<PublishableDataset> {
   };
 }
 
+async function fetchAseanRssFallback(): Promise<Array<Record<string, unknown>>> {
+  const collected: Array<Record<string, unknown>> = [];
+  for (const feed of ASEAN_INTEL_RSS_FEEDS) {
+    try {
+      const response = await fetch(feed.url, {
+        headers: {
+          Accept: 'application/rss+xml, application/xml, text/xml',
+          'User-Agent': USER_AGENT,
+        },
+        signal: AbortSignal.timeout(RSS_FETCH_TIMEOUT_MS),
+      });
+      if (!response.ok) continue;
+      collected.push(...parseRssItems(await response.text(), feed.name));
+    } catch {
+      // One quiet feed must not fail the whole ASEAN fallback.
+    }
+  }
+  return selectAseanIntelArticles(collected);
+}
+
 async function gdeltDataset(): Promise<PublishableDataset> {
-  const query = encodeURIComponent(
-    '(Thailand OR ASEAN OR Myanmar OR Cambodia OR "South China Sea") sourcelang:eng',
-  );
-  const raw = await fetchJson(
-    `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=25&format=json&sort=date&timespan=12h`,
-    'GDELT',
-    GDELT_FETCH_TIMEOUT_MS,
-    1,
-  );
-  const articles = normalizeGdeltArticles(raw);
-  if (articles.length === 0) throw new Error('GDELT returned no usable articles');
-  const fetchedAt = new Date().toISOString();
-  const militaryTerms = /\b(military|army|navy|airstrike|missile|troop|warship|conflict|war)\b/i;
-  const maritimeTerms = /\b(sea|naval|ship|maritime|strait|port|coast)\b/i;
-  const military = articles.filter((article) => militaryTerms.test(asString(article.title)));
-  const maritime = articles.filter((article) => maritimeTerms.test(asString(article.title)));
-  const topics = [
-    ...(military.length > 0
-      ? [{ id: 'military', articles: military.slice(0, 15), fetchedAt }]
-      : []),
-    { id: 'intelligence', articles: articles.slice(0, 20), fetchedAt },
-    ...(maritime.length > 0
-      ? [{ id: 'maritime', articles: maritime.slice(0, 15), fetchedAt }]
-      : []),
-  ];
-  const hasFocusedCoverage = military.length > 0 && maritime.length > 0;
-  const publishedRecordCount = countUniqueGdeltTopicArticles(topics);
-  return {
-    name: 'gdelt-intel',
-    key: `${TOPMAN_CORE_PREFIX}:data:gdelt-intel:v1`,
-    metaKey: `${TOPMAN_CORE_PREFIX}:meta:gdelt-intel:v1`,
-    ttlSeconds: 24 * 60 * 60,
-    sourceVersion: 'topman-gdelt-asean-v1',
-    schemaVersion: 1,
-    state: hasFocusedCoverage ? 'OK' : 'PARTIAL',
-    coverage: hasFocusedCoverage ? 'focused' : 'partial',
-    data: { topics, fetchedAt },
-    recordCount: publishedRecordCount,
-  };
+  try {
+    const query = encodeURIComponent(
+      '(Thailand OR ASEAN OR Myanmar OR Cambodia OR "South China Sea") sourcelang:eng',
+    );
+    const raw = await fetchJson(
+      `https://api.gdeltproject.org/api/v2/doc/doc?query=${query}&mode=artlist&maxrecords=25&format=json&sort=date&timespan=12h`,
+      'GDELT',
+      GDELT_FETCH_TIMEOUT_MS,
+      1,
+    );
+    const articles = normalizeGdeltArticles(raw);
+    if (articles.length > 0) {
+      return buildGdeltIntelDataset(articles, {
+        sourceVersion: 'topman-gdelt-asean-v1',
+        coverage: 'focused',
+      });
+    }
+  } catch {
+    // GDELT DOC is often 429 from shared Vercel egress. Fall through to RSS.
+  }
+  const fallbackArticles = await fetchAseanRssFallback();
+  if (fallbackArticles.length === 0) throw new Error('GDELT returned no usable articles');
+  return buildGdeltIntelDataset(fallbackArticles, {
+    sourceVersion: 'topman-rss-asean-v1',
+    coverage: 'partial',
+    state: 'PARTIAL',
+  });
 }
 
 export async function fetchCommodityQuotes(

@@ -12,8 +12,11 @@ import {
   assertUpstreamArrayPayload,
   classifyRefreshError,
   countUniqueGdeltTopicArticles,
+  decodeXmlText,
   fetchCommodityQuotes,
   isAuthorizedCronRequest,
+  parseRssItems,
+  selectAseanIntelArticles,
   normalizeEarthquakes,
   normalizeEcbFxSeries,
   normalizeGdeltArticles,
@@ -576,5 +579,96 @@ describe('TOPMAN core refresh normalizers', () => {
       'utf8',
     );
     assert.doesNotMatch(source, /\binstanceof\s+DOMException\b/);
+  });
+
+  it('parses RSS items and prefers ASEAN-focused headlines for the intel fallback', () => {
+    const xml = `
+      <rss><channel>
+        <item>
+          <title><![CDATA[Thailand and ASEAN discuss Mekong security]]></title>
+          <link>https://www.bbc.com/news/world-asia-1</link>
+          <pubDate>Sat, 19 Sep 2026 12:00:00 GMT</pubDate>
+        </item>
+        <item>
+          <title>Markets close mixed in New York</title>
+          <link>https://www.bbc.com/news/business-2</link>
+        </item>
+      </channel></rss>
+    `;
+    const parsed = parseRssItems(xml, 'BBC Asia');
+    assert.equal(parsed.length, 2);
+    assert.equal(parsed[0]?.title, 'Thailand and ASEAN discuss Mekong security');
+    assert.equal(selectAseanIntelArticles(parsed).length, 1);
+    assert.equal(decodeXmlText('A &amp; B'), 'A & B');
+    assert.deepEqual(
+      selectAseanIntelArticles([
+        { title: 'Markets close mixed', url: 'https://example.test/m' },
+        { title: 'Thai navy patrols the strait', url: 'https://example.test/t' },
+      ]).map((article) => article.url),
+      ['https://example.test/t'],
+    );
+  });
+
+  it('publishes ASEAN RSS intel when GDELT stays 429 after the documented wait', async () => {
+    const previousFetch = globalThis.fetch;
+    const previousSecret = process.env.CRON_SECRET;
+    const previousRedisUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const previousRedisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    process.env.CRON_SECRET = 'test-secret';
+    process.env.UPSTASH_REDIS_REST_URL = 'https://redis.test';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+    globalThis.fetch = (async (input, init) => {
+      const url = requestUrl(input);
+      if (url.startsWith('https://redis.test/')) {
+        const pipeline = JSON.parse(typeof init?.body === 'string' ? init.body : '[]') as unknown[][];
+        return responseJson(pipeline.map((command) => (Array.isArray(command) && command[0] === 'EVAL'
+          ? { result: Number(command[2]) / 3 }
+          : { result: 'OK' })));
+      }
+      if (url.startsWith('https://api.gdeltproject.org/')) {
+        return new Response('Please limit requests to one every 5 seconds', { status: 429 });
+      }
+      if (url.startsWith('https://eonet.gsfc.nasa.gov/')) {
+        return responseJson({ events: [] });
+      }
+      if (url.startsWith('https://feeds.bbci.co.uk/')) {
+        return new Response(`
+          <rss><channel>
+            <item>
+              <title>Thai and ASEAN ministers meet on South China Sea</title>
+              <link>https://www.bbc.com/news/world-asia-fallback</link>
+            </item>
+          </channel></rss>
+        `, { headers: { 'Content-Type': 'application/rss+xml' } });
+      }
+      if (url.includes('channelnewsasia.com')) {
+        return new Response('<rss><channel></channel></rss>', {
+          headers: { 'Content-Type': 'application/rss+xml' },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await handler(new Request(
+        'https://example.test/api/topman-core-refresh?group=slow',
+        { headers: { Authorization: 'Bearer test-secret' } },
+      ));
+      const body = await response.json() as {
+        status?: string;
+        results?: Array<{ name?: string; status?: string; coverage?: string }>;
+      };
+      assert.equal(response.status, 200);
+      assert.equal(body.status, 'PARTIAL');
+      const intel = body.results?.find((result) => result.name === 'gdelt-intel');
+      assert.equal(intel?.status, 'published');
+      assert.equal(intel?.coverage, 'partial');
+    } finally {
+      globalThis.fetch = previousFetch;
+      restoreEnvironment('CRON_SECRET', previousSecret);
+      restoreEnvironment('UPSTASH_REDIS_REST_URL', previousRedisUrl);
+      restoreEnvironment('UPSTASH_REDIS_REST_TOKEN', previousRedisToken);
+    }
   });
 });
