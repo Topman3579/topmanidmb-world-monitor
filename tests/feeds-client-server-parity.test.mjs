@@ -109,7 +109,6 @@ describe('feed parity: client vs server (PR #3715 follow-up)', () => {
     'CSIS',
     'South China Morning Post',
     'a16z Blog',
-    'Sequoia Blog',
     'EU Startups',
     'Tech in Asia',
     'SemiAnalysis',
@@ -155,6 +154,27 @@ describe('feed parity: client vs server (PR #3715 follow-up)', () => {
       0,
       `Drifts in KNOWN_DRIFTS are now consistent — remove from the set: ${resolvedKnown.join(', ')}`,
     );
+  });
+
+  it('REGRESSION: Sequoia Blog does not use the redirected sequoiacap.com/feed URL', () => {
+    // www.sequoiacap.com/feed 308s to the apex, then to framerusercontent.com.
+    // The CI validator re-checks every hop against the RSS allowlist, so the
+    // direct URL is config drift. Both catalogs (and the legacy tech variant
+    // file) use the Google News site:sequoiacap.com query instead. Do not
+    // "fix" this by allowlisting framerusercontent.com — that host is a
+    // shared CDN, not a publisher.
+    const paths = [
+      [CLIENT_PATH, 'client'],
+      [SERVER_PATH, 'server'],
+      [resolve(ROOT, 'src/config/variants/tech.ts'), 'tech variant'],
+    ];
+    for (const [path, label] of paths) {
+      const src = readFileSync(path, 'utf-8');
+      assert.ok(
+        !/['"]https?:\/\/(?:www\.)?sequoiacap\.com\/feed\/?['"]/.test(src),
+        `${label} (${path}) still references the redirected sequoiacap.com/feed URL`,
+      );
+    }
   });
 
   it('REGRESSION (#3715): Blockworks does not appear on either side with a direct blockworks.co URL', () => {

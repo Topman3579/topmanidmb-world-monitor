@@ -74,7 +74,9 @@ export const FEEDS: Record<string, Feed[]> = {
     { name: 'Y Combinator Blog', url: rss('https://www.ycombinator.com/blog/rss/') },
     { name: 'a16z Blog', url: rss('https://www.a16z.news/feed') },
     { name: 'First Round Review', url: rss('https://review.firstround.com/articles/rss') },
-    { name: 'Sequoia Blog', url: rss('https://www.sequoiacap.com/feed/') },
+    // Direct /feed/ 308s through sequoiacap.com and framerusercontent.com.
+    // Match the Google News query already used in src/config/feeds.ts.
+    { name: 'Sequoia Blog', url: rss('https://news.google.com/rss/search?q=site:sequoiacap.com+when:7d&hl=en-US&gl=US&ceid=US:en') },
     { name: 'NFX Essays', url: rss('https://www.nfx.com/feed') },
     { name: 'Paul Graham Essays', url: rss('https://www.aaronsw.com/2002/feeds/pgessays.rss') },
     { name: 'Both Sides of Table', url: rss('https://bothsidesofthetable.com/feed') },
