@@ -175,7 +175,7 @@
     "i18next-browser-languagedetector": "^8.2.1",
     "jmespath": "^0.16.0",
     "jose": "^6.2.2",
-    "maplibre-gl": "^5.16.0",
+    "maplibre-gl": "6.4.1",
     "marked": "^17.0.3",
     "onnxruntime-web": "^1.26.0",
     "papaparse": "^5.5.3",
@@ -196,7 +196,8 @@
     "convex": {
       "esbuild": "0.28.1"
     },
-    "sharp": "0.35.3",
+    "browserslist": "4.28.7",
+    "sharp": "0.35.4",
     "react-native": "0.86.2",
     "fast-xml-parser": "^5.8.0",
     "serialize-javascript": "^7.0.4",

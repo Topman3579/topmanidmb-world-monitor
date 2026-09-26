@@ -6,8 +6,13 @@
 import { MapboxOverlay } from '@deck.gl/mapbox';
 import type { Layer, LayersList, PickingInfo } from '@deck.gl/core';
 import { GeoJsonLayer, ScatterplotLayer, PathLayer, IconLayer, TextLayer, PolygonLayer } from '@deck.gl/layers';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import type { StyleSpecification } from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+
+// MapLibre GL JS v6 is ESM-only and does not resolve its module worker from a
+// bundled import.meta.url. Vite's worker pipeline emits a self-contained chunk.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 import { FALLBACK_DARK_STYLE, FALLBACK_LIGHT_STYLE, getMapProvider, getMapTheme, isLightMapTheme } from '@/config/basemap';
 import { getStyleForProvider } from '@/config/basemap-styles';
 import Supercluster from 'supercluster';
