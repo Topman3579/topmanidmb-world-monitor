@@ -1122,8 +1122,8 @@ export class DeckGLMap {
     let tileLoadOk = false;
     let tileErrorCount = 0;
 
-    this.maplibreMap.on('error', (e: { error?: Error; message?: string }) => {
-      const msg = e.error?.message ?? e.message ?? '';
+    this.maplibreMap.on('error', (e) => {
+      const msg = e.error?.message ?? '';
       console.warn('[DeckGLMap] map error:', msg);
       if (msg.includes('Failed to fetch') || msg.includes('AJAXError') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('403') || msg.includes('Forbidden')) {
         tileErrorCount++;
@@ -7679,9 +7679,9 @@ export class DeckGLMap {
       if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
     };
 
-    const onError = (e: { error?: Error; message?: string }) => {
+    const onError = (e: { error?: { message?: string } }) => {
       if (gen !== this.tileMonitorGeneration) { cleanup(); return; }
-      const msg = e.error?.message ?? e.message ?? '';
+      const msg = e.error?.message ?? '';
       if (msg.includes('Failed to fetch') || msg.includes('AJAXError') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('403') || msg.includes('Forbidden')) {
         errCount++;
         if (!ok && errCount >= 2) {
