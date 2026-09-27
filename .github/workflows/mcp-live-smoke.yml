@@ -56,6 +56,8 @@ jobs:
       - name: Probe MCP hosts
         env:
           MCP_SMOKE_HOSTS: ${{ inputs.mcp_smoke_hosts }}
+          # This fork does not deploy the script's upstream variant hosts.
+          MCP_SMOKE_VARIANT_HOSTS: ''
         run: |
           if [ -z "$MCP_SMOKE_HOSTS" ]; then
             echo "::error::mcp_smoke_hosts is required. The script default is upstream worldmonitor.app, which this fork does not deploy."
