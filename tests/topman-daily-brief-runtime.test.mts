@@ -94,6 +94,9 @@ describe('daily brief real handler with fake Redis and LINE', () => {
   const preserved = await generateHandler(request());
   assert.equal((await preserved.json()).generated, false);
   assert.equal(JSON.parse(store.get(key)!).lineMessage, 'reviewer edit');
+  const alternate = await handler(new Request(`${origin}/api/topman-daily-brief?generate=1`, { headers: { authorization: 'Bearer synthetic-cron' } }));
+  assert.equal((await alternate.json()).generated, false);
+  assert.equal(JSON.parse(store.get(key)!).lineMessage, 'reviewer edit');
   store.clear();
   const results = await Promise.all([generateHandler(request()), generateHandler(request())]);
   const bodies = await Promise.all(results.map(r => r.json()));
@@ -178,6 +181,7 @@ describe('daily brief real handler with fake Redis and LINE', () => {
   store.set(briefRedisKey(dateKey), JSON.stringify(approved));
   const conflict = await handler(post('save', { expectedRevision: 'outdated-revision', lineMessage: 'new local text', brief: { ...draft(), updatedAt: '2099-01-01T00:00:00Z' } }));
   assert.equal(conflict.status, 409);
+  assert.equal((await handler(post('regenerate', { expectedRevision: 'outdated-revision' }))).status, 409);
   assert.equal((await conflict.json()).error, 'REVISION_CONFLICT');
   assert.equal(JSON.parse(store.get(briefRedisKey(dateKey))!).lineMessage, approved.lineMessage);
   store.set(briefRedisKey(dateKey), JSON.stringify({ ...approved, status: 'sent' }));

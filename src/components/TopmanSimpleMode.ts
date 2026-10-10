@@ -64,7 +64,6 @@ import {
   isTopmanDailyBrief,
   isTopmanDailyBriefApprovable,
   loadLocalDailyBrief,
-  markTopmanDailyBriefSent,
   patchTopmanDailyBrief,
   postDailyBriefAction,
   saveLocalDailyBrief,
@@ -382,6 +381,8 @@ export class TopmanSimpleMode {
         void this.persistBrief('send');
         break;
       case 'brief-recover-local':
+        if (this.briefRequestPending) break;
+        this.captureBriefEditors();
         if (this.dailyBrief) {
           try {
             const recovered = JSON.parse(localStorage.getItem(`topman-daily-brief-recovery:${this.dailyBrief.dateKey}`) || 'null');
@@ -400,6 +401,8 @@ export class TopmanSimpleMode {
         }
         break;
       case 'brief-load-server':
+        if (this.briefRequestPending) break;
+        this.captureBriefEditors();
         if (this.serverBriefConflict && this.dailyBrief) {
           try { localStorage.setItem(`topman-daily-brief-recovery:${this.dailyBrief.dateKey}`, JSON.stringify(this.dailyBrief)); } catch { break; }
           this.dailyBrief = this.serverBriefConflict;
@@ -469,6 +472,7 @@ export class TopmanSimpleMode {
   }
 
   private async generateLocalBrief(): Promise<void> {
+    if (this.briefRequestPending) return;
     const existing = this.dailyBrief;
     const generated = generateLocalTopmanDailyBrief({
       summary: this.summary,
@@ -562,6 +566,7 @@ export class TopmanSimpleMode {
       expectedRevision: this.dailyBrief.serverRevision ?? null,
       });
     } catch {
+      this.captureBriefEditors();
       this.briefNotice = topmanText('เชื่อมต่อไม่สำเร็จ ร่างยังอยู่ในเครื่อง — ลองบันทึกใหม่', 'Connection failed; draft remains local — retry saving');
       this.render();
       return;
@@ -584,9 +589,8 @@ export class TopmanSimpleMode {
     if (result.ok && result.brief) {
       this.dailyBrief = result.brief;
       saveLocalDailyBrief(result.brief);
-    } else if (action === 'send' && result.ok) {
-      this.dailyBrief = markTopmanDailyBriefSent(this.dailyBrief);
-      saveLocalDailyBrief(this.dailyBrief);
+    } else if (result.ok) {
+      result = { ...result, ok: false, error: 'MISSING_SERVER_BRIEF' };
     }
 
     if (!result.ok) {

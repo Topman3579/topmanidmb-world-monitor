@@ -155,6 +155,29 @@ test.describe('TOPMAN Simple Mode', () => {
     await expect(editor).toHaveValue('synthetic later keystrokes');
   });
 
+  test('preserves edits and their local copy when an in-flight save loses the network', async ({ page }) => {
+    await seedSimpleMode(page);
+    await installLocalOnlyNetwork(page);
+    let abortSave: (() => Promise<void>) | undefined;
+    await page.route('**/api/topman-daily-brief**', async route => {
+      if (route.request().url().includes('session=1')) return route.fulfill({ json: { ok: true, authenticated: true, expiresAt: Date.now() + 900_000 } });
+      if (route.request().method() === 'POST') { abortSave = () => route.abort('failed'); return; }
+      return route.fulfill({ json: { ok: true, lineConfigured: false, brief: null } });
+    });
+    await page.goto('/dashboard?mode=simple', { waitUntil: 'domcontentloaded' });
+    await waitForEventHandlers(page);
+    await waitForSimpleShell(page);
+    const editor = page.locator('#topman-daily-brief-line');
+    await editor.fill('synthetic submitted before disconnect');
+    await page.locator('[data-action="brief-save"]').click();
+    await expect.poll(() => Boolean(abortSave)).toBe(true);
+    await editor.fill('synthetic later edit preserved offline');
+    await abortSave!();
+    await expect(page.locator('.topman-simple-daily-brief__notice')).toBeVisible();
+    await expect(editor).toHaveValue('synthetic later edit preserved offline');
+    expect(await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('topman-daily-brief-local:')).some(k => JSON.parse(localStorage.getItem(k)!).lineMessage === 'synthetic later edit preserved offline'))).toBe(true);
+  });
+
   test('reviewer sign-in is labeled, masks input, and uses a cookie session without retaining the credential', async ({ page }) => {
     await seedSimpleMode(page);
     await installLocalOnlyNetwork(page);

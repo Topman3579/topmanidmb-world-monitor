@@ -98,7 +98,9 @@ async function saveBrief(brief: Record<string, unknown>, previous: Record<string
     local raw = redis.call('GET', KEYS[1])
     if raw then
       local current = cjson.decode(raw)
-      if tostring(current.revision or current.updatedAt or '') ~= ARGV[1] then return 0 end
+      local revision = current.revision
+      if type(revision) ~= 'string' or revision == '' then revision = current.updatedAt or '' end
+      if tostring(revision) ~= ARGV[1] then return 0 end
       if ARGV[4] ~= 'sent' and redis.call('EXISTS', KEYS[2]) == 1 then return 0 end
     elseif ARGV[1] ~= '' then return 0 end
     redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
@@ -118,7 +120,9 @@ async function claimBriefSend(brief: Record<string, unknown>): Promise<'claimed'
     local raw = redis.call('GET', KEYS[1])
     if not raw then return 0 end
     local current = cjson.decode(raw)
-    if current.status ~= 'approved' or tostring(current.revision or current.updatedAt or '') ~= ARGV[1] then return 0 end
+    local revision = current.revision
+    if type(revision) ~= 'string' or revision == '' then revision = current.updatedAt or '' end
+    if current.status ~= 'approved' or tostring(revision) ~= ARGV[1] then return 0 end
     if redis.call('SET', KEYS[2], 'processing', 'NX', 'EX', ARGV[2]) then return 1 end
     return 0`;
   const result = await redisPipeline([['EVAL', script, '2', briefRedisKey(String(brief.dateKey)), sendClaimKey(brief), revisionOf(brief), String(BRIEF_TTL_SECONDS)]]);
@@ -169,11 +173,11 @@ export default async function handler(request: Request): Promise<Response> {
         return jsonResponse({ ok: false, error: 'UNAUTHORIZED' }, 401);
       }
       const existing = await loadBrief(dateKey);
-      if (existing && (existing.status === 'approved' || existing.status === 'sent')) {
+      if (existing) {
         return jsonResponse({
           ...publicPayload(existing, dateKey),
           generated: false,
-          reason: 'already_locked',
+          reason: 'already_exists',
         }, 200);
       }
       const [insights, core] = await Promise.all([loadInsights(), loadTopmanCoreForBrief()]);
@@ -186,9 +190,11 @@ export default async function handler(request: Request): Promise<Response> {
       const saved = await saveBrief(brief, existing);
       return jsonResponse({
         ...publicPayload(brief, dateKey),
-        generated: true,
+        ok: saved,
+        generated: saved,
         saved,
-      }, 200);
+        ...(saved ? {} : { error: 'STATE_SAVE_FAILED' }),
+      }, saved ? 200 : 503);
     }
 
     const brief = await loadBrief(dateKey);
