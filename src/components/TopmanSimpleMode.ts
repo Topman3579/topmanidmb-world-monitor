@@ -386,8 +386,8 @@ export class TopmanSimpleMode {
             const recovered = JSON.parse(localStorage.getItem(`topman-daily-brief-recovery:${this.dailyBrief.dateKey}`) || 'null');
             if (isTopmanDailyBrief(recovered) && recovered.dateKey === this.dailyBrief.dateKey) {
               this.serverBriefConflict = this.dailyBrief;
-              this.dailyBrief = recovered;
-              saveLocalDailyBrief(recovered);
+              this.dailyBrief = recovered as unknown as TopmanDailyBrief;
+              saveLocalDailyBrief(this.dailyBrief);
               this.briefNotice = topmanText('เรียกสำเนาร่างกลับแล้ว ตรวจเทียบกับฉบับเซิร์ฟเวอร์ก่อนใช้', 'Recovery draft restored; compare with the server version before use');
               this.render();
             }
