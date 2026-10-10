@@ -1,5 +1,8 @@
 const ALLOWED_ORIGIN_PATTERNS = [
   /^https:\/\/(.*\.)?worldmonitor\.app$/,
+  // Exact branded deployment and its project-scoped preview aliases. CORS is
+  // not authorization; mutation handlers still require their own bearer/key.
+  /^https:\/\/topmanidmb-world-monitor(?:-[a-z0-9-]+)?\.vercel\.app$/,
   // Vercel preview deployments under the "eliewm" team scope, e.g.
   //   worldmonitor-git-<branch>-eliewm.vercel.app  (git-branch alias)
   //   worldmonitor-<hash>-eliewm.vercel.app        (deployment URL)

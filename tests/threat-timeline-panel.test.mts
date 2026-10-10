@@ -494,7 +494,7 @@ describe('ThreatTimelinePanel refresh behavior', () => {
       await assert.doesNotReject(() => panel.refresh([fallbackCluster()]));
       await waitForPanelRender();
 
-      assert.equal(fetchCalls, 1, 'refresh attempted the on-demand insights fetch');
+      assert.equal(fetchCalls, 2, 'refresh attempted private insights, then the public GDELT fallback');
       assert.match(contentEl.innerHTML, /Fallback protests spread after outage/);
       assert.match(contentEl.innerHTML, /Keyword fallback/);
       assert.match(contentEl.innerHTML, /Server insight snapshot unavailable/);

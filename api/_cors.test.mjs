@@ -36,6 +36,18 @@ test('rejects unrelated external origins', () => {
   assert.equal(cors['Access-Control-Allow-Credentials'], 'true');
 });
 
+test('allows the TOPMANIDMB production host and project previews', () => {
+  const origins = [
+    'https://topmanidmb-world-monitor.vercel.app',
+    'https://topmanidmb-world-monitor-git-qa-topman.vercel.app',
+  ];
+  for (const origin of origins) {
+    const req = makeRequest(origin);
+    assert.equal(isDisallowedOrigin(req), false, `origin should be allowed: ${origin}`);
+    assert.equal(getCorsHeaders(req)['Access-Control-Allow-Origin'], origin);
+  }
+});
+
 test('requests without origin remain allowed', () => {
   const req = makeRequest(null);
   assert.equal(isDisallowedOrigin(req), false);

@@ -1,8 +1,16 @@
-// TOPMAN daily executive brief — GET public read, POST mutate (admin secret),
+// TOPMAN daily executive brief — GET public read, POST mutate (reviewer session),
 // GET ?generate=1 with CRON_SECRET for 07:30 Asia/Bangkok draft creation.
 
 // @ts-expect-error -- shared JSON helper
-import { jsonResponse } from './_json-response.js';
+import { jsonResponse as baseJsonResponse } from './_json-response.js';
+// @ts-expect-error -- shared reviewer session helper
+import { isAuthorizedReviewer, isReviewerBearer, isSameOriginReviewRequest, issueReviewSession, readReviewSession, reviewCookie } from './_topman-review-session.js';
+// @ts-expect-error -- shared rate limiter
+import { checkRateLimit } from './_rate-limit.js';
+
+function jsonResponse(body: unknown, status: number, headers: Record<string, string> = {}): Response {
+  return baseJsonResponse(body, status, { 'Cache-Control': 'private, no-store', ...headers });
+}
 // @ts-expect-error -- Upstash helpers
 import { readJsonFromUpstash, redisPipeline } from './_upstash-json.js';
 // @ts-expect-error -- LINE helper
@@ -15,6 +23,7 @@ import {
   briefRedisKey,
   buildTopmanDailyBrief,
   isTopmanDailyBrief,
+  isTopmanDailyBriefApprovable,
   markTopmanDailyBriefSent,
   patchTopmanDailyBrief,
 } from '../shared/topman-daily-brief.js';
@@ -24,19 +33,47 @@ export const config = { runtime: 'edge' };
 const BRIEF_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 function adminSecret(): string | undefined {
-  return process.env.TOPMAN_BRIEF_ADMIN_SECRET || process.env.CRON_SECRET;
+  return process.env.TOPMAN_BRIEF_ADMIN_SECRET;
 }
 
-function isAuthorizedAdmin(request: Request): boolean {
-  const secret = adminSecret();
-  if (!secret) return false;
-  return request.headers.get('authorization') === `Bearer ${secret}`;
+async function limitReviewerBearer(request: Request): Promise<Response | null> {
+  if (!request.headers.has('authorization')) return null;
+  return checkRateLimit(request, { 'Cache-Control': 'private, no-store' }, { scope: 'topman-review-login', limit: 5, window: '60 s', failClosed: true });
+}
+
+async function isAuthorizedAdmin(request: Request): Promise<boolean> {
+  return isAuthorizedReviewer(request, adminSecret());
 }
 
 function isAuthorizedCron(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.method !== 'GET') return false;
   return request.headers.get('authorization') === `Bearer ${secret}`;
+}
+
+async function readBriefPayload(request: Request): Promise<unknown> {
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error('INVALID_JSON');
+  const limit = 64 * 1024;
+  let size = 0;
+  const chunks: Uint8Array[] = [];
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { void reader.cancel().catch(() => {}); reject(new Error('BODY_TIMEOUT')); }, 5_000);
+  });
+  try {
+    while (true) {
+      const { done, value } = await Promise.race([reader.read(), deadline]);
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) { void reader.cancel().catch(() => {}); throw new Error('BODY_TOO_LARGE'); }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } finally { clearTimeout(timer); }
 }
 
 async function loadBrief(dateKey: string): Promise<Record<string, unknown> | null> {
@@ -48,13 +85,54 @@ async function loadBrief(dateKey: string): Promise<Record<string, unknown> | nul
   }
 }
 
-async function saveBrief(brief: Record<string, unknown>): Promise<boolean> {
-  const key = briefRedisKey(String(brief.dateKey));
-  const payload = JSON.stringify(brief);
-  const result = await redisPipeline([
-    ['SET', key, payload, 'EX', String(BRIEF_TTL_SECONDS)],
-  ]);
-  return Array.isArray(result);
+function revisionOf(brief: Record<string, unknown> | null): string {
+  return brief ? String(brief.revision || brief.updatedAt || '') : '';
+}
+
+async function saveBrief(brief: Record<string, unknown>, previous: Record<string, unknown> | null): Promise<boolean> {
+  brief.revision = crypto.randomUUID();
+  // Client-only recovery metadata never becomes server authority.
+  delete brief.localEdited;
+  delete brief.serverRevision;
+  const script = `
+    local raw = redis.call('GET', KEYS[1])
+    if raw then
+      if ARGV[1] == '' then return 0 end
+      local current = cjson.decode(raw)
+      local revision = current.revision
+      if type(revision) ~= 'string' or revision == '' then revision = current.updatedAt or '' end
+      if tostring(revision) ~= ARGV[1] then return 0 end
+      if ARGV[4] ~= 'sent' and redis.call('EXISTS', KEYS[2]) == 1 then return 0 end
+    elseif ARGV[1] ~= '' then return 0 end
+    redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+    return 1`;
+  const result = await redisPipeline([['EVAL', script, '2', briefRedisKey(String(brief.dateKey)), previous ? sendClaimKey(previous) : 'topman:daily-brief-send:none', revisionOf(previous), JSON.stringify(brief), String(BRIEF_TTL_SECONDS), String(brief.status)]]);
+  return Array.isArray(result) && result[0]?.result === 1 && !result[0]?.error;
+}
+
+function sendClaimKey(brief: Record<string, unknown>): string {
+  const dateKey = String(brief.dateKey || 'unknown');
+  const revision = String(brief.approvedAt || 'unapproved');
+  return `topman:daily-brief-send:${dateKey}:${revision}`;
+}
+
+async function claimBriefSend(brief: Record<string, unknown>): Promise<'claimed' | 'duplicate' | 'unavailable'> {
+  const script = `
+    local raw = redis.call('GET', KEYS[1])
+    if not raw then return 0 end
+    local current = cjson.decode(raw)
+    local revision = current.revision
+    if type(revision) ~= 'string' or revision == '' then revision = current.updatedAt or '' end
+    if current.status ~= 'approved' or tostring(revision) ~= ARGV[1] then return 0 end
+    if redis.call('SET', KEYS[2], 'processing', 'NX', 'EX', ARGV[2]) then return 1 end
+    return 0`;
+  const result = await redisPipeline([['EVAL', script, '2', briefRedisKey(String(brief.dateKey)), sendClaimKey(brief), revisionOf(brief), String(BRIEF_TTL_SECONDS)]]);
+  if (!result || result[0]?.error) return 'unavailable';
+  return result[0]?.result === 1 ? 'claimed' : 'duplicate';
+}
+
+async function releaseBriefSendClaim(brief: Record<string, unknown>): Promise<void> {
+  await redisPipeline([['DEL', sendClaimKey(brief)]]);
 }
 
 async function loadInsights(): Promise<unknown> {
@@ -82,17 +160,25 @@ export default async function handler(request: Request): Promise<Response> {
     : bangkokDateKey();
 
   if (request.method === 'GET') {
+    if (url.searchParams.get('session') === '1') {
+      const session = await readReviewSession(request, adminSecret());
+      return jsonResponse({ ok: true, authenticated: Boolean(session), expiresAt: session?.expiresAt ?? null }, 200);
+    }
     const wantsGenerate = url.searchParams.get('generate') === '1';
     if (wantsGenerate) {
-      if (!isAuthorizedCron(request) && !isAuthorizedAdmin(request)) {
+      if (!isAuthorizedCron(request)) {
+        const limited = await limitReviewerBearer(request);
+        if (limited) return limited;
+      }
+      if (!isAuthorizedCron(request) && !await isAuthorizedAdmin(request)) {
         return jsonResponse({ ok: false, error: 'UNAUTHORIZED' }, 401);
       }
       const existing = await loadBrief(dateKey);
-      if (existing && (existing.status === 'approved' || existing.status === 'sent')) {
+      if (existing) {
         return jsonResponse({
           ...publicPayload(existing, dateKey),
           generated: false,
-          reason: 'already_locked',
+          reason: 'already_exists',
         }, 200);
       }
       const [insights, core] = await Promise.all([loadInsights(), loadTopmanCoreForBrief()]);
@@ -102,12 +188,14 @@ export default async function handler(request: Request): Promise<Response> {
         existing,
         nowMs: Date.now(),
       });
-      const saved = await saveBrief(brief);
+      const saved = await saveBrief(brief, existing);
       return jsonResponse({
         ...publicPayload(brief, dateKey),
-        generated: true,
+        ok: saved,
+        generated: saved,
         saved,
-      }, 200);
+        ...(saved ? {} : { error: 'STATE_SAVE_FAILED' }),
+      }, saved ? 200 : 503);
     }
 
     const brief = await loadBrief(dateKey);
@@ -118,15 +206,6 @@ export default async function handler(request: Request): Promise<Response> {
     return jsonResponse({ ok: false, error: 'METHOD_NOT_ALLOWED' }, 405);
   }
 
-  if (!isAuthorizedAdmin(request)) {
-    return jsonResponse({
-      ok: false,
-      error: 'UNAUTHORIZED',
-      detail: 'ต้องใช้ Bearer TOPMAN_BRIEF_ADMIN_SECRET หรือ CRON_SECRET',
-      lineConfigured: isLineConfigured(),
-      dateKey,
-    }, 401);
-  }
 
   let payload: {
     action?: string;
@@ -134,14 +213,32 @@ export default async function handler(request: Request): Promise<Response> {
     lineMessage?: string;
     memoMarkdown?: string;
     brief?: Record<string, unknown>;
+    expectedRevision?: string | null;
   } = {};
   try {
-    payload = await request.json();
-  } catch {
-    return jsonResponse({ ok: false, error: 'INVALID_JSON' }, 400);
+    payload = await readBriefPayload(request) as typeof payload;
+  } catch (error) {
+    const code = error instanceof Error && ['BODY_TOO_LARGE', 'BODY_TIMEOUT'].includes(error.message) ? error.message : 'INVALID_JSON';
+    return jsonResponse({ ok: false, error: code }, code === 'BODY_TOO_LARGE' ? 413 : code === 'BODY_TIMEOUT' ? 408 : 400);
   }
 
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return jsonResponse({ ok: false, error: 'INVALID_JSON' }, 400);
   const action = payload.action || 'save';
+  if (action === 'login' || action === 'logout') {
+    if (!isSameOriginReviewRequest(request)) return jsonResponse({ ok: false, error: 'ORIGIN_REJECTED' }, 403);
+    if (action === 'logout') return jsonResponse({ ok: true, authenticated: false }, 200, { 'Set-Cookie': reviewCookie() });
+    const limited = await checkRateLimit(request, { 'Cache-Control': 'private, no-store' }, { scope: 'topman-review-login', limit: 5, window: '60 s', failClosed: true });
+    if (limited) return limited;
+    if (!await isReviewerBearer(request, adminSecret())) return jsonResponse({ ok: false, error: 'UNAUTHORIZED' }, 401);
+    const session = await issueReviewSession(request, adminSecret());
+    if (!session) return jsonResponse({ ok: false, error: 'UNAUTHORIZED' }, 401);
+    return jsonResponse({ ok: true, authenticated: true, expiresAt: session.expiresAt }, 200, { 'Set-Cookie': reviewCookie(session.token) });
+  }
+  const limitedBearer = await limitReviewerBearer(request);
+  if (limitedBearer) return limitedBearer;
+  if (!await isAuthorizedAdmin(request)) {
+    return jsonResponse({ ok: false, error: 'UNAUTHORIZED', lineConfigured: isLineConfigured(), dateKey }, 401);
+  }
   const targetDate = payload.dateKey && /^\d{4}-\d{2}-\d{2}$/.test(payload.dateKey)
     ? payload.dateKey
     : dateKey;
@@ -155,6 +252,9 @@ export default async function handler(request: Request): Promise<Response> {
         error: 'LOCKED',
         detail: 'บรีฟที่อนุมัติหรือส่งแล้วจะไม่ถูกสร้างใหม่',
       }, 409);
+    }
+    if (existing && payload.expectedRevision !== revisionOf(existing)) {
+      return jsonResponse({ ...publicPayload(existing, targetDate), ok: false, error: 'REVISION_CONFLICT' }, 409);
     }
     const [insights, core] = await Promise.all([loadInsights(), loadTopmanCoreForBrief()]);
     let toSave = buildTopmanDailyBrief({
@@ -180,25 +280,52 @@ export default async function handler(request: Request): Promise<Response> {
           : toSave.memoMarkdown,
       };
     }
-    await saveBrief(toSave);
+    const saved = await saveBrief(toSave, existing);
+    if (!saved) {
+      return jsonResponse({
+        ...publicPayload(toSave, targetDate),
+        ok: false,
+        error: 'STATE_SAVE_FAILED',
+        detail: 'สร้างร่างแล้ว แต่บันทึกสถานะไม่สำเร็จ',
+      }, 503);
+    }
     return jsonResponse(publicPayload(toSave, targetDate), 200);
   }
 
-  let brief = await loadBrief(targetDate);
+  const storedBrief = await loadBrief(targetDate);
+  if ((action === 'save' || action === 'approve') && storedBrief) {
+    if (storedBrief.status === 'sent') return jsonResponse({ ...publicPayload(storedBrief, targetDate), ok: false, error: 'ALREADY_SENT' }, 409);
+    if (payload.expectedRevision !== String(storedBrief.revision || storedBrief.updatedAt || '')) {
+      return jsonResponse({ ...publicPayload(storedBrief, targetDate), ok: false, error: 'REVISION_CONFLICT' }, 409);
+    }
+  }
+  let brief = storedBrief;
   if (!brief && isTopmanDailyBrief(payload.brief)) {
-    brief = payload.brief as Record<string, unknown>;
+    // Client metadata cannot establish approval or delivery authority.
+    brief = { ...payload.brief as Record<string, unknown>, status: 'draft', approvedAt: null, sentAt: null };
   }
   if (!brief) {
     const [insights, core] = await Promise.all([loadInsights(), loadTopmanCoreForBrief()]);
     brief = buildTopmanDailyBrief({ insights, core, nowMs: Date.now() });
   }
+  // Requests may target a historical day. Never allow a client-supplied or
+  // freshly generated current-day dateKey to select a different Redis key.
+  brief = { ...brief, dateKey: targetDate };
 
   if (action === 'save') {
     brief = patchTopmanDailyBrief(brief, {
       lineMessage: payload.lineMessage,
       memoMarkdown: payload.memoMarkdown,
     });
-    await saveBrief(brief);
+    const saved = await saveBrief(brief, storedBrief);
+    if (!saved) {
+      return jsonResponse({
+        ...publicPayload(brief, targetDate),
+        ok: false,
+        error: 'STATE_SAVE_FAILED',
+        detail: 'แก้ไขร่างแล้ว แต่บันทึกสถานะไม่สำเร็จ',
+      }, 503);
+    }
     return jsonResponse(publicPayload(brief, targetDate), 200);
   }
 
@@ -207,13 +334,47 @@ export default async function handler(request: Request): Promise<Response> {
       lineMessage: payload.lineMessage,
       memoMarkdown: payload.memoMarkdown,
     });
+    if (!isTopmanDailyBriefApprovable(brief)) {
+      return jsonResponse({
+        ...publicPayload(brief, targetDate),
+        ok: false,
+        error: 'INSUFFICIENT_EVIDENCE',
+        detail: 'ยังไม่มีข้อเท็จจริง แหล่งอ้างอิง และที่มาข้อมูลเพียงพอสำหรับอนุมัติ',
+      }, 409);
+    }
     brief = approveTopmanDailyBrief(brief);
-    await saveBrief(brief);
+    const saved = await saveBrief(brief, storedBrief);
+    if (!saved) {
+      return jsonResponse({
+        ...publicPayload(brief, targetDate),
+        ok: false,
+        error: 'STATE_SAVE_FAILED',
+        detail: 'อนุมัติแล้ว แต่บันทึกสถานะไม่สำเร็จ จึงยังส่ง LINE ไม่ได้',
+      }, 503);
+    }
     return jsonResponse(publicPayload(brief, targetDate), 200);
   }
 
   if (action === 'send') {
-    if (brief.status !== 'approved' && brief.status !== 'sent') {
+    // Delivery must only use the server-side revision that was persisted and
+    // approved. A client-provided "approved" object is never sufficient.
+    if (!storedBrief) {
+      return jsonResponse({
+        ...publicPayload(brief, targetDate),
+        ok: false,
+        error: 'NOT_APPROVED',
+        detail: 'ไม่พบฉบับที่บันทึกและอนุมัติบนเซิร์ฟเวอร์',
+      }, 409);
+    }
+    if (brief.status === 'sent') {
+      return jsonResponse({
+        ...publicPayload(brief, targetDate),
+        ok: false,
+        error: 'ALREADY_SENT',
+        detail: 'บรีฟนี้ส่ง LINE OA แล้ว หากต้องส่งซ้ำให้สร้างร่างและอนุมัติใหม่',
+      }, 409);
+    }
+    if (brief.status !== 'approved') {
       return jsonResponse({
         ...publicPayload(brief, targetDate),
         ok: false,
@@ -221,12 +382,47 @@ export default async function handler(request: Request): Promise<Response> {
         detail: 'ต้องกดอนุมัติก่อนส่ง LINE OA',
       }, 409);
     }
-    brief = patchTopmanDailyBrief(brief, {
-      lineMessage: payload.lineMessage,
-      memoMarkdown: payload.memoMarkdown,
-    });
-    const push = await pushLineTextMessage(String(brief.lineMessage || ''));
+    if (
+      (typeof payload.lineMessage === 'string' && payload.lineMessage !== brief.lineMessage)
+      || (typeof payload.memoMarkdown === 'string' && payload.memoMarkdown !== brief.memoMarkdown)
+    ) {
+      return jsonResponse({
+        ...publicPayload(brief, targetDate),
+        ok: false,
+        error: 'APPROVAL_STALE',
+        detail: 'ข้อความเปลี่ยนหลังอนุมัติ ต้องบันทึกและอนุมัติใหม่ก่อนส่ง',
+      }, 409);
+    }
+    const sendClaim = await claimBriefSend(brief);
+    if (sendClaim === 'unavailable') {
+      return jsonResponse({
+        ...publicPayload(brief, targetDate),
+        ok: false,
+        error: 'SEND_GUARD_UNAVAILABLE',
+        detail: 'ระบบป้องกันการส่งซ้ำไม่พร้อม จึงยังไม่ส่ง LINE',
+      }, 503);
+    }
+    if (sendClaim === 'duplicate') {
+      return jsonResponse({
+        ...publicPayload(brief, targetDate),
+        ok: false,
+        error: 'SEND_IN_PROGRESS',
+        detail: 'บรีฟฉบับที่อนุมัตินี้กำลังส่งหรือส่งแล้ว ระบบป้องกันการส่งซ้ำ',
+      }, 409);
+    }
+    let push;
+    try {
+      push = await pushLineTextMessage(String(brief.lineMessage || ''));
+    } catch {
+      // The provider may already have accepted the request. Keep the claim;
+      // retrying an ambiguous delivery could send the same revision twice.
+      return jsonResponse({ ...publicPayload(brief, targetDate), ok: false, error: 'DELIVERY_UNCONFIRMED', detail: 'ยังยืนยันผลส่งไม่ได้ ระบบล็อกฉบับนี้ไว้ ให้ตรวจผลรับก่อนดำเนินการต่อ' }, 502);
+    }
     if (!push.ok) {
+      if ((push.status ?? 0) >= 500) {
+        return jsonResponse({ ...publicPayload(brief, targetDate), ok: false, error: 'DELIVERY_UNCONFIRMED', detail: 'ผู้ให้บริการยังยืนยันผลส่งไม่ได้ ระบบล็อกฉบับนี้ไว้ ให้ตรวจผลรับก่อนดำเนินการต่อ' }, 502);
+      }
+      await releaseBriefSendClaim(brief);
       return jsonResponse({
         ...publicPayload(brief, targetDate),
         ok: false,
@@ -235,7 +431,15 @@ export default async function handler(request: Request): Promise<Response> {
       }, push.error === 'LINE_NOT_CONFIGURED' ? 503 : 502);
     }
     brief = markTopmanDailyBriefSent(brief);
-    await saveBrief(brief);
+    const saved = await saveBrief(brief, storedBrief);
+    if (!saved) {
+      return jsonResponse({
+        ...publicPayload(brief, targetDate),
+        ok: false,
+        error: 'STATE_SAVE_FAILED',
+        detail: 'LINE ถูกส่งแล้ว แต่บันทึกสถานะไม่สำเร็จ ระบบยังล็อกไว้เพื่อป้องกันการส่งซ้ำ',
+      }, 502);
+    }
     return jsonResponse({ ...publicPayload(brief, targetDate), sent: true }, 200);
   }
 

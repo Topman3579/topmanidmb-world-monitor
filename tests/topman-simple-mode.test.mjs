@@ -40,6 +40,9 @@ describe('TOPMAN Simple Mode wiring', () => {
     assert.match(simpleCss, /grid-template-columns:\s*repeat\(3/);
     assert.match(simpleCss, /#topmanSimpleModeBelow/);
     assert.match(simpleCss, /topman-tour-spotlight/);
+    assert.match(simpleCss, /topman-ui-mode-simple \.main-content \.panels-grid\s*\{[\s\S]*display:\s*none !important/);
+    assert.match(simpleCss, /topman-ui-mode-simple \.main-content \.panels-grid\s*\{[\s\S]*visibility:\s*hidden !important/);
+    assert.match(simpleCss, /topman-ui-mode-simple \.main-content \.panels-grid\s*\{[\s\S]*max-height:\s*0 !important/);
     // Auth mount stays in layout for CLS/e2e header reservation (not display:none).
     assert.match(simpleCss, /\.auth-widget-mount\s*\{[\s\S]*opacity:/);
     assert.doesNotMatch(
@@ -75,5 +78,12 @@ describe('TOPMAN Simple Mode wiring', () => {
     assert.match(simpleModeTs, /data-tour="health-strip"/);
     assert.match(simpleModeTs, /fetchCompactSystemHealthBrief/);
     assert.match(simpleCss, /topman-simple-health-strip/);
+  });
+
+  it('keeps simple mode unobstructed and requires an approvable brief before delivery', () => {
+    // Approved/sent regeneration is covered behaviorally in topman-daily-brief.test.mts.
+    assert.match(simpleCss, /topman-ui-mode-simple \.community-widget\s*\{[\s\S]*display:\s*none !important/);
+    assert.match(simpleModeTs, /isTopmanDailyBriefApprovable/);
+    assert.match(simpleModeTs, /brief\.status !== 'approved'/);
   });
 });

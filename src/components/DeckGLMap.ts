@@ -3,11 +3,16 @@
  * Uses deck.gl for high-performance rendering of large datasets
  * Mobile devices gracefully degrade to the D3/SVG-based Map component
  */
-import { MapboxOverlay } from '@deck.gl/mapbox';
+import { MapLibreOverlay } from '@deck.gl/maplibre';
 import type { Layer, LayersList, PickingInfo } from '@deck.gl/core';
 import { GeoJsonLayer, ScatterplotLayer, PathLayer, IconLayer, TextLayer, PolygonLayer } from '@deck.gl/layers';
-import maplibregl from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';
 import type { StyleSpecification } from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+
+// MapLibre GL JS v6 is ESM-only and does not resolve its module worker from a
+// bundled import.meta.url. Vite's worker pipeline emits a self-contained chunk.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 import { FALLBACK_DARK_STYLE, FALLBACK_LIGHT_STYLE, getMapProvider, getMapTheme, isLightMapTheme } from '@/config/basemap';
 import { getStyleForProvider } from '@/config/basemap-styles';
 import Supercluster from 'supercluster';
@@ -502,7 +507,7 @@ const DECK_INTERLEAVED_RACE_SOURCE_RE = /(?:^|[/(])deck-stack-[A-Za-z0-9_-]+\.js
  * custom-layer hook → deck iterates the layer list and hits a layer that was
  * finalized between resolveLayers and renderLayers.
  *
- * MapboxOverlay's own onError is bypassed because maplibre — not deck — owns
+ * MapLibreOverlay's own onError is bypassed because maplibre — not deck — owns
  * the render-loop callstack here (deck doesn't see the throw, so onError is
  * never invoked). The next frame renders cleanly with no user-visible
  * artifact, so swallowing here is safe.
@@ -541,7 +546,7 @@ export class DeckGLMap {
   private static readonly MAX_CLUSTER_LEAVES = 200;
 
   private container: HTMLElement;
-  private deckOverlay: MapboxOverlay | null = null;
+  private deckOverlay: MapLibreOverlay | null = null;
   private maplibreMap: maplibregl.Map | null = null;
   private state: DeckMapState;
   private popup: MapPopup;
@@ -991,7 +996,7 @@ export class DeckGLMap {
     wrapper.id = 'deckglMapWrapper';
     wrapper.style.cssText = 'position: relative; width: 100%; height: 100%; overflow: hidden;';
 
-    // MapLibre container - deck.gl renders directly into MapLibre via MapboxOverlay
+    // MapLibre container - deck.gl renders directly into MapLibre via MapLibreOverlay
     const mapContainer = document.createElement('div');
     mapContainer.id = 'deckgl-basemap';
     mapContainer.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%;';
@@ -1117,8 +1122,8 @@ export class DeckGLMap {
     let tileLoadOk = false;
     let tileErrorCount = 0;
 
-    this.maplibreMap.on('error', (e: { error?: Error; message?: string }) => {
-      const msg = e.error?.message ?? e.message ?? '';
+    this.maplibreMap.on('error', (e) => {
+      const msg = e.error?.message ?? '';
       console.warn('[DeckGLMap] map error:', msg);
       if (msg.includes('Failed to fetch') || msg.includes('AJAXError') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('403') || msg.includes('Forbidden')) {
         tileErrorCount++;
@@ -1185,7 +1190,7 @@ export class DeckGLMap {
 
     installDeckInterleavedRaceFilter();
 
-    this.deckOverlay = new MapboxOverlay({
+    this.deckOverlay = new MapLibreOverlay({
       interleaved: true,
       layers: this.buildLayers(true),
       getTooltip: (info: PickingInfo) => this.getTooltip(info),
@@ -7674,9 +7679,9 @@ export class DeckGLMap {
       if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
     };
 
-    const onError = (e: { error?: Error; message?: string }) => {
+    const onError = (e: { error?: { message?: string } }) => {
       if (gen !== this.tileMonitorGeneration) { cleanup(); return; }
-      const msg = e.error?.message ?? e.message ?? '';
+      const msg = e.error?.message ?? '';
       if (msg.includes('Failed to fetch') || msg.includes('AJAXError') || msg.includes('CORS') || msg.includes('NetworkError') || msg.includes('403') || msg.includes('Forbidden')) {
         errCount++;
         if (!ok && errCount >= 2) {

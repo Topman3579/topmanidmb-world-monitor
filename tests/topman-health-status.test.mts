@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'node:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -47,6 +47,7 @@ async function loadTopmanHealthModule(): Promise<TopmanHealthModule> {
 
 const {
   buildTopmanHealthPresentation,
+  __resetTopmanHealthSnapshotForTests,
   classifyCompactSystemHealth,
   classifyTopmanHealthPayload,
   fetchTopmanHealthSnapshot,
@@ -54,6 +55,7 @@ const {
   formatSystemHealthBrief,
   formatTopmanHealthLabel,
   getTopmanSourceHref,
+  getLatestTopmanHealthSnapshot,
   TOPMAN_HEALTH_POLL_INTERVAL_MS,
 } = await loadTopmanHealthModule();
 
@@ -173,6 +175,10 @@ describe('TOPMAN health classification', () => {
 });
 
 describe('TOPMAN health transport and presentation', () => {
+  beforeEach(() => {
+    __resetTopmanHealthSnapshotForTests();
+  });
+
   it('reads the dedicated TOPMAN core status endpoint by default', async () => {
     let requestedUrl = '';
     await fetchTopmanHealthSnapshot({
@@ -208,6 +214,26 @@ describe('TOPMAN health transport and presentation', () => {
 
     assert.equal(transportFailure.state, 'unavailable');
     assert.equal(httpFailure.state, 'unavailable');
+  });
+
+  it('reuses one recently verified snapshot when a parallel UI request fails', async () => {
+    const verified = await fetchTopmanHealthSnapshot({
+      fetchFn: (async () => ({
+        ok: true,
+        status: 200,
+        json: async () => healthPayload({ status: 'WARNING', ok: 5, warn: 1 }),
+      } as Response)) as typeof fetch,
+      now: () => NOW_MS,
+    });
+    const fallback = await fetchTopmanHealthSnapshot({
+      fetchFn: (async () => { throw new Error('transient network failure'); }) as typeof fetch,
+      now: () => NOW_MS,
+    });
+
+    assert.equal(verified.state, 'partial');
+    assert.equal(fallback.state, 'partial');
+    assert.equal(fallback.checkedAtMs, NOW_MS);
+    assert.equal(getLatestTopmanHealthSnapshot(NOW_MS)?.summary.ok, 5);
   });
 
   it('bounds a hung health request and aborts its transport', async () => {

@@ -35,11 +35,20 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { isApiCallTarget } from '../src/services/wm-session.ts';
+import { isApiCallTarget, isCredentiallessPublicDataRequest } from '../src/services/wm-session.ts';
 
 const CANONICAL_ORIGIN = 'https://api.worldmonitor.app';
 
 describe('wm-session interceptor URL matcher (PR #3574 regression)', () => {
+  it('lets only exact public TOPMAN health shapes bypass a dead session', () => {
+    assert.equal(isCredentiallessPublicDataRequest('/api/topman-core-status', { credentials: 'omit' }, '/api/topman-core-status'), true);
+    assert.equal(isCredentiallessPublicDataRequest('/api/health?compact=1', { credentials: 'omit' }, '/api/health?compact=1'), true);
+    assert.equal(isCredentiallessPublicDataRequest('/api/health', { credentials: 'omit' }, '/api/health'), false);
+    assert.equal(isCredentiallessPublicDataRequest('/api/health?compact=1&extra=1', { credentials: 'omit' }, '/api/health?compact=1&extra=1'), false);
+    assert.equal(isCredentiallessPublicDataRequest('/api/topman-core-status', { credentials: 'same-origin' }, '/api/topman-core-status'), true);
+    assert.equal(isCredentiallessPublicDataRequest('/api/topman-core-status', { credentials: 'include' }, '/api/topman-core-status'), false);
+  });
+
   it('matches a relative /api/ path even when apiOrigin is empty', () => {
     // Same-origin code paths (e.g. dev server proxy) build URLs as
     // `/api/bootstrap` directly. Must always intercept these.

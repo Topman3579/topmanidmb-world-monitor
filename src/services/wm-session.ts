@@ -245,13 +245,16 @@ export function isApiCallTarget(url: string, apiOrigin: string): boolean {
   return parsed.origin === apiOrigin && parsed.pathname.startsWith('/api/');
 }
 
-function isCredentiallessPublicDataRequest(
+export function isCredentiallessPublicDataRequest(
   input: RequestInfo | URL,
   init: RequestInit | undefined,
   url: string,
 ): boolean {
   const credentials = init?.credentials ?? (input instanceof Request ? input.credentials : undefined);
-  if (credentials !== 'omit') return false;
+  // `same-origin` keeps Vercel Preview's own access cookie while these exact
+  // public GET shapes bypass only the World Monitor session bootstrap. No
+  // Authorization or API-key header is added on this path.
+  if (credentials !== 'omit' && credentials !== 'same-origin') return false;
 
   let parsed: URL;
   try {

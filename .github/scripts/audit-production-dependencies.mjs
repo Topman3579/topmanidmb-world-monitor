@@ -14,15 +14,12 @@ const SEVERITY_RANK = new Map([
 ]);
 
 export const BASELINE_ADVISORIES_BY_LOCKFILE = {
-  'package-lock.json': [
-    // No patched image-size release exists yet. The lock-shape regression test
-    // limits these exceptions to browser-inaccessible Metro/texture tooling.
-    'GHSA-5p2g-fcmc-qvqq',
-    'GHSA-w3rx-r6r6-pgpr',
-  ],
+  'package-lock.json': [],
   'consumer-prices-core/package-lock.json': [],
   'blog-site/package-lock.json': [],
-  // Same no-fix Metro-only path as the root lockfile, guarded below by tests.
+  // Clerk 5 still retains Metro in pro-test. The lock-shape regression test
+  // limits this existing image-size 1.x exception to that non-runtime tooling;
+  // Clerk 6 has removed the path from the root lockfile entirely.
   'pro-test/package-lock.json': ['GHSA-5p2g-fcmc-qvqq', 'GHSA-w3rx-r6r6-pgpr'],
   'scripts/package-lock.json': [],
   'docker/runtime-package-lock.json': [],
