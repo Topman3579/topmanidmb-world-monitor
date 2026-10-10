@@ -69,12 +69,9 @@ describe('scripts workspace brace-expansion compatibility', () => {
       version: minimatch5.require('brace-expansion/package.json').version,
     };
 
-    assert.equal(braceV1.version, '1.1.17');
-    assert.equal(braceV2.version, '2.1.3');
-    assert.deepEqual(
-      BASELINE_ADVISORIES_BY_LOCKFILE['scripts/package-lock.json'],
-      ['GHSA-4cwx-7wf7-3272', 'GHSA-mh99-v99m-4gvg', 'GHSA-mwp4-54f8-5fhr', 'GHSA-rgw5-rvv9-x895'],
-    );
+    assert.equal(braceV1.version, '1.1.18');
+    assert.equal(braceV2.version, '2.1.4');
+    assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['scripts/package-lock.json'], []);
 
     for (const brace of [braceV1.module, braceV2.module]) {
       const expanded = brace('{a,b}'.repeat(10), { maxLength: 100 });

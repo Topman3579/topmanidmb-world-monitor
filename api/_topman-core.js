@@ -474,3 +474,37 @@ export async function readTopmanCoreSnapshot({
       : {}),
   };
 }
+
+/**
+ * Map a Core 6 snapshot into the bag expected by buildTopmanDailyBrief().
+ * Missing datasets stay null so the composer can skip them honestly.
+ */
+export function corePayloadForDailyBrief(snapshot) {
+  const data = snapshot?.data;
+  if (!data || typeof data !== 'object') return null;
+  const payload = {
+    earthquakes: data.earthquakes ?? null,
+    weatherAlerts: data.weatherAlerts ?? null,
+    naturalEvents: data.naturalEvents ?? null,
+    gdeltIntel: data.gdeltIntel ?? null,
+    commodities: data.commodityQuotes ?? data.commodities ?? null,
+    fxRates: data.ecbFxRates ?? data.fxRates ?? null,
+  };
+  return Object.values(payload).some((value) => value != null) ? payload : null;
+}
+
+export async function loadTopmanCoreForBrief({
+  executePipeline = redisPipeline,
+  now = Date.now,
+} = {}) {
+  try {
+    const snapshot = await readTopmanCoreSnapshot({
+      includeData: true,
+      executePipeline,
+      now,
+    });
+    return corePayloadForDailyBrief(snapshot);
+  } catch {
+    return null;
+  }
+}

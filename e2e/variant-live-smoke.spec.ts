@@ -125,7 +125,9 @@ test.describe('variant live reliability smoke', () => {
       consoleIssues.push({ type: msg.type(), text: msg.text() });
     });
 
-    await page.goto('/?variantSmoke=1', { waitUntil: 'domcontentloaded' });
+    // These assertions exercise the full dashboard panel contract.
+    await page.goto('/?variantSmoke=1&mode=advanced', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('html')).toHaveAttribute('data-topman-ui-mode', 'advanced');
     await expect(page.locator('body')).toBeVisible();
 
     await expect

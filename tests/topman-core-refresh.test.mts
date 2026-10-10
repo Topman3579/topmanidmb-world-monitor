@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 
 import {
   type PublishableDataset,
+  GDELT_FETCH_TIMEOUT_MS,
+  GDELT_429_WAIT_MS,
+  REFRESH_FETCH_BUDGET_MS,
+  REFRESH_POST_FETCH_RESERVE_MS,
   assertUpstreamArrayPayload,
   classifyRefreshError,
   countUniqueGdeltTopicArticles,
@@ -19,7 +23,7 @@ import {
   publishDatasets,
   recordRefreshAttempts,
 } from '../api/topman-core-refresh.ts';
-import handler from '../api/topman-core-refresh.ts';
+import handler, { config as refreshConfig } from '../api/topman-core-refresh.ts';
 
 function datasetFixture(name: string): PublishableDataset {
   return {
@@ -68,12 +72,124 @@ describe('TOPMAN core refresh authorization', () => {
     const vercelConfig = JSON.parse(readFileSync(
       fileURLToPath(new URL('../vercel.json', import.meta.url)),
       'utf8',
-    )) as { crons?: Array<{ path: string; schedule: string }> };
-    assert.deepEqual(vercelConfig.crons, [
+    )) as {
+      crons?: Array<{ path: string; schedule: string }>;
+      functions?: Record<string, { maxDuration?: number }>;
+    };
+    assert.deepEqual(vercelConfig.crons?.filter(({ path }) => path.startsWith('/api/topman-core-refresh')), [
       { path: '/api/topman-core-refresh?group=fast', schedule: '*/15 * * * *' },
       { path: '/api/topman-core-refresh?group=market', schedule: '3,23,43 * * * *' },
       { path: '/api/topman-core-refresh?group=slow', schedule: '7 */3 * * *' },
     ]);
+    assert.ok(
+      (vercelConfig.functions?.['api/topman-core-refresh.ts']?.maxDuration ?? 0) >= 60,
+      'Pro default 15s kills GDELT (~20s); vercel.json must raise maxDuration',
+    );
+  });
+
+  it('gives GDELT a Node budget that exceeds the measured 20s DOC latency', () => {
+    assert.equal(refreshConfig.runtime, 'nodejs');
+    assert.ok((refreshConfig.maxDuration ?? 0) >= 60);
+    assert.deepEqual(refreshConfig.regions, ['iad1']);
+    assert.ok(GDELT_FETCH_TIMEOUT_MS >= 30_000);
+    assert.ok(GDELT_FETCH_TIMEOUT_MS + 5_000 <= (refreshConfig.maxDuration ?? 0) * 1000);
+    // The single-shot fetch timeout may fill the whole fetch budget; when a 429
+    // retry fires, the remaining budget bounds both its timeout and its 6s wait
+    // (fail-fast when it cannot afford the wait). Post-fetch Redis work
+    // (publish 10s + attempts 5s + lock release 5s) is reserved on top.
+    assert.ok(
+      REFRESH_FETCH_BUDGET_MS + REFRESH_POST_FETCH_RESERVE_MS + 5_000 <= (refreshConfig.maxDuration ?? 0) * 1000,
+      'fetch budget + post-fetch reserve must fit maxDuration with slack',
+    );
+
+    const source = readFileSync(
+      fileURLToPath(new URL('../api/topman-core-refresh.ts', import.meta.url)),
+      'utf8',
+    );
+    assert.doesNotMatch(source, /classifyRefreshError\(error\) === 'TIMEOUT'/);
+    assert.match(source, /maxrecords=25/);
+    assert.doesNotMatch(source, /OR conflict OR military OR typhoon/);
+  });
+
+  it('waits out GDELT\'s documented 5-second window when 429 comes with no Retry-After', async () => {
+    const previousFetch = globalThis.fetch;
+    const previousSecret = process.env.CRON_SECRET;
+    const previousRedisUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const previousRedisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    const upstreamCalls: number[] = [];
+    let upstreamResponses = 0;
+    const startedAt = Date.now();
+
+    process.env.CRON_SECRET = 'test-secret';
+    process.env.UPSTASH_REDIS_REST_URL = 'https://redis.test';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+    globalThis.fetch = (async (input, init) => {
+      const url = requestUrl(input);
+      if (url.startsWith('https://redis.test/')) {
+        const pipeline = JSON.parse(typeof init?.body === 'string' ? init.body : '[]') as unknown[][];
+        // EVAL publish returns the number of datasets it wrote; SET commands return OK.
+        return responseJson(pipeline.map((command) => (Array.isArray(command) && command[0] === 'EVAL'
+          ? { result: Number(command[2]) / 3 }
+          : { result: 'OK' })));
+      }
+      if (url.startsWith('https://api.gdeltproject.org/')) {
+        upstreamCalls.push(Date.now() - startedAt);
+        upstreamResponses += 1;
+        if (upstreamResponses === 1) {
+          return new Response('Please limit requests to one every 5 seconds', { status: 429 });
+        }
+        return responseJson({ articles: [{ url: 'https://example.test/a', title: 'T', seendate: '20260823T000000Z', domain: 'example.test' }] });
+      }
+      if (url.startsWith('https://eonet.gsfc.nasa.gov/')) {
+        return responseJson({ events: [] });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as typeof fetch;
+
+    try {
+      const response = await handler(new Request(
+        'https://example.test/api/topman-core-refresh?group=slow',
+        { headers: { Authorization: 'Bearer test-secret' } },
+      ));
+      assert.equal(response.status, 200);
+      assert.ok(upstreamCalls.length >= 2, `expected a retry, got ${upstreamCalls.length} upstream calls`);
+      const gap = upstreamCalls[1]! - upstreamCalls[0]!;
+      assert.ok(
+        gap >= GDELT_429_WAIT_MS - 250,
+        `retry gap ${gap}ms must honor GDELT's 5s window (>= ${GDELT_429_WAIT_MS - 250}ms)`,
+      );
+    } finally {
+      globalThis.fetch = previousFetch;
+      restoreEnvironment('CRON_SECRET', previousSecret);
+      restoreEnvironment('UPSTASH_REDIS_REST_URL', previousRedisUrl);
+      restoreEnvironment('UPSTASH_REDIS_REST_TOKEN', previousRedisToken);
+    }
+  });
+
+  it('adapts Node IncomingMessage handlers that lack headers.get', async () => {
+    const previousSecret = process.env.CRON_SECRET;
+    delete process.env.CRON_SECRET;
+    const headers: Record<string, string> = {};
+    let body = '';
+    const res = {
+      statusCode: 0,
+      setHeader(name: string, value: string) { headers[name.toLowerCase()] = value; },
+      end(chunk?: string | Uint8Array) {
+        body = typeof chunk === 'string' ? chunk : Buffer.from(chunk ?? []).toString('utf8');
+      },
+    };
+
+    try {
+      await handler({
+        method: 'GET',
+        url: '/api/topman-core-refresh?group=slow',
+        headers: { host: 'example.test' },
+      }, res);
+      assert.equal(res.statusCode, 503);
+      assert.equal(JSON.parse(body).status, 'NOT_CONFIGURED');
+    } finally {
+      restoreEnvironment('CRON_SECRET', previousSecret);
+    }
   });
 });
 

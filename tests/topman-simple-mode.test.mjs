@@ -80,10 +80,8 @@ describe('TOPMAN Simple Mode wiring', () => {
     assert.match(simpleCss, /topman-simple-health-strip/);
   });
 
-  it('protects approved or sent briefs before rebuilding and keeps simple mode unobstructed', () => {
-    const guard = simpleModeTs.indexOf("existing.status === 'approved' || existing.status === 'sent'");
-    const rebuild = simpleModeTs.indexOf('this.dailyBrief = buildTopmanDailyBriefFromSummary', guard);
-    assert.ok(guard >= 0 && rebuild > guard, 'approved/sent guard must run before rebuilding the brief');
+  it('keeps simple mode unobstructed and requires an approvable brief before delivery', () => {
+    // Approved/sent regeneration is covered behaviorally in topman-daily-brief.test.mts.
     assert.match(simpleCss, /topman-ui-mode-simple \.community-widget\s*\{[\s\S]*display:\s*none !important/);
     assert.match(simpleModeTs, /isTopmanDailyBriefApprovable/);
     assert.match(simpleModeTs, /brief\.status !== 'approved'/);

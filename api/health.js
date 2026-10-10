@@ -9,21 +9,47 @@ import { unwrapEnvelope } from './_seed-envelope.js';
 // @ts-expect-error — JS module, no declaration file
 import { redisPipeline, getRedisCredentials } from './_upstash-json.js';
 import { CII_RISK_SCORE_CACHE_KEYS } from './_cii-risk-cache-keys.js';
+// Fork scope: the 6 TOPMAN Core datasets (topman:core:*) are this fork's
+// primary owned workload. Under WM_HEALTH_SCOPE=fork their freshness is
+// folded into /api/health itself (one extra pipeline) so a dead core lane
+// can never read as HEALTHY. Unset scope keeps /api/health byte-identical
+// and the core contract stays at /api/topman-core-status.
+// @ts-expect-error — JS module, no declaration file
+import { TOPMAN_CORE_DATASETS, readTopmanCoreSnapshot } from './_topman-core.js';
 
 export const config = { runtime: 'edge' };
+
+// Fork data-plane scoping (2026-08-22). This deployment runs only the isolated
+// TOPMAN Core cron lane (6 datasets under topman:core:*) — it has no Railway
+// seed plane, so the inherited ~232-key registry reports ~174 phantom CRIT
+// (EMPTY) checks that no operator action on this deployment can clear.
+// WM_HEALTH_SCOPE=fork narrows /api/health to the data plane this deployment
+// actually owns: the 6 TOPMAN Core datasets plus static-reference seeds that
+// ship with long-lived data keys. Every other inherited registry entry is
+// reported once as a single informational `inheritedRegistry` problem entry
+// instead of individual CRITs, so the public contract reflects reality
+// (fail-closed) without pretending the fork is the upstream deployment.
+// Unset (upstream default) keeps the full registry sweep byte-identical.
+const HEALTH_SCOPE_FORK = (process.env.WM_HEALTH_SCOPE ?? '').toLowerCase() === 'fork';
 
 // HTTP responses stay `no-store`, but the expensive Redis-wide verdict is
 // shared briefly at the origin. At the measured browser poll rate this turns
 // ~390 Redis commands per request into one GET, plus one sweep per minute.
 const HEALTH_VERDICT_SNAPSHOT_BASE_KEY = 'health:verdict:v1';
-function healthVerdictRedisKey(baseKey, vercelEnv, commitSha) {
-  if (!vercelEnv || vercelEnv === 'production') return baseKey;
-  return `${vercelEnv}:${commitSha?.slice(0, 8) || 'dev'}:${baseKey}`;
+function healthVerdictRedisKey(baseKey, vercelEnv, commitSha, healthScope) {
+  // Fork-scoped deployments share Redis with unscoped production; namespace
+  // snapshot/lock keys by scope so a fork sweep can never overwrite (or read)
+  // the unscoped contract's cache and vice versa (Vercel review P1).
+  // Production keys stay byte-identical when the scope is unset.
+  const scopeSuffix = healthScope ? `scope-${healthScope}:` : '';
+  if (!vercelEnv || vercelEnv === 'production') return `${scopeSuffix}${baseKey}`;
+  return `${vercelEnv}:${commitSha?.slice(0, 8) || 'dev'}:${scopeSuffix}${baseKey}`;
 }
 const HEALTH_VERDICT_SNAPSHOT_KEY = healthVerdictRedisKey(
   HEALTH_VERDICT_SNAPSHOT_BASE_KEY,
   process.env.VERCEL_ENV,
   process.env.VERCEL_GIT_COMMIT_SHA,
+  HEALTH_SCOPE_FORK ? 'fork' : '',
 );
 // The memoized verdict is stored TWICE, and the difference is the whole point.
 // The full snapshot carries the entire `checks` map (~228 entries, ~20 KB). The
@@ -40,6 +66,7 @@ const HEALTH_VERDICT_COMPACT_SNAPSHOT_KEY = healthVerdictRedisKey(
   HEALTH_VERDICT_COMPACT_SNAPSHOT_BASE_KEY,
   process.env.VERCEL_ENV,
   process.env.VERCEL_GIT_COMMIT_SHA,
+  HEALTH_SCOPE_FORK ? 'fork' : '',
 );
 const HEALTH_VERDICT_SNAPSHOT_TTL_SECONDS = 60;
 // Edge runtime mirror of scripts/china-coverage-manifest.mjs. Edge functions
@@ -67,6 +94,17 @@ const HEALTH_VERDICT_RELEASE_LOCK_SCRIPT = [
 // IRAN_EVENTS_ENABLED=true to restore the whole domain. Mirrors the backend
 // *_ENABLED env idiom (server/worldmonitor/resilience/v1/_shared.ts).
 const IRAN_EVENTS_ENABLED = (process.env.IRAN_EVENTS_ENABLED ?? 'false').toLowerCase() === 'true';
+
+// Fork scope keeps NO inherited registry entries as real checks. The fork's
+// vercel.json schedules only the TOPMAN Core refresh groups + daily brief;
+// every inherited seed key has no fork-side producer, so its finite data TTL
+// eventually expires and the check would flip to EMPTY (crit) forever —
+// recreating the unrepairable alarm this scope exists to remove (Vercel
+// review P1). The fork contract is therefore: 6 TOPMAN Core datasets
+// (folded in below, each with a 15-minute producer) + 1 informational
+// inheritedRegistry marker. FORK_STATIC_SEED_NAMES stays exported/empty so
+// the scoping helpers below remain total and testable.
+const FORK_STATIC_SEED_NAMES = Object.freeze([]);
 
 const BOOTSTRAP_KEYS = {
   earthquakes:       'seismology:earthquakes:v1',
@@ -984,6 +1022,10 @@ const STATUS_COUNTS = {
   // Must stay registered here: the summary does `STATUS_COUNTS[status] ?? 'warn'`,
   // so an unlisted status would silently re-become the warn this exists to stop.
   NOT_CONFIGURED: 'ok',
+  // Fork-scope marker for inherited registry entries this deployment does not
+  // own. Informational only — must bucket to ok so it can never flip the
+  // verdict, and must stay registered (see NOT_CONFIGURED note above).
+  NOT_OWNED: 'ok',
   STALE_SEED: 'warn',
   SEED_ERROR: 'warn',
   EMPTY_ON_DEMAND: 'warn',
@@ -1174,6 +1216,15 @@ function healthResponseBody(snapshot, compact) {
     summary: snapshot.summary,
     checkedAt: snapshot.checkedAt,
   };
+  // Scope/completeness metadata (Vercel review P1): compact consumers must be
+  // able to tell a fork-scoped contract (only owned checks evaluated; absent
+  // mapped checks were NOT evaluated) from the full-registry contract (absent
+  // mapped check == evaluated OK). Without this, the SPA synthesized OK for
+  // hundreds of sources this deployment never measured.
+  if (HEALTH_SCOPE_FORK) {
+    body.scope = 'fork';
+    body.completeness = 'owned-data-plane-only';
+  }
 
   if (!compact) {
     body.checks = snapshot.checks;
@@ -1216,6 +1267,15 @@ function healthResponse(snapshot, compact, headers) {
     status: 200,
     headers: responseHeaders,
   });
+}
+
+// Fork scope: resolve a TOPMAN Core dataset's freshness budget (maxAgeMs) for
+// the standard maxStaleMin health field. Frozen six-entry list — linear find.
+function datasetMaxAgeMs(dataset) {
+  const found = TOPMAN_CORE_DATASETS.find(
+    (candidate) => candidate.bootstrapName === dataset.bootstrapName,
+  );
+  return found ? found.maxAgeMs : 0;
 }
 
 export default async function handler(req, ctx) {
@@ -1381,11 +1441,17 @@ export default async function handler(req, ctx) {
     }, 503, headers);
   }
 
+  // Fork scope also narrows the sweep pipeline itself: only the owned static
+  // seeds are measured, so the fork deployment issues ~10 Redis commands
+  // instead of ~390 on every cold sweep.
+  const scopedEntries = (registry) => (HEALTH_SCOPE_FORK
+    ? Object.entries(registry).filter(([name]) => FORK_STATIC_SEED_NAMES.includes(name))
+    : Object.entries(registry));
   const allDataKeys = [
-    ...Object.values(BOOTSTRAP_KEYS),
-    ...Object.values(STANDALONE_KEYS),
-  ];
-  const allMetaKeys = Object.values(SEED_META).map(s => s.key);
+    ...scopedEntries(BOOTSTRAP_KEYS),
+    ...scopedEntries(STANDALONE_KEYS),
+  ].map(([, redisKey]) => redisKey);
+  const allMetaKeys = scopedEntries(SEED_META).map(([, cfg]) => cfg.key);
   const activationEntries = Object.entries(ACTIVATION_MARKERS);
 
   // STRLEN for data keys avoids loading large blobs into memory (OOM prevention).
@@ -1455,7 +1521,26 @@ export default async function handler(req, ctx) {
   const sources = [
     [BOOTSTRAP_KEYS, { allowOnDemand: false }],
     [STANDALONE_KEYS, { allowOnDemand: true }],
-  ];
+  ].map(([registry, opts]) => {
+    if (!HEALTH_SCOPE_FORK) return [registry, opts];
+    // Fork scope: keep only the static-reference seeds; everything else in
+    // the inherited registries is owned by the upstream seed plane and is
+    // summarized (not individually checked) below.
+    const scoped = Object.fromEntries(
+      Object.entries(registry).filter(([name]) => FORK_STATIC_SEED_NAMES.includes(name)),
+    );
+    return [scoped, opts];
+  });
+  // The folded core datasets (below) ARE owned by this fork — do not count
+  // their registry names as "omitted" or the marker overstates the scope cut
+  // by six (Vercel review P2).
+  const FORK_CORE_BOOTSTRAP_NAMES = TOPMAN_CORE_DATASETS.map((d) => d.bootstrapName);
+  const forkOwnedNames = new Set([...FORK_STATIC_SEED_NAMES, ...FORK_CORE_BOOTSTRAP_NAMES]);
+  const forkOmittedCount = HEALTH_SCOPE_FORK
+    ? (Object.keys(BOOTSTRAP_KEYS).length + Object.keys(STANDALONE_KEYS).length)
+      - Object.keys(sources[0][0]).length - Object.keys(sources[1][0]).length
+      - FORK_CORE_BOOTSTRAP_NAMES.length
+    : 0;
   for (const [registry, opts] of sources) {
     for (const [name, redisKey] of Object.entries(registry)) {
       totalChecks++;
@@ -1472,6 +1557,78 @@ export default async function handler(req, ctx) {
       // `warn`; this sub-count surfaces it explicitly so operators can tell a
       // frozen feed apart from an ordinary stale-seeder warn at a glance.
       if (entry.status === 'STALE_CONTENT') counts.staleContent++;
+    }
+  }
+
+  // Fork scope: represent the omitted inherited registry as ONE informational
+  // entry — explicitly NOT a problem status, so it never flips the verdict and
+  // never reaches the compact `problems` map or the failure log. It exists so
+  // a full-registry operator reading `?history=1` / detailed health can still
+  // see how many inherited checks this fork chose not to own.
+  if (HEALTH_SCOPE_FORK && forkOmittedCount > 0) {
+    checks.inheritedRegistry = {
+      status: 'NOT_OWNED',
+      records: null,
+      note: 'inherited upstream registry entries not owned by this fork (no seed plane); see WM_HEALTH_SCOPE=fork',
+      count: forkOmittedCount,
+    };
+    totalChecks++;
+    counts[STATUS_COUNTS.NOT_OWNED]++;
+  }
+
+  // Fork scope: fold the 6 TOPMAN Core datasets into this contract. Mapping
+  // (topman-core state -> health status/bucket) preserves fail-closed:
+  //   MISSING -> EMPTY (crit) · STALE/FAILED_USING_LAST_GOOD -> STALE_SEED (warn)
+  //   PARTIAL -> COVERAGE_PARTIAL (warn) · OK -> OK
+  // A dead core lane therefore flips the public verdict exactly as it
+  // already does on /api/topman-core-status.
+  if (HEALTH_SCOPE_FORK) {
+    let coreSnapshot = null;
+    let coreReadFailed = false;
+    try {
+      coreSnapshot = await readTopmanCoreSnapshot();
+    } catch {
+      coreReadFailed = true;
+    }
+    // An infrastructure failure reading the core lane is a Redis outage, not
+    // "datasets vanished": surface REDIS_DOWN 503 so HTTP-only availability
+    // probes see it (Vercel review P2). Snapshot write is skipped — the next
+    // request retries the sweep, same as the main pipeline's failure path.
+    if (coreReadFailed) {
+      if (ownsSnapshotRefreshLock) await releaseHealthVerdictRefreshLock(refreshLockToken);
+      return jsonResponse({
+        status: 'REDIS_DOWN',
+        error: 'TOPMAN core Redis read failed',
+        checkedAt: new Date(now).toISOString(),
+      }, 503, headers);
+    }
+    const CORE_STATE_TO_STATUS = {
+      OK: 'OK',
+      PARTIAL: 'COVERAGE_PARTIAL',
+      STALE: 'STALE_SEED',
+      FAILED_USING_LAST_GOOD: 'STALE_SEED',
+      MISSING: 'EMPTY',
+    };
+    for (const dataset of coreSnapshot.datasets) {
+      const status = CORE_STATE_TO_STATUS[dataset.state] ?? 'SEED_ERROR';
+      // Standard health-check age fields (Vercel review P2): consumers
+      // (refreshDataFreshnessFromHealth, check-seed-freshness) read
+      // seedAgeMin/maxStaleMin; ageSeconds alone renders as `age=undefinedm`.
+      const seedAgeMin = dataset.ageSeconds != null
+        ? Math.round(dataset.ageSeconds / 60)
+        : null;
+      const maxStaleMin = Math.round(datasetMaxAgeMs(dataset) / 60_000);
+      const entry = {
+        status,
+        records: dataset.recordCount,
+        core: true,
+      };
+      if (seedAgeMin != null) entry.seedAgeMin = seedAgeMin;
+      entry.maxStaleMin = maxStaleMin;
+      checks[dataset.bootstrapName] = entry;
+      const bucket = STATUS_COUNTS[status] ?? 'warn';
+      counts[bucket]++;
+      totalChecks++;
     }
   }
 
@@ -1622,6 +1779,8 @@ export const __testing__ = {
   // at module scope by design — this is the test-only escape hatch.
   BOOTSTRAP_KEYS,
   STANDALONE_KEYS,
+  HEALTH_SCOPE_FORK,
+  FORK_STATIC_SEED_NAMES,
   SEED_META,
   EMPTY_DATA_OK_KEYS,
   MISSING_DATA_IS_FAILURE_KEYS,

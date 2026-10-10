@@ -21,6 +21,10 @@ interface HealthResponse {
   checkedAt?: string;
   checks?: Record<string, HealthCheck>;
   problems?: Record<string, HealthCheck>;
+  /** 'fork' = this deployment only evaluates its owned data plane; absent
+   *  mapped checks were NOT evaluated and must not be synthesized as OK. */
+  scope?: string;
+  completeness?: string;
 }
 
 // Detailed /api/health (full `checks`) is operator/enterprise-key-gated since
@@ -155,7 +159,12 @@ export async function refreshDataFreshnessFromHealth(options: RefreshHealthFresh
   // and found within budget. Synthesize OK-as-of-checkedAt for those:
   // seedAgeMin 0 is required because recordSeedHealth keeps lastUpdate null
   // on an age-less update and calculateStatus then reports no_data.
-  if (!payload.checks && typeof payload.status === 'string') {
+  // FORK-SCOPE EXCLUSION: when the payload declares scope 'fork', the server
+  // only evaluated its owned data plane — every other mapped check was NOT
+  // evaluated, and synthesizing OK would record hundreds of unmeasured
+  // upstream sources as fresh (Vercel review P1).
+  const forkScoped = payload.scope === 'fork';
+  if (!payload.checks && typeof payload.status === 'string' && !forkScoped) {
     for (const checkName of Object.keys(HEALTH_CHECK_SOURCE_MAP)) {
       if (!(checkName in checks)) checks[checkName] = { status: 'OK', seedAgeMin: 0 };
     }

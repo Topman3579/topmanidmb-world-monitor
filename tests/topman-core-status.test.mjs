@@ -3,7 +3,9 @@ import { describe, it } from 'node:test';
 
 import {
   TOPMAN_CORE_DATASETS,
+  corePayloadForDailyBrief,
   isTopmanCoreDataUsable,
+  loadTopmanCoreForBrief,
   readTopmanCoreSnapshot,
   resolveTopmanCoreProjection,
   topmanCoreDataKey,
@@ -140,6 +142,12 @@ describe('TOPMAN core status', () => {
       staleContent: 0,
       crit: 0,
     });
+    const briefCore = corePayloadForDailyBrief(snapshot);
+    assert.ok(briefCore);
+    assert.equal(briefCore.earthquakes, snapshot.data.earthquakes);
+    assert.equal(briefCore.commodities, snapshot.data.commodityQuotes);
+    assert.equal(briefCore.fxRates, snapshot.data.ecbFxRates);
+
     assert.deepEqual(Object.keys(snapshot.data).sort(), [
       'commodityQuotes',
       'earthquakes',
@@ -398,6 +406,25 @@ describe('TOPMAN core status', () => {
     assert.equal(fxStatus.state, 'STALE');
     assert.ok(fxStatus.contentAgeSeconds > 10 * 24 * 60 * 60);
     assert.equal(snapshot.status, 'WARNING');
+  });
+
+  it('maps usable Core 6 snapshot data into the daily-brief bag', async () => {
+    const core = await loadTopmanCoreForBrief({
+      executePipeline: makePipeline(),
+      now: () => NOW_MS,
+    });
+    assert.ok(core);
+    assert.deepEqual(Object.keys(core).sort(), [
+      'commodities',
+      'earthquakes',
+      'fxRates',
+      'gdeltIntel',
+      'naturalEvents',
+      'weatherAlerts',
+    ]);
+    assert.ok(Array.isArray(core.earthquakes.earthquakes));
+    assert.ok(Array.isArray(core.commodities.quotes));
+    assert.ok(Array.isArray(core.fxRates.rates));
   });
 
   it('fails closed when any Redis command is malformed', async () => {
