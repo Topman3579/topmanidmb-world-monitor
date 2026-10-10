@@ -582,7 +582,9 @@ export class TopmanSimpleMode {
         localEdited: true, status: 'draft', approvedAt: null, sentAt: null };
       this.serverBriefConflict = result.brief;
       saveLocalDailyBrief(this.dailyBrief);
-      this.briefNotice = topmanText('บันทึกฉบับที่กดแล้ว ข้อความที่พิมพ์เพิ่มยังเป็นร่างในเครื่อง — ต้องบันทึกและอนุมัติใหม่', 'Submitted version saved; later edits remain a local draft — save and approve again');
+      this.briefNotice = action === 'send'
+        ? topmanText('ส่ง LINE ฉบับที่กดแล้ว — ข้อความที่พิมพ์เพิ่มยังไม่ถูกส่ง และยังเป็นร่างในเครื่อง', 'Submitted version sent to LINE; later edits were NOT sent and remain a local draft')
+        : topmanText('บันทึกฉบับที่กดแล้ว ข้อความที่พิมพ์เพิ่มยังเป็นร่างในเครื่อง — ต้องบันทึกและอนุมัติใหม่', 'Submitted version saved; later edits remain a local draft — save and approve again');
       this.render();
       return;
     }
@@ -607,6 +609,8 @@ export class TopmanSimpleMode {
               ? topmanText('ข้อความเปลี่ยนหลังอนุมัติ — ต้องบันทึกและอนุมัติใหม่', 'Content changed — save and approve again')
               : result.error === 'ALREADY_SENT'
                 ? topmanText('บรีฟนี้ส่งแล้ว — ระบบป้องกันการส่งซ้ำ', 'Brief already sent — duplicate send blocked')
+                : result.error === 'MISSING_SERVER_BRIEF'
+                  ? topmanText('ยังยืนยันผลไม่ได้ — ตรวจฉบับเซิร์ฟเวอร์และผลรับก่อนลองใหม่', 'Result unconfirmed — check the server copy and receipt before retrying')
                 : result.error === 'STATE_SAVE_FAILED' && action === 'send'
                   ? topmanText('LINE ส่งแล้วแต่บันทึกสถานะไม่สำเร็จ ฉบับนี้ยังถูกล็อกเพื่อป้องกันส่งซ้ำ', 'LINE sent but status not recorded; revision remains locked against duplicates')
                 : result.error === 'DELIVERY_UNCONFIRMED'

@@ -124,7 +124,7 @@ test.describe('TOPMAN Simple Mode', () => {
       if (req.method() === 'POST') {
         const body = req.postDataJSON();
         savedRevisions.push(body.expectedRevision);
-        serverBrief = { ...body.brief, revision: `revision-${savedRevisions.length}`, status: 'approved' };
+        serverBrief = { ...body.brief, revision: `revision-${savedRevisions.length}`, status: body.action === 'send' ? 'sent' : 'approved' };
         pending = () => route.fulfill({ json: { ok: true, lineConfigured: false, brief: serverBrief } });
         return;
       }
@@ -152,7 +152,17 @@ test.describe('TOPMAN Simple Mode', () => {
     await expect.poll(() => savedRevisions.length).toBe(2);
     expect(savedRevisions[1]).toBe('revision-1');
     await pending!();
+    pending = undefined;
     await expect(editor).toHaveValue('synthetic later keystrokes');
+    await expect(page.locator('[data-action="brief-send"]')).toBeEnabled();
+    await page.locator('[data-action="brief-send"]').click();
+    await expect.poll(() => Boolean(pending)).toBe(true);
+    await editor.fill('synthetic edits typed after send click');
+    await pending!();
+    await expect(editor).toHaveValue('synthetic edits typed after send click');
+    await expect(page.locator('[data-action="brief-send"]')).toBeDisabled();
+    await expect(page.locator('.topman-simple-daily-brief__notice')).toContainText(/ส่ง LINE ฉบับที่กดแล้ว|Submitted version sent to LINE/);
+    await expect(page.locator('.topman-simple-daily-brief__notice')).toContainText(/ยังไม่ถูกส่ง|were NOT sent/);
   });
 
   test('preserves edits and their local copy when an in-flight save loses the network', async ({ page }) => {

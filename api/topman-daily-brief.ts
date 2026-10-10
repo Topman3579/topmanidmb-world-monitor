@@ -97,6 +97,7 @@ async function saveBrief(brief: Record<string, unknown>, previous: Record<string
   const script = `
     local raw = redis.call('GET', KEYS[1])
     if raw then
+      if ARGV[1] == '' then return 0 end
       local current = cjson.decode(raw)
       local revision = current.revision
       if type(revision) ~= 'string' or revision == '' then revision = current.updatedAt or '' end
