@@ -136,7 +136,8 @@ describe('security audit baseline', () => {
   });
 
   it('reports a no-fix baseline entry as stale as soon as its advisory disappears', () => {
-    const advisories = BASELINE_ADVISORIES_BY_LOCKFILE['package-lock.json'];
+    const lockfile = 'pro-test/package-lock.json';
+    const advisories = BASELINE_ADVISORIES_BY_LOCKFILE[lockfile];
     const reportWith = (ids) => ({
       vulnerabilities: {
         'image-size': {
@@ -152,29 +153,44 @@ describe('security audit baseline', () => {
       },
     });
 
-    assert.deepEqual(collectStaleBaselineEntries(reportWith(advisories), 'package-lock.json'), []);
+    assert.deepEqual(collectStaleBaselineEntries(reportWith(advisories), lockfile), []);
     assert.deepEqual(
-      collectStaleBaselineEntries(reportWith(advisories.slice(0, 1)), 'package-lock.json'),
+      collectStaleBaselineEntries(reportWith(advisories.slice(0, 1)), lockfile),
       advisories.slice(1),
     );
   });
 
-  it('limits the temporary no-fix image-size baseline to non-runtime transitive tooling', () => {
-    const advisories = ['GHSA-5p2g-fcmc-qvqq', 'GHSA-w3rx-r6r6-pgpr'];
+  it('removes the root mobile/Metro production path without exempting advisories', () => {
     const rootPackage = readRepoJson('package.json');
     const rootLock = readRepoJson('package-lock.json');
+
+    assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['package-lock.json'], []);
+    // Vite reads the manifest version for the CDN SDK URL, so a range can
+    // silently load an older runtime than the installed SDK/types.
+    const clerkVersion = rootPackage.dependencies['@clerk/clerk-js'];
+    assert.match(clerkVersion, /^\d+\.\d+\.\d+$/);
+    assert.deepEqual(lockedVersions(rootLock, '@clerk/clerk-js'), [clerkVersion]);
+    assert.equal(rootPackage.overrides?.['react-native'], undefined);
+    for (const name of ['@solana/wallet-adapter-react', 'react-native', 'metro', 'image-size']) {
+      assert.deepEqual(lockedVersions(rootLock, name), [], `${name} must not return through Clerk`);
+    }
+    // Build/test tooling can still require braces, but no production edge may
+    // reintroduce its unpatched advisory into the root dependency graph.
+    for (const [path, pkg] of Object.entries(rootLock.packages)) {
+      if (path === 'node_modules/braces' || path.endsWith('/node_modules/braces')) {
+        assert.equal(pkg.dev, true, `${path} must remain development-only`);
+      }
+    }
+  });
+
+  it('limits the remaining image-size baseline to pro-test Metro tooling', () => {
+    const advisories = ['GHSA-5p2g-fcmc-qvqq', 'GHSA-w3rx-r6r6-pgpr'];
     const proPackage = readRepoJson('pro-test/package.json');
     const proLock = readRepoJson('pro-test/package-lock.json');
 
-    assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['package-lock.json'], advisories);
     assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['pro-test/package-lock.json'], advisories);
-    assert.equal(rootPackage.dependencies?.['image-size'], undefined);
     assert.equal(proPackage.dependencies?.['image-size'], undefined);
-    assert.deepEqual(packagePathsDependingOn(rootLock, 'image-size'), [
-      'node_modules/metro',
-    ]);
     assert.deepEqual(packagePathsDependingOn(proLock, 'image-size'), ['node_modules/metro']);
-    assert.deepEqual(lockedVersions(rootLock, 'image-size'), ['1.2.1']);
     assert.deepEqual(lockedVersions(proLock, 'image-size'), ['1.2.1']);
   });
 
