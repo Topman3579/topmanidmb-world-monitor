@@ -15,14 +15,15 @@ const SEVERITY_RANK = new Map([
 
 export const BASELINE_ADVISORIES_BY_LOCKFILE = {
   'package-lock.json': [
-    // No patched image-size release exists yet. The lock-shape regression test
-    // limits these exceptions to browser-inaccessible Metro/texture tooling.
+    // The retained image-size 1.x is used by Metro tooling. Patched 2.x changes
+    // its API; the lock-shape regression test keeps this existing exception
+    // limited to browser-inaccessible Metro until that dependency is migrated.
     'GHSA-5p2g-fcmc-qvqq',
     'GHSA-w3rx-r6r6-pgpr',
   ],
   'consumer-prices-core/package-lock.json': [],
   'blog-site/package-lock.json': [],
-  // Same no-fix Metro-only path as the root lockfile, guarded below by tests.
+  // Same legacy Metro-only path as the root lockfile, guarded below by tests.
   'pro-test/package-lock.json': ['GHSA-5p2g-fcmc-qvqq', 'GHSA-w3rx-r6r6-pgpr'],
   'scripts/package-lock.json': [],
   'docker/runtime-package-lock.json': [],
