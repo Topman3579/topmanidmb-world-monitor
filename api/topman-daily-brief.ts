@@ -246,6 +246,9 @@ export default async function handler(request: Request): Promise<Response> {
         detail: 'บรีฟที่อนุมัติหรือส่งแล้วจะไม่ถูกสร้างใหม่',
       }, 409);
     }
+    if (existing && payload.expectedRevision !== revisionOf(existing)) {
+      return jsonResponse({ ...publicPayload(existing, targetDate), ok: false, error: 'REVISION_CONFLICT' }, 409);
+    }
     const [insights, core] = await Promise.all([loadInsights(), loadTopmanCoreForBrief()]);
     let toSave = buildTopmanDailyBrief({
       insights,

@@ -112,6 +112,49 @@ test.describe('TOPMAN Simple Mode', () => {
     await expect(conflict).toBeVisible();
   });
 
+  test('preserves edits typed during approval and rebases an explicitly restored draft', async ({ page }) => {
+    await seedSimpleMode(page);
+    await installLocalOnlyNetwork(page);
+    let pending: (() => Promise<void>) | undefined;
+    let serverBrief: Record<string, unknown> | undefined;
+    const savedRevisions: Array<string | null> = [];
+    await page.route('**/api/topman-daily-brief**', async route => {
+      const req = route.request();
+      if (req.url().includes('session=1')) return route.fulfill({ json: { ok: true, authenticated: true, expiresAt: Date.now() + 900_000 } });
+      if (req.method() === 'POST') {
+        const body = req.postDataJSON();
+        savedRevisions.push(body.expectedRevision);
+        serverBrief = { ...body.brief, revision: `revision-${savedRevisions.length}`, status: 'approved' };
+        pending = () => route.fulfill({ json: { ok: true, lineConfigured: false, brief: serverBrief } });
+        return;
+      }
+      return route.fulfill({ json: { ok: true, lineConfigured: false, brief: serverBrief ?? null } });
+    });
+    await page.goto('/dashboard?mode=simple', { waitUntil: 'domcontentloaded' });
+    await waitForEventHandlers(page);
+    await waitForSimpleShell(page);
+    const editor = page.locator('#topman-daily-brief-line');
+    await editor.fill('synthetic submitted copy');
+    await page.locator('[data-action="brief-save"]').click();
+    await expect.poll(() => Boolean(pending)).toBe(true);
+    await editor.fill('synthetic later keystrokes');
+    await pending!();
+    pending = undefined;
+    await expect(page.locator('.topman-simple-daily-brief__conflict')).toBeVisible();
+    await expect(editor).toHaveValue('synthetic later keystrokes');
+    await expect(page.locator('[data-action="brief-send"]')).toBeDisabled();
+    await page.locator('.topman-simple-daily-brief__conflict summary').click();
+    await page.locator('[data-action="brief-load-server"]').click();
+    await expect(editor).toHaveValue('synthetic submitted copy');
+    await page.locator('[data-action="brief-recover-local"]').click();
+    await expect(editor).toHaveValue('synthetic later keystrokes');
+    await page.locator('[data-action="brief-save"]').click();
+    await expect.poll(() => savedRevisions.length).toBe(2);
+    expect(savedRevisions[1]).toBe('revision-1');
+    await pending!();
+    await expect(editor).toHaveValue('synthetic later keystrokes');
+  });
+
   test('reviewer sign-in is labeled, masks input, and uses a cookie session without retaining the credential', async ({ page }) => {
     await seedSimpleMode(page);
     await installLocalOnlyNetwork(page);

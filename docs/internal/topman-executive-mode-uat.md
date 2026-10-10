@@ -15,7 +15,7 @@ This is the existing single-reviewer authority with a bounded browser session. I
 
 ## Verified acceptance cases
 
-- Typed edits survive reload and mode switch regardless of client/server clock skew. A conflicting sent server copy stays visible for comparison; switching copies preserves local recovery. Revision checks and atomic compare-and-set writes reject stale server updates. Scheduled generation only creates a missing draft and never replaces reviewer work.
+- Typed edits survive reload and mode switch regardless of client/server clock skew. A conflicting sent server copy stays visible for comparison; switching copies preserves local recovery and an explicit restore rebases it onto the reviewed server revision. Edits typed while a save or approval is pending survive the response and remain unapproved. Revision checks and atomic compare-and-set writes reject stale server updates. Scheduled generation only creates a missing draft and never replaces reviewer work.
 - Reviewer password input has a visible label and help text, masks its value, and is usable with the keyboard.
 - Same-origin reviewer cookies are accepted; cross-origin mutations, malformed/tampered/expired tokens, anonymous sessions, and cron credentials are rejected.
 - Unauthenticated JSON is limited to 64 KiB and five seconds; login and direct bearer authentication are limited to five attempts per minute and fails closed when its limiter is unavailable.

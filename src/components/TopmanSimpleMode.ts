@@ -111,6 +111,7 @@ export class TopmanSimpleMode {
   private systemHealth: SystemHealthBrief | null = null;
   private dailyBrief: TopmanDailyBrief | null = null;
   private lineConfigured = false;
+  private briefRequestPending = false;
   private serverBriefConflict: TopmanDailyBrief | null = null;
   private briefNotice = '';
   private lastInsights: ServerInsights | null = null;
@@ -386,7 +387,11 @@ export class TopmanSimpleMode {
             const recovered = JSON.parse(localStorage.getItem(`topman-daily-brief-recovery:${this.dailyBrief.dateKey}`) || 'null');
             if (isTopmanDailyBrief(recovered) && recovered.dateKey === this.dailyBrief.dateKey) {
               this.serverBriefConflict = this.dailyBrief;
-              this.dailyBrief = recovered as unknown as TopmanDailyBrief;
+              this.dailyBrief = {
+                ...recovered as unknown as TopmanDailyBrief,
+                serverRevision: this.serverBriefConflict.serverRevision,
+                localEdited: true, status: 'draft', approvedAt: null, sentAt: null,
+              };
               saveLocalDailyBrief(this.dailyBrief);
               this.briefNotice = topmanText('เรียกสำเนาร่างกลับแล้ว ตรวจเทียบกับฉบับเซิร์ฟเวอร์ก่อนใช้', 'Recovery draft restored; compare with the server version before use');
               this.render();
@@ -502,6 +507,7 @@ export class TopmanSimpleMode {
   }
 
   private async persistBrief(action: 'save' | 'approve' | 'send'): Promise<void> {
+    if (this.briefRequestPending) return;
     const editors = this.readBriefEditors();
     if (!this.dailyBrief) {
       this.dailyBrief = buildTopmanDailyBriefFromSummary({
@@ -544,6 +550,8 @@ export class TopmanSimpleMode {
     }
     saveLocalDailyBrief(this.dailyBrief);
 
+    const submitted = this.dailyBrief;
+    this.briefRequestPending = true;
     let result: Awaited<ReturnType<typeof postDailyBriefAction>>;
     try {
       result = await postDailyBriefAction(action, {
@@ -557,8 +565,22 @@ export class TopmanSimpleMode {
       this.briefNotice = topmanText('เชื่อมต่อไม่สำเร็จ ร่างยังอยู่ในเครื่อง — ลองบันทึกใหม่', 'Connection failed; draft remains local — retry saving');
       this.render();
       return;
+    } finally {
+      this.briefRequestPending = false;
     }
+    this.captureBriefEditors();
     this.lineConfigured = result.lineConfigured;
+    if (result.ok && result.brief && this.dailyBrief
+      && (this.dailyBrief.lineMessage !== submitted.lineMessage || this.dailyBrief.memoMarkdown !== submitted.memoMarkdown)) {
+      // A response acknowledges the submitted copy, never keystrokes typed later.
+      this.dailyBrief = { ...this.dailyBrief, serverRevision: result.brief.serverRevision,
+        localEdited: true, status: 'draft', approvedAt: null, sentAt: null };
+      this.serverBriefConflict = result.brief;
+      saveLocalDailyBrief(this.dailyBrief);
+      this.briefNotice = topmanText('บันทึกฉบับที่กดแล้ว ข้อความที่พิมพ์เพิ่มยังเป็นร่างในเครื่อง — ต้องบันทึกและอนุมัติใหม่', 'Submitted version saved; later edits remain a local draft — save and approve again');
+      this.render();
+      return;
+    }
     if (result.ok && result.brief) {
       this.dailyBrief = result.brief;
       saveLocalDailyBrief(result.brief);
@@ -581,6 +603,8 @@ export class TopmanSimpleMode {
               ? topmanText('ข้อความเปลี่ยนหลังอนุมัติ — ต้องบันทึกและอนุมัติใหม่', 'Content changed — save and approve again')
               : result.error === 'ALREADY_SENT'
                 ? topmanText('บรีฟนี้ส่งแล้ว — ระบบป้องกันการส่งซ้ำ', 'Brief already sent — duplicate send blocked')
+                : result.error === 'STATE_SAVE_FAILED' && action === 'send'
+                  ? topmanText('LINE ส่งแล้วแต่บันทึกสถานะไม่สำเร็จ ฉบับนี้ยังถูกล็อกเพื่อป้องกันส่งซ้ำ', 'LINE sent but status not recorded; revision remains locked against duplicates')
                 : result.error === 'DELIVERY_UNCONFIRMED'
                   ? topmanText('ยังยืนยันผลส่งไม่ได้ ระบบล็อกฉบับนี้ไว้ — ตรวจผลรับกับผู้ให้บริการก่อนดำเนินการต่อ', 'Delivery unconfirmed; revision locked — verify the provider receipt before recovery')
                 : result.error === 'SEND_IN_PROGRESS'
