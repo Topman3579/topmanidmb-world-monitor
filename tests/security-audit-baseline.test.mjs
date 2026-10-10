@@ -172,10 +172,9 @@ describe('security audit baseline', () => {
     assert.equal(proPackage.dependencies?.['image-size'], undefined);
     assert.deepEqual(packagePathsDependingOn(rootLock, 'image-size'), [
       'node_modules/metro',
-      'node_modules/texture-compressor',
     ]);
     assert.deepEqual(packagePathsDependingOn(proLock, 'image-size'), ['node_modules/metro']);
-    assert.deepEqual(lockedVersions(rootLock, 'image-size'), ['0.7.5', '1.2.1']);
+    assert.deepEqual(lockedVersions(rootLock, 'image-size'), ['1.2.1']);
     assert.deepEqual(lockedVersions(proLock, 'image-size'), ['1.2.1']);
   });
 
