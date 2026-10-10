@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { after, beforeEach, describe, it } from 'node:test';
 import handler from '../api/topman-daily-brief.ts';
-import { approveTopmanDailyBrief, briefRedisKey, buildTopmanDailyBrief } from '../shared/topman-daily-brief.js';
+import generateHandler from '../api/topman-daily-brief-generate.ts';
+import { approveTopmanDailyBrief, bangkokDateKey, briefRedisKey, buildTopmanDailyBrief } from '../shared/topman-daily-brief.js';
 import { issueReviewSession, REVIEW_COOKIE } from '../api/_topman-review-session.js';
+import { __resetRateLimitForTest } from '../api/_rate-limit.js';
 
-const envNames = ['TOPMAN_BRIEF_ADMIN_SECRET', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'LINE_CHANNEL_ACCESS_TOKEN', 'LINE_TO_ID'] as const;
+const envNames = ['CRON_SECRET', 'TOPMAN_BRIEF_ADMIN_SECRET', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'LINE_CHANNEL_ACCESS_TOKEN', 'LINE_TO_ID'] as const;
 const original = Object.fromEntries(envNames.map(k => [k, process.env[k]]));
 const originalFetch = globalThis.fetch;
 const store = new Map<string, string>();
@@ -18,12 +20,13 @@ let failDelivery = false;
 let providerStatus = 200;
 const draft = () => buildTopmanDailyBrief({ nowMs: Date.parse(`${dateKey}T01:00:00Z`), insights: { topStories: [{ primaryTitle: 'Synthetic weather exercise', primarySource: 'Synthetic source', category: 'disaster' }] } });
 function post(action: string, extra: Record<string, unknown> = {}, headers: Record<string, string> = { authorization: `Bearer ${secret}` }) {
- return new Request(`${origin}/api/topman-daily-brief`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ action, dateKey, ...extra }) });
+ return new Request(`${origin}/api/topman-daily-brief`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ action, dateKey, expectedRevision: store.has(briefRedisKey(dateKey)) ? (() => { const b = JSON.parse(store.get(briefRedisKey(dateKey))!); return b.revision || b.updatedAt; })() : null, ...extra }) });
 }
 
 beforeEach(() => {
+ __resetRateLimitForTest();
  store.clear(); deliveries = 0; failWrites = false; failSendPersistence = false; failDelivery = false; providerStatus = 200;
- Object.assign(process.env, { TOPMAN_BRIEF_ADMIN_SECRET: secret, UPSTASH_REDIS_REST_URL: 'https://redis.example.test', UPSTASH_REDIS_REST_TOKEN: 'synthetic-redis', LINE_CHANNEL_ACCESS_TOKEN: 'synthetic-line', LINE_TO_ID: 'synthetic-recipient' });
+ Object.assign(process.env, { CRON_SECRET: 'synthetic-cron', TOPMAN_BRIEF_ADMIN_SECRET: secret, UPSTASH_REDIS_REST_URL: 'https://redis.example.test', UPSTASH_REDIS_REST_TOKEN: 'synthetic-redis', LINE_CHANNEL_ACCESS_TOKEN: 'synthetic-line', LINE_TO_ID: 'synthetic-recipient' });
  globalThis.fetch = async (input, init) => {
   const url = String(input);
   if (url.startsWith('https://redis.example.test/get/')) return Response.json({ result: store.get(decodeURIComponent(url.split('/get/')[1]!)) ?? null });
@@ -31,6 +34,20 @@ beforeEach(() => {
    if (failWrites) return new Response('unavailable', { status: 503 });
    const commands = JSON.parse(String(init?.body)) as string[][];
    return Response.json(commands.map(([command, key, value, ...options]) => {
+    if (command?.toUpperCase() === 'EVAL' && key?.includes('cjson.decode')) {
+     const [briefKey, claimKey, expected, next, _ttl, status] = options;
+     const current = store.has(briefKey!) ? JSON.parse(store.get(briefKey!)!) : null;
+     if ((current?.revision || current?.updatedAt || '') !== expected) return { result: 0 };
+     if (key.includes("current.status ~= 'approved'")) {
+      if (current?.status !== 'approved' || store.has(claimKey!)) return { result: 0 };
+      store.set(claimKey!, 'processing'); return { result: 1 };
+     }
+     if (status !== 'sent' && store.has(claimKey!)) return { result: 0 };
+     if (failSendPersistence && status === 'sent') return { error: 'synthetic write failure' };
+     store.set(briefKey!, next!); return { result: 1 };
+    }
+    if (command?.toUpperCase().startsWith('EVAL')) return { result: [4, 5] };
+    if (command === 'GET') return { result: store.get(key!) ?? null };
     if (command === 'SET') {
      if (failSendPersistence && key === briefRedisKey(dateKey) && value?.includes('"status":"sent"')) return { error: 'synthetic write failure' };
      if (options.includes('NX') && store.has(key!)) return { result: null };
@@ -58,6 +75,30 @@ describe('daily brief real handler with fake Redis and LINE', () => {
   assert.equal((await handler(post('send'))).status, 200);
   assert.equal((await handler(post('send'))).status, 409);
   assert.equal(deliveries, 1);
+ });
+ it('never imports client approval metadata on first save', async () => {
+  const forged = { ...approveTopmanDailyBrief(draft()), sentAt: '2026-10-10T02:00:00Z' };
+  const saved = await handler(post('save', { brief: forged }));
+  const body = await saved.json();
+  assert.equal(body.brief.status, 'draft');
+  assert.equal(body.brief.approvedAt, null);
+  assert.equal(body.brief.sentAt, null);
+  assert.equal((await handler(post('send'))).status, 409);
+  assert.equal(deliveries, 0);
+ });
+ it('cron preserves existing drafts and creates only one draft in a concurrent race', async () => {
+  const key = briefRedisKey(bangkokDateKey());
+  const existing = { ...draft(), dateKey: bangkokDateKey(), lineMessage: 'reviewer edit' };
+  store.set(key, JSON.stringify(existing));
+  const request = () => new Request(`${origin}/api/topman-daily-brief-generate`, { headers: { authorization: 'Bearer synthetic-cron' } });
+  const preserved = await generateHandler(request());
+  assert.equal((await preserved.json()).generated, false);
+  assert.equal(JSON.parse(store.get(key)!).lineMessage, 'reviewer edit');
+  store.clear();
+  const results = await Promise.all([generateHandler(request()), generateHandler(request())]);
+  const bodies = await Promise.all(results.map(r => r.json()));
+  assert.equal(bodies.filter(b => b.saved === true).length, 1);
+  assert.equal(deliveries, 0);
  });
  it('rejects forged client approval and content changed after server approval', async () => {
   const approved = approveTopmanDailyBrief(draft());
@@ -115,6 +156,43 @@ describe('daily brief real handler with fake Redis and LINE', () => {
   assert.equal((await handler(post('save', {}, { cookie, origin: 'https://attacker.example.test' }))).status, 401);
   const status = await handler(new Request(`${origin}/api/topman-daily-brief?session=1`, { headers: { cookie } }));
   assert.equal((await status.json()).authenticated, true);
+ });
+ it('exchanges the reviewer credential for a secure cookie and clears it on logout', async () => {
+  const denied = await handler(post('login', {}, { origin, authorization: 'Bearer incorrect-synthetic' }));
+  assert.equal(denied.status, 401);
+  assert.equal(denied.headers.get('set-cookie'), null);
+  const login = await handler(post('login', {}, { origin, authorization: `Bearer ${secret}` }));
+  assert.equal(login.status, 200);
+  const payload = await login.json();
+  assert.equal(payload.authenticated, true);
+  assert.equal(payload.token, undefined);
+  const cookie = login.headers.get('set-cookie')!;
+  assert.match(cookie, /HttpOnly; Secure; SameSite=Strict/);
+  assert.equal((await handler(post('save', { brief: draft() }, { origin, cookie }))).status, 200);
+  const logout = await handler(post('logout', {}, { origin, cookie }));
+  assert.equal(logout.status, 200);
+  assert.match(logout.headers.get('set-cookie')!, /Max-Age=0/);
+ });
+ it('rejects stale revisions regardless of client timestamps and preserves sent server records', async () => {
+  const approved = approveTopmanDailyBrief(draft());
+  store.set(briefRedisKey(dateKey), JSON.stringify(approved));
+  const conflict = await handler(post('save', { expectedRevision: 'outdated-revision', lineMessage: 'new local text', brief: { ...draft(), updatedAt: '2099-01-01T00:00:00Z' } }));
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).error, 'REVISION_CONFLICT');
+  assert.equal(JSON.parse(store.get(briefRedisKey(dateKey))!).lineMessage, approved.lineMessage);
+  store.set(briefRedisKey(dateKey), JSON.stringify({ ...approved, status: 'sent' }));
+  const immutable = await handler(post('save', { lineMessage: 'replacement' }));
+  assert.equal((await immutable.json()).error, 'ALREADY_SENT');
+  assert.equal(JSON.parse(store.get(briefRedisKey(dateKey))!).status, 'sent');
+ });
+ it('does not authorize an unset reviewer secret and rate-limits direct bearer paths', async () => {
+  delete process.env.TOPMAN_BRIEF_ADMIN_SECRET;
+  assert.equal((await handler(post('login', {}, { origin, authorization: 'Bearer undefined' }))).status, 401);
+  assert.equal((await handler(post('save', {}, { authorization: 'Bearer undefined' }))).status, 401);
+  delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  __resetRateLimitForTest();
+  assert.equal((await handler(post('save', {}, { authorization: 'Bearer incorrect' }))).status, 503);
  });
  it('bounds unauthenticated JSON input before login and rejects null payloads', async () => {
   assert.equal((await handler(post('login', { oversized: 'x'.repeat(70_000) }, {}))).status, 413);

@@ -39,11 +39,13 @@ export default async function handler(request: Request): Promise<Response> {
     existing = null;
   }
 
-  if (existing && (existing.status === 'approved' || existing.status === 'sent')) {
+  // Scheduled generation only creates a missing daily draft. Never replace a
+  // reviewer edit, approval, or a concurrent send with a cron snapshot.
+  if (existing) {
     return jsonResponse({
       ok: true,
       generated: false,
-      reason: 'already_locked',
+      reason: 'already_exists',
       dateKey,
       status: existing.status,
     }, 200);
@@ -65,16 +67,18 @@ export default async function handler(request: Request): Promise<Response> {
   });
 
   const saved = await redisPipeline([
-    ['SET', briefRedisKey(dateKey), JSON.stringify(brief), 'EX', String(BRIEF_TTL_SECONDS)],
+    ['SET', briefRedisKey(dateKey), JSON.stringify(brief), 'EX', String(BRIEF_TTL_SECONDS), 'NX'],
   ]);
 
+  const persisted = Array.isArray(saved) && saved[0]?.result === 'OK' && !saved[0]?.error;
   return jsonResponse({
-    ok: true,
-    generated: true,
-    saved: Array.isArray(saved),
+    ok: persisted,
+    generated: persisted,
+    saved: persisted,
+    ...(persisted ? {} : { error: 'STATE_SAVE_FAILED' }),
     dateKey,
     status: brief.status,
     sources: brief.sources,
     generatedFrom: brief.generatedFrom,
-  }, 200);
+  }, persisted ? 200 : 503);
 }

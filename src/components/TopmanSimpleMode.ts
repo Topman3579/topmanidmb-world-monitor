@@ -61,6 +61,7 @@ import {
   refreshBriefReviewerSession,
   startBriefReviewerSession,
   endBriefReviewerSession,
+  isTopmanDailyBrief,
   isTopmanDailyBriefApprovable,
   loadLocalDailyBrief,
   markTopmanDailyBriefSent,
@@ -110,6 +111,7 @@ export class TopmanSimpleMode {
   private systemHealth: SystemHealthBrief | null = null;
   private dailyBrief: TopmanDailyBrief | null = null;
   private lineConfigured = false;
+  private serverBriefConflict: TopmanDailyBrief | null = null;
   private briefNotice = '';
   private lastInsights: ServerInsights | null = null;
   private enabledCategories: SimpleMapCategoryId[];
@@ -255,7 +257,10 @@ export class TopmanSimpleMode {
       const send = this.root.querySelector<HTMLButtonElement>('[data-action="brief-send"]');
       if (send) send.disabled = !hasBriefReviewerSession() || this.dailyBrief?.status !== 'approved';
       const status = this.root.querySelector<HTMLElement>('[data-brief-status]');
-      if (status && this.dailyBrief) status.textContent = formatBriefStatusLabel(this.dailyBrief.status);
+      if (status && this.dailyBrief) {
+        status.textContent = formatBriefStatusLabel(this.dailyBrief.status);
+        status.className = `topman-simple-badge topman-simple-badge--${this.dailyBrief.status === 'sent' ? 'ready' : this.dailyBrief.status === 'approved' ? 'partial' : 'stale'}`;
+      }
     };
     this.root.addEventListener('input', this.boundBriefInput);
     this.belowRoot?.addEventListener('input', this.boundBriefInput);
@@ -374,6 +379,30 @@ export class TopmanSimpleMode {
         break;
       case 'brief-send':
         void this.persistBrief('send');
+        break;
+      case 'brief-recover-local':
+        if (this.dailyBrief) {
+          try {
+            const recovered = JSON.parse(localStorage.getItem(`topman-daily-brief-recovery:${this.dailyBrief.dateKey}`) || 'null');
+            if (isTopmanDailyBrief(recovered) && recovered.dateKey === this.dailyBrief.dateKey) {
+              this.serverBriefConflict = this.dailyBrief;
+              this.dailyBrief = recovered;
+              saveLocalDailyBrief(recovered);
+              this.briefNotice = topmanText('เรียกสำเนาร่างกลับแล้ว ตรวจเทียบกับฉบับเซิร์ฟเวอร์ก่อนใช้', 'Recovery draft restored; compare with the server version before use');
+              this.render();
+            }
+          } catch { /* keep current draft */ }
+        }
+        break;
+      case 'brief-load-server':
+        if (this.serverBriefConflict && this.dailyBrief) {
+          try { localStorage.setItem(`topman-daily-brief-recovery:${this.dailyBrief.dateKey}`, JSON.stringify(this.dailyBrief)); } catch { break; }
+          this.dailyBrief = this.serverBriefConflict;
+          this.serverBriefConflict = null;
+          saveLocalDailyBrief(this.dailyBrief);
+          this.briefNotice = topmanText('เปิดฉบับเซิร์ฟเวอร์แล้ว สำเนาร่างเก็บไว้ในเครื่อง', 'Server version opened; a recovery draft remains local');
+          this.render();
+        }
         break;
       case 'brief-login':
         void this.changeReviewerSession('login');
@@ -522,6 +551,7 @@ export class TopmanSimpleMode {
       lineMessage: this.dailyBrief.lineMessage,
       memoMarkdown: this.dailyBrief.memoMarkdown,
       brief: this.dailyBrief,
+      expectedRevision: this.dailyBrief.serverRevision ?? null,
       });
     } catch {
       this.briefNotice = topmanText('เชื่อมต่อไม่สำเร็จ ร่างยังอยู่ในเครื่อง — ลองบันทึกใหม่', 'Connection failed; draft remains local — retry saving');
@@ -529,7 +559,7 @@ export class TopmanSimpleMode {
       return;
     }
     this.lineConfigured = result.lineConfigured;
-    if (result.brief) {
+    if (result.ok && result.brief) {
       this.dailyBrief = result.brief;
       saveLocalDailyBrief(result.brief);
     } else if (action === 'send' && result.ok) {
@@ -538,8 +568,11 @@ export class TopmanSimpleMode {
     }
 
     if (!result.ok) {
+      if ((result.error === 'REVISION_CONFLICT' || result.error === 'ALREADY_SENT') && result.brief) this.serverBriefConflict = result.brief;
       this.briefNotice = result.error === 'UNAUTHORIZED'
         ? topmanText('รหัสผู้ตรวจไม่ถูกต้อง หรือยังไม่ได้ตั้งบนเซิร์ฟเวอร์', 'Admin secret rejected')
+        : result.error === 'REVISION_CONFLICT'
+          ? topmanText('ฉบับเซิร์ฟเวอร์เปลี่ยนแล้ว ร่างในเครื่องยังอยู่ — ตรวจเทียบก่อนบันทึก', 'Server revision changed; local draft preserved — compare before saving')
         : result.error === 'LINE_NOT_CONFIGURED'
           ? topmanText('ยังไม่ได้เชื่อม LINE OA — คัดลอกข้อความไปส่งเองได้', 'LINE OA not linked — copy text instead')
           : result.error === 'NOT_APPROVED'
@@ -548,6 +581,8 @@ export class TopmanSimpleMode {
               ? topmanText('ข้อความเปลี่ยนหลังอนุมัติ — ต้องบันทึกและอนุมัติใหม่', 'Content changed — save and approve again')
               : result.error === 'ALREADY_SENT'
                 ? topmanText('บรีฟนี้ส่งแล้ว — ระบบป้องกันการส่งซ้ำ', 'Brief already sent — duplicate send blocked')
+                : result.error === 'DELIVERY_UNCONFIRMED'
+                  ? topmanText('ยังยืนยันผลส่งไม่ได้ ระบบล็อกฉบับนี้ไว้ — ตรวจผลรับกับผู้ให้บริการก่อนดำเนินการต่อ', 'Delivery unconfirmed; revision locked — verify the provider receipt before recovery')
                 : result.error === 'SEND_IN_PROGRESS'
                   ? topmanText('บรีฟฉบับนี้กำลังส่งหรือส่งแล้ว — ระบบป้องกันการส่งซ้ำ', 'This approved revision is sending or sent')
                   : result.error === 'SEND_GUARD_UNAVAILABLE'
@@ -575,14 +610,16 @@ export class TopmanSimpleMode {
       local = loadLocalDailyBrief();
       this.lineConfigured = remote.lineConfigured;
       if (remote.brief) {
-        if (
-          !local
-          || (remote.brief.updatedAt || '') >= (local.updatedAt || '')
-        ) {
-          this.dailyBrief = remote.brief;
-          saveLocalDailyBrief(remote.brief);
+        if (local?.localEdited) {
+          // A dirty local draft survives regardless of either machine's clock.
+          if (local.serverRevision !== remote.brief.serverRevision) this.serverBriefConflict = remote.brief;
+          this.dailyBrief = local;
           return;
         }
+        this.dailyBrief = remote.brief;
+        this.serverBriefConflict = null;
+        saveLocalDailyBrief(remote.brief);
+        return;
       }
     } catch {
       // offline / API down — keep local
@@ -968,6 +1005,7 @@ export class TopmanSimpleMode {
             : topmanText('ยังขาดข้อเท็จจริงหรือแหล่งอ้างอิง — อนุมัติไม่ได้', 'Missing facts or sources — approval blocked'))}
         </p>
         ${this.briefNotice ? `<p class="topman-simple-daily-brief__notice" role="status">${escapeHtml(this.briefNotice)}</p>` : ''}
+        ${this.serverBriefConflict ? `<details class="topman-simple-daily-brief__conflict"><summary>${escapeHtml(topmanText('มีฉบับเซิร์ฟเวอร์ต่างจากร่างนี้ สถานะ: ', 'Different server version, status: '))}${escapeHtml(formatBriefStatusLabel(this.serverBriefConflict.status))}</summary><pre>${escapeHtml(this.serverBriefConflict.lineMessage)}</pre><button type="button" class="topman-simple-btn" data-action="brief-load-server">${escapeHtml(topmanText('เปิดฉบับเซิร์ฟเวอร์ และเก็บสำเนาร่างนี้', 'Open server version and keep a recovery draft'))}</button></details>` : ''}
         <label class="topman-simple-daily-brief__label" for="topman-daily-brief-line">
           ${escapeHtml(topmanText('ข้อความ LINE (สั้น)', 'LINE message (short)'))}
         </label>
@@ -988,6 +1026,7 @@ export class TopmanSimpleMode {
           <input id="topman-review-password" type="password" autocomplete="current-password" maxlength="512" aria-describedby="topman-review-help">
           <span id="topman-review-help">${escapeHtml(topmanText('เซสชันมีอายุ 15 นาที', 'Session lasts 15 minutes'))}</span>
           <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="brief-login">${escapeHtml(topmanText('เข้าสู่ระบบผู้ตรวจ', 'Sign in reviewer'))}</button>`}
+          <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="brief-recover-local">${escapeHtml(topmanText('เรียกสำเนาร่างที่เก็บไว้', 'Restore saved recovery draft'))}</button>
           <button type="button" class="topman-simple-btn topman-simple-btn--ghost" data-action="brief-save">
             ${escapeHtml(topmanText('บันทึกร่าง', 'Save draft'))}
           </button>

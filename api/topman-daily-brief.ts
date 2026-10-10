@@ -36,6 +36,11 @@ function adminSecret(): string | undefined {
   return process.env.TOPMAN_BRIEF_ADMIN_SECRET;
 }
 
+async function limitReviewerBearer(request: Request): Promise<Response | null> {
+  if (!request.headers.has('authorization')) return null;
+  return checkRateLimit(request, { 'Cache-Control': 'private, no-store' }, { scope: 'topman-review-login', limit: 5, window: '60 s', failClosed: true });
+}
+
 async function isAuthorizedAdmin(request: Request): Promise<boolean> {
   return isAuthorizedReviewer(request, adminSecret());
 }
@@ -80,13 +85,26 @@ async function loadBrief(dateKey: string): Promise<Record<string, unknown> | nul
   }
 }
 
-async function saveBrief(brief: Record<string, unknown>): Promise<boolean> {
-  const key = briefRedisKey(String(brief.dateKey));
-  const payload = JSON.stringify(brief);
-  const result = await redisPipeline([
-    ['SET', key, payload, 'EX', String(BRIEF_TTL_SECONDS)],
-  ]);
-  return Array.isArray(result) && result[0]?.result === 'OK' && !result[0]?.error;
+function revisionOf(brief: Record<string, unknown> | null): string {
+  return brief ? String(brief.revision || brief.updatedAt || '') : '';
+}
+
+async function saveBrief(brief: Record<string, unknown>, previous: Record<string, unknown> | null): Promise<boolean> {
+  brief.revision = crypto.randomUUID();
+  // Client-only recovery metadata never becomes server authority.
+  delete brief.localEdited;
+  delete brief.serverRevision;
+  const script = `
+    local raw = redis.call('GET', KEYS[1])
+    if raw then
+      local current = cjson.decode(raw)
+      if tostring(current.revision or current.updatedAt or '') ~= ARGV[1] then return 0 end
+      if ARGV[4] ~= 'sent' and redis.call('EXISTS', KEYS[2]) == 1 then return 0 end
+    elseif ARGV[1] ~= '' then return 0 end
+    redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+    return 1`;
+  const result = await redisPipeline([['EVAL', script, '2', briefRedisKey(String(brief.dateKey)), previous ? sendClaimKey(previous) : 'topman:daily-brief-send:none', revisionOf(previous), JSON.stringify(brief), String(BRIEF_TTL_SECONDS), String(brief.status)]]);
+  return Array.isArray(result) && result[0]?.result === 1 && !result[0]?.error;
 }
 
 function sendClaimKey(brief: Record<string, unknown>): string {
@@ -96,11 +114,16 @@ function sendClaimKey(brief: Record<string, unknown>): string {
 }
 
 async function claimBriefSend(brief: Record<string, unknown>): Promise<'claimed' | 'duplicate' | 'unavailable'> {
-  const result = await redisPipeline([
-    ['SET', sendClaimKey(brief), 'processing', 'NX', 'EX', String(BRIEF_TTL_SECONDS)],
-  ]);
+  const script = `
+    local raw = redis.call('GET', KEYS[1])
+    if not raw then return 0 end
+    local current = cjson.decode(raw)
+    if current.status ~= 'approved' or tostring(current.revision or current.updatedAt or '') ~= ARGV[1] then return 0 end
+    if redis.call('SET', KEYS[2], 'processing', 'NX', 'EX', ARGV[2]) then return 1 end
+    return 0`;
+  const result = await redisPipeline([['EVAL', script, '2', briefRedisKey(String(brief.dateKey)), sendClaimKey(brief), revisionOf(brief), String(BRIEF_TTL_SECONDS)]]);
   if (!result || result[0]?.error) return 'unavailable';
-  return result[0]?.result === 'OK' ? 'claimed' : 'duplicate';
+  return result[0]?.result === 1 ? 'claimed' : 'duplicate';
 }
 
 async function releaseBriefSendClaim(brief: Record<string, unknown>): Promise<void> {
@@ -138,6 +161,10 @@ export default async function handler(request: Request): Promise<Response> {
     }
     const wantsGenerate = url.searchParams.get('generate') === '1';
     if (wantsGenerate) {
+      if (!isAuthorizedCron(request)) {
+        const limited = await limitReviewerBearer(request);
+        if (limited) return limited;
+      }
       if (!isAuthorizedCron(request) && !await isAuthorizedAdmin(request)) {
         return jsonResponse({ ok: false, error: 'UNAUTHORIZED' }, 401);
       }
@@ -156,7 +183,7 @@ export default async function handler(request: Request): Promise<Response> {
         existing,
         nowMs: Date.now(),
       });
-      const saved = await saveBrief(brief);
+      const saved = await saveBrief(brief, existing);
       return jsonResponse({
         ...publicPayload(brief, dateKey),
         generated: true,
@@ -179,6 +206,7 @@ export default async function handler(request: Request): Promise<Response> {
     lineMessage?: string;
     memoMarkdown?: string;
     brief?: Record<string, unknown>;
+    expectedRevision?: string | null;
   } = {};
   try {
     payload = await readBriefPayload(request) as typeof payload;
@@ -196,8 +224,11 @@ export default async function handler(request: Request): Promise<Response> {
     if (limited) return limited;
     if (!await isReviewerBearer(request, adminSecret())) return jsonResponse({ ok: false, error: 'UNAUTHORIZED' }, 401);
     const session = await issueReviewSession(request, adminSecret());
+    if (!session) return jsonResponse({ ok: false, error: 'UNAUTHORIZED' }, 401);
     return jsonResponse({ ok: true, authenticated: true, expiresAt: session.expiresAt }, 200, { 'Set-Cookie': reviewCookie(session.token) });
   }
+  const limitedBearer = await limitReviewerBearer(request);
+  if (limitedBearer) return limitedBearer;
   if (!await isAuthorizedAdmin(request)) {
     return jsonResponse({ ok: false, error: 'UNAUTHORIZED', lineConfigured: isLineConfigured(), dateKey }, 401);
   }
@@ -239,7 +270,7 @@ export default async function handler(request: Request): Promise<Response> {
           : toSave.memoMarkdown,
       };
     }
-    const saved = await saveBrief(toSave);
+    const saved = await saveBrief(toSave, existing);
     if (!saved) {
       return jsonResponse({
         ...publicPayload(toSave, targetDate),
@@ -252,9 +283,16 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   const storedBrief = await loadBrief(targetDate);
+  if ((action === 'save' || action === 'approve') && storedBrief) {
+    if (storedBrief.status === 'sent') return jsonResponse({ ...publicPayload(storedBrief, targetDate), ok: false, error: 'ALREADY_SENT' }, 409);
+    if (payload.expectedRevision !== String(storedBrief.revision || storedBrief.updatedAt || '')) {
+      return jsonResponse({ ...publicPayload(storedBrief, targetDate), ok: false, error: 'REVISION_CONFLICT' }, 409);
+    }
+  }
   let brief = storedBrief;
   if (!brief && isTopmanDailyBrief(payload.brief)) {
-    brief = payload.brief as Record<string, unknown>;
+    // Client metadata cannot establish approval or delivery authority.
+    brief = { ...payload.brief as Record<string, unknown>, status: 'draft', approvedAt: null, sentAt: null };
   }
   if (!brief) {
     const [insights, core] = await Promise.all([loadInsights(), loadTopmanCoreForBrief()]);
@@ -269,7 +307,7 @@ export default async function handler(request: Request): Promise<Response> {
       lineMessage: payload.lineMessage,
       memoMarkdown: payload.memoMarkdown,
     });
-    const saved = await saveBrief(brief);
+    const saved = await saveBrief(brief, storedBrief);
     if (!saved) {
       return jsonResponse({
         ...publicPayload(brief, targetDate),
@@ -295,7 +333,7 @@ export default async function handler(request: Request): Promise<Response> {
       }, 409);
     }
     brief = approveTopmanDailyBrief(brief);
-    const saved = await saveBrief(brief);
+    const saved = await saveBrief(brief, storedBrief);
     if (!saved) {
       return jsonResponse({
         ...publicPayload(brief, targetDate),
@@ -383,7 +421,7 @@ export default async function handler(request: Request): Promise<Response> {
       }, push.error === 'LINE_NOT_CONFIGURED' ? 503 : 502);
     }
     brief = markTopmanDailyBriefSent(brief);
-    const saved = await saveBrief(brief);
+    const saved = await saveBrief(brief, storedBrief);
     if (!saved) {
       return jsonResponse({
         ...publicPayload(brief, targetDate),

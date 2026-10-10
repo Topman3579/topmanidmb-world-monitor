@@ -84,6 +84,34 @@ test.describe('TOPMAN Simple Mode', () => {
     await expect(editor).toHaveValue('ร่างใหม่ต้องอยู่หลังรีเฟรช โดยไม่ต้องกดบันทึก');
   });
 
+  test('keeps dirty drafts despite clock skew, exposes a sent server conflict, and restores a recovery copy on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSimpleMode(page);
+    await installLocalOnlyNetwork(page);
+    await page.goto('/dashboard?mode=simple', { waitUntil: 'domcontentloaded' });
+    await waitForEventHandlers(page);
+    await waitForSimpleShell(page);
+    const editor = page.locator('#topman-daily-brief-line');
+    await editor.fill('synthetic local recovery draft');
+    const saved = await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('topman-daily-brief-local:')).map(k => JSON.parse(localStorage.getItem(k)!)).find(b => b.lineMessage === 'synthetic local recovery draft'));
+    const serverText = 'synthetic sent version ' + 'x'.repeat(400);
+    await page.route('**/api/topman-daily-brief', route => route.fulfill({ json: { ok: true, lineConfigured: false, brief: { ...saved, revision: 'server-newer', lineMessage: serverText, status: 'sent', updatedAt: '2099-01-01T00:00:00Z' } } }));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForEventHandlers(page);
+    await expect(editor).toHaveValue('synthetic local recovery draft');
+    const conflict = page.locator('.topman-simple-daily-brief__conflict');
+    await expect(conflict).toBeVisible();
+    await conflict.locator('summary').click();
+    await expect(conflict.locator('pre')).toHaveText(serverText);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(2);
+    await page.locator('[data-action="brief-load-server"]').click();
+    await expect(editor).toHaveValue(serverText);
+    await expect(page.locator('[data-action="brief-send"]')).toBeDisabled();
+    await page.locator('[data-action="brief-recover-local"]').click();
+    await expect(editor).toHaveValue('synthetic local recovery draft');
+    await expect(conflict).toBeVisible();
+  });
+
   test('reviewer sign-in is labeled, masks input, and uses a cookie session without retaining the credential', async ({ page }) => {
     await seedSimpleMode(page);
     await installLocalOnlyNetwork(page);
@@ -107,14 +135,16 @@ test.describe('TOPMAN Simple Mode', () => {
     await expect(input).toHaveAttribute('type', 'password');
     await expect(page.locator('label[for="topman-review-password"]')).toBeVisible();
     await input.fill('synthetic-test-credential');
-    await page.locator('[data-action="brief-login"]').click();
+    await page.locator('[data-action="brief-login"]').focus();
+    await page.keyboard.press('Enter');
     await expect(page.locator('[data-action="brief-logout"]')).toBeVisible();
     expect(requests[0]).toEqual({ action: 'login', authorization: 'Bearer synthetic-test-credential' });
     expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain('synthetic-test-credential');
     await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForEventHandlers(page);
     await expect(page.locator('[data-action="brief-logout"]')).toBeVisible();
-    await page.locator('[data-action="brief-logout"]').click();
+    await page.locator('[data-action="brief-logout"]').focus();
+    await page.keyboard.press('Enter');
     await expect(input).toBeVisible();
     expect(requests.at(-1)).toEqual({ action: 'logout', authorization: undefined });
   });

@@ -20,6 +20,7 @@ export function isSameOriginReviewRequest(request) {
     && request.headers.get('sec-fetch-site') !== 'cross-site';
 }
 export async function isReviewerBearer(request, secret) {
+  if (!secret) return false;
   const authorization = request.headers.get('authorization') || '';
   if (!authorization.startsWith('Bearer ')) return false;
   const candidate = authorization.slice(7);

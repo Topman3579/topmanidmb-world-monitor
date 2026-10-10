@@ -28,6 +28,9 @@ export interface TopmanBriefSection {
 
 export interface TopmanDailyBrief {
   version: number;
+  revision?: string;
+  serverRevision?: string | null;
+  localEdited?: boolean;
   dateKey: string;
   status: TopmanBriefStatus;
   createdAt: string;
@@ -113,7 +116,9 @@ export function patchTopmanDailyBrief(
   brief: TopmanDailyBrief,
   patch: { lineMessage?: string; memoMarkdown?: string; nowMs?: number },
 ): TopmanDailyBrief {
-  return asBrief(patchCore(toCoreRecord(brief), patch));
+  const next = asBrief(patchCore(toCoreRecord(brief), patch));
+  next.localEdited = brief.localEdited || next.lineMessage !== brief.lineMessage || next.memoMarkdown !== brief.memoMarkdown;
+  return next;
 }
 
 export function approveTopmanDailyBrief(brief: TopmanDailyBrief, nowMs?: number): TopmanDailyBrief {
@@ -204,10 +209,12 @@ export async function fetchServerDailyBrief(dateKey?: string): Promise<TopmanDai
     headers: { Accept: 'application/json' },
   });
   const data = await resp.json().catch(() => ({}));
+  const serverBrief = isTopmanDailyBrief(data?.brief) ? asBrief(data.brief) : null;
+  if (serverBrief) { serverBrief.serverRevision = serverBrief.revision || serverBrief.updatedAt; serverBrief.localEdited = false; }
   if (resp.status === 401) reviewerExpiresAt = 0;
   return {
     ok: resp.ok,
-    brief: isTopmanDailyBrief(data?.brief) ? asBrief(data.brief) : null,
+    brief: serverBrief,
     lineConfigured: Boolean(data?.lineConfigured),
     dateKey: typeof data?.dateKey === 'string' ? data.dateKey : bangkokDateKey(),
     error: typeof data?.error === 'string' ? data.error : undefined,
@@ -221,6 +228,7 @@ export async function postDailyBriefAction(
     lineMessage?: string;
     memoMarkdown?: string;
     brief?: TopmanDailyBrief;
+    expectedRevision?: string | null;
   } = {},
 ): Promise<TopmanDailyBriefApiResponse> {
   const resp = await fetch('/api/topman-daily-brief', {
@@ -233,10 +241,12 @@ export async function postDailyBriefAction(
     body: JSON.stringify({ action, ...body }),
   });
   const data = await resp.json().catch(() => ({}));
+  const serverBrief = isTopmanDailyBrief(data?.brief) ? asBrief(data.brief) : null;
+  if (serverBrief) { serverBrief.serverRevision = serverBrief.revision || serverBrief.updatedAt; serverBrief.localEdited = false; }
   if (resp.status === 401) reviewerExpiresAt = 0;
   return {
     ok: resp.ok,
-    brief: isTopmanDailyBrief(data?.brief) ? asBrief(data.brief) : null,
+    brief: serverBrief,
     lineConfigured: Boolean(data?.lineConfigured),
     dateKey: typeof data?.dateKey === 'string' ? data.dateKey : bangkokDateKey(),
     error: typeof data?.error === 'string' ? data.error : undefined,

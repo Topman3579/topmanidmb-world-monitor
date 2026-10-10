@@ -803,6 +803,16 @@ html.topman-ui-mode-advanced #topmanSimpleModeBelow {
   font-size: 0.9rem;
 }
 
+.topman-simple-daily-brief__conflict {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.topman-simple-daily-brief__conflict pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .topman-simple-daily-brief__label {
   font-size: 0.82rem;
   font-weight: 700;
