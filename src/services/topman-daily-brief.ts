@@ -60,7 +60,7 @@ export {
 };
 
 const LOCAL_BRIEF_PREFIX = 'topman-daily-brief-local:';
-let inMemoryBriefAdminSecret = '';
+let reviewerExpiresAt = 0;
 
 function asBrief(value: unknown): TopmanDailyBrief {
   if (!isTopmanDailyBrief(value)) {
@@ -154,14 +154,40 @@ export function saveLocalDailyBrief(brief: TopmanDailyBrief): void {
   }
 }
 
-export function getBriefAdminSecret(): string {
-  return inMemoryBriefAdminSecret;
+export function hasBriefReviewerSession(): boolean {
+  return reviewerExpiresAt > Date.now();
 }
 
-export function setBriefAdminSecret(secret: string): void {
-  // Deliberately memory-only: never persist an administrative bearer in Web
-  // Storage where unrelated scripts or a later tab reload can recover it.
-  inMemoryBriefAdminSecret = secret;
+export async function refreshBriefReviewerSession(): Promise<boolean> {
+  try {
+    const response = await fetch('/api/topman-daily-brief?session=1', { credentials: 'same-origin', cache: 'no-store' });
+    const data = await response.json();
+    reviewerExpiresAt = response.ok && data.authenticated && Number.isFinite(data.expiresAt) ? data.expiresAt : 0;
+  } catch {
+    reviewerExpiresAt = 0;
+  }
+  return hasBriefReviewerSession();
+}
+
+export async function startBriefReviewerSession(secret: string): Promise<boolean> {
+  reviewerExpiresAt = 0;
+  const response = await fetch('/api/topman-daily-brief', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+    body: JSON.stringify({ action: 'login' }),
+  });
+  const data = await response.json();
+  reviewerExpiresAt = response.ok && data.authenticated && Number.isFinite(data.expiresAt) ? data.expiresAt : 0;
+  return hasBriefReviewerSession();
+}
+
+export async function endBriefReviewerSession(): Promise<void> {
+  reviewerExpiresAt = 0;
+  const response = await fetch('/api/topman-daily-brief', {
+    method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'logout' }),
+  });
+  if (!response.ok) throw new Error('Reviewer logout failed');
 }
 
 export interface TopmanDailyBriefApiResponse {
@@ -178,6 +204,7 @@ export async function fetchServerDailyBrief(dateKey?: string): Promise<TopmanDai
     headers: { Accept: 'application/json' },
   });
   const data = await resp.json().catch(() => ({}));
+  if (resp.status === 401) reviewerExpiresAt = 0;
   return {
     ok: resp.ok,
     brief: isTopmanDailyBrief(data?.brief) ? asBrief(data.brief) : null,
@@ -196,17 +223,17 @@ export async function postDailyBriefAction(
     brief?: TopmanDailyBrief;
   } = {},
 ): Promise<TopmanDailyBriefApiResponse> {
-  const secret = getBriefAdminSecret();
   const resp = await fetch('/api/topman-daily-brief', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
     },
     body: JSON.stringify({ action, ...body }),
   });
   const data = await resp.json().catch(() => ({}));
+  if (resp.status === 401) reviewerExpiresAt = 0;
   return {
     ok: resp.ok,
     brief: isTopmanDailyBrief(data?.brief) ? asBrief(data.brief) : null,

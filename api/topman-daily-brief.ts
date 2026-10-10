@@ -1,8 +1,16 @@
-// TOPMAN daily executive brief — GET public read, POST mutate (admin secret),
+// TOPMAN daily executive brief — GET public read, POST mutate (reviewer session),
 // GET ?generate=1 with CRON_SECRET for 07:30 Asia/Bangkok draft creation.
 
 // @ts-expect-error -- shared JSON helper
-import { jsonResponse } from './_json-response.js';
+import { jsonResponse as baseJsonResponse } from './_json-response.js';
+// @ts-expect-error -- shared reviewer session helper
+import { isAuthorizedReviewer, isReviewerBearer, isSameOriginReviewRequest, issueReviewSession, readReviewSession, reviewCookie } from './_topman-review-session.js';
+// @ts-expect-error -- shared rate limiter
+import { checkRateLimit } from './_rate-limit.js';
+
+function jsonResponse(body: unknown, status: number, headers: Record<string, string> = {}): Response {
+  return baseJsonResponse(body, status, { 'Cache-Control': 'private, no-store', ...headers });
+}
 // @ts-expect-error -- Upstash helpers
 import { readJsonFromUpstash, redisPipeline } from './_upstash-json.js';
 // @ts-expect-error -- LINE helper
@@ -28,16 +36,39 @@ function adminSecret(): string | undefined {
   return process.env.TOPMAN_BRIEF_ADMIN_SECRET;
 }
 
-function isAuthorizedAdmin(request: Request): boolean {
-  const secret = adminSecret();
-  if (!secret) return false;
-  return request.headers.get('authorization') === `Bearer ${secret}`;
+async function isAuthorizedAdmin(request: Request): Promise<boolean> {
+  return isAuthorizedReviewer(request, adminSecret());
 }
 
 function isAuthorizedCron(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret || request.method !== 'GET') return false;
   return request.headers.get('authorization') === `Bearer ${secret}`;
+}
+
+async function readBriefPayload(request: Request): Promise<unknown> {
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error('INVALID_JSON');
+  const limit = 64 * 1024;
+  let size = 0;
+  const chunks: Uint8Array[] = [];
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => { void reader.cancel().catch(() => {}); reject(new Error('BODY_TIMEOUT')); }, 5_000);
+  });
+  try {
+    while (true) {
+      const { done, value } = await Promise.race([reader.read(), deadline]);
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) { void reader.cancel().catch(() => {}); throw new Error('BODY_TOO_LARGE'); }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } finally { clearTimeout(timer); }
 }
 
 async function loadBrief(dateKey: string): Promise<Record<string, unknown> | null> {
@@ -55,7 +86,7 @@ async function saveBrief(brief: Record<string, unknown>): Promise<boolean> {
   const result = await redisPipeline([
     ['SET', key, payload, 'EX', String(BRIEF_TTL_SECONDS)],
   ]);
-  return Array.isArray(result);
+  return Array.isArray(result) && result[0]?.result === 'OK' && !result[0]?.error;
 }
 
 function sendClaimKey(brief: Record<string, unknown>): string {
@@ -101,9 +132,13 @@ export default async function handler(request: Request): Promise<Response> {
     : bangkokDateKey();
 
   if (request.method === 'GET') {
+    if (url.searchParams.get('session') === '1') {
+      const session = await readReviewSession(request, adminSecret());
+      return jsonResponse({ ok: true, authenticated: Boolean(session), expiresAt: session?.expiresAt ?? null }, 200);
+    }
     const wantsGenerate = url.searchParams.get('generate') === '1';
     if (wantsGenerate) {
-      if (!isAuthorizedCron(request) && !isAuthorizedAdmin(request)) {
+      if (!isAuthorizedCron(request) && !await isAuthorizedAdmin(request)) {
         return jsonResponse({ ok: false, error: 'UNAUTHORIZED' }, 401);
       }
       const existing = await loadBrief(dateKey);
@@ -137,15 +172,6 @@ export default async function handler(request: Request): Promise<Response> {
     return jsonResponse({ ok: false, error: 'METHOD_NOT_ALLOWED' }, 405);
   }
 
-  if (!isAuthorizedAdmin(request)) {
-    return jsonResponse({
-      ok: false,
-      error: 'UNAUTHORIZED',
-      detail: 'ต้องใช้ Bearer TOPMAN_BRIEF_ADMIN_SECRET',
-      lineConfigured: isLineConfigured(),
-      dateKey,
-    }, 401);
-  }
 
   let payload: {
     action?: string;
@@ -155,12 +181,26 @@ export default async function handler(request: Request): Promise<Response> {
     brief?: Record<string, unknown>;
   } = {};
   try {
-    payload = await request.json();
-  } catch {
-    return jsonResponse({ ok: false, error: 'INVALID_JSON' }, 400);
+    payload = await readBriefPayload(request) as typeof payload;
+  } catch (error) {
+    const code = error instanceof Error && ['BODY_TOO_LARGE', 'BODY_TIMEOUT'].includes(error.message) ? error.message : 'INVALID_JSON';
+    return jsonResponse({ ok: false, error: code }, code === 'BODY_TOO_LARGE' ? 413 : code === 'BODY_TIMEOUT' ? 408 : 400);
   }
 
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return jsonResponse({ ok: false, error: 'INVALID_JSON' }, 400);
   const action = payload.action || 'save';
+  if (action === 'login' || action === 'logout') {
+    if (!isSameOriginReviewRequest(request)) return jsonResponse({ ok: false, error: 'ORIGIN_REJECTED' }, 403);
+    if (action === 'logout') return jsonResponse({ ok: true, authenticated: false }, 200, { 'Set-Cookie': reviewCookie() });
+    const limited = await checkRateLimit(request, { 'Cache-Control': 'private, no-store' }, { scope: 'topman-review-login', limit: 5, window: '60 s', failClosed: true });
+    if (limited) return limited;
+    if (!await isReviewerBearer(request, adminSecret())) return jsonResponse({ ok: false, error: 'UNAUTHORIZED' }, 401);
+    const session = await issueReviewSession(request, adminSecret());
+    return jsonResponse({ ok: true, authenticated: true, expiresAt: session.expiresAt }, 200, { 'Set-Cookie': reviewCookie(session.token) });
+  }
+  if (!await isAuthorizedAdmin(request)) {
+    return jsonResponse({ ok: false, error: 'UNAUTHORIZED', lineConfigured: isLineConfigured(), dateKey }, 401);
+  }
   const targetDate = payload.dateKey && /^\d{4}-\d{2}-\d{2}$/.test(payload.dateKey)
     ? payload.dateKey
     : dateKey;
@@ -322,8 +362,18 @@ export default async function handler(request: Request): Promise<Response> {
         detail: 'บรีฟฉบับที่อนุมัตินี้กำลังส่งหรือส่งแล้ว ระบบป้องกันการส่งซ้ำ',
       }, 409);
     }
-    const push = await pushLineTextMessage(String(brief.lineMessage || ''));
+    let push;
+    try {
+      push = await pushLineTextMessage(String(brief.lineMessage || ''));
+    } catch {
+      // The provider may already have accepted the request. Keep the claim;
+      // retrying an ambiguous delivery could send the same revision twice.
+      return jsonResponse({ ...publicPayload(brief, targetDate), ok: false, error: 'DELIVERY_UNCONFIRMED', detail: 'ยังยืนยันผลส่งไม่ได้ ระบบล็อกฉบับนี้ไว้ ให้ตรวจผลรับก่อนดำเนินการต่อ' }, 502);
+    }
     if (!push.ok) {
+      if ((push.status ?? 0) >= 500) {
+        return jsonResponse({ ...publicPayload(brief, targetDate), ok: false, error: 'DELIVERY_UNCONFIRMED', detail: 'ผู้ให้บริการยังยืนยันผลส่งไม่ได้ ระบบล็อกฉบับนี้ไว้ ให้ตรวจผลรับก่อนดำเนินการต่อ' }, 502);
+      }
       await releaseBriefSendClaim(brief);
       return jsonResponse({
         ...publicPayload(brief, targetDate),

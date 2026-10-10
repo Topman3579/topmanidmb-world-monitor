@@ -8,8 +8,10 @@ async function installLocalOnlyNetwork(page: Page): Promise<void> {
 
 async function seedSimpleMode(page: Page): Promise<void> {
   await page.addInitScript(() => {
+    if (sessionStorage.getItem('topman-e2e-seeded')) return;
     localStorage.clear();
     sessionStorage.clear();
+    sessionStorage.setItem('topman-e2e-seeded', '1');
     localStorage.setItem('worldmonitor-variant', 'full');
     localStorage.setItem('topman-ui-mode-v1', 'simple');
     localStorage.setItem('topman-guided-tour-dismissed-v1', '1');
@@ -61,6 +63,60 @@ test.describe('TOPMAN Simple Mode', () => {
     await page.locator('[data-action="switch-simple"]').first().click();
     await expect(page.locator('html')).toHaveAttribute('data-topman-ui-mode', 'simple');
     await expect(page.locator('#topman-daily-brief-line')).toHaveValue('ร่างทดสอบที่ต้องคงอยู่เมื่อสลับโหมด');
+  });
+
+  test('autosaves typed edits before a browser reload and keeps newer local edits over older approved server content', async ({ page }) => {
+    await seedSimpleMode(page);
+    await installLocalOnlyNetwork(page);
+    await page.goto('/dashboard?mode=simple', { waitUntil: 'domcontentloaded' });
+    await waitForEventHandlers(page);
+    await waitForSimpleShell(page);
+    const editor = page.locator('#topman-daily-brief-line');
+    await expect(editor).toBeVisible();
+    await editor.fill('ร่างใหม่ต้องอยู่หลังรีเฟรช โดยไม่ต้องกดบันทึก');
+    const saved = await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('topman-daily-brief-local:')).map(k => JSON.parse(localStorage.getItem(k)!)).find(b => b.lineMessage.includes('ร่างใหม่ต้องอยู่')));
+    expect(saved).toBeTruthy();
+    await page.route('**/api/topman-daily-brief', async route => {
+      await route.fulfill({ json: { ok: true, lineConfigured: false, dateKey: saved.dateKey, brief: { ...saved, lineMessage: 'older approved server text', status: 'approved', updatedAt: new Date(Date.parse(saved.updatedAt) - 60_000).toISOString() } } });
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForEventHandlers(page);
+    await expect(editor).toHaveValue('ร่างใหม่ต้องอยู่หลังรีเฟรช โดยไม่ต้องกดบันทึก');
+  });
+
+  test('reviewer sign-in is labeled, masks input, and uses a cookie session without retaining the credential', async ({ page }) => {
+    await seedSimpleMode(page);
+    await installLocalOnlyNetwork(page);
+    let loggedIn = false;
+    const requests: Array<{ action: string; authorization: string | undefined }> = [];
+    await page.route('**/api/topman-daily-brief**', async route => {
+      const req = route.request();
+      if (req.method() === 'POST') {
+        const action = req.postDataJSON().action;
+        requests.push({ action, authorization: req.headers().authorization });
+        loggedIn = action === 'login';
+        await route.fulfill({ json: { ok: true, authenticated: loggedIn, expiresAt: loggedIn ? Date.now() + 900_000 : null } });
+      } else if (req.url().includes('session=1')) {
+        await route.fulfill({ json: { ok: true, authenticated: loggedIn, expiresAt: loggedIn ? Date.now() + 900_000 : null } });
+      } else await route.fulfill({ json: { ok: true, brief: null, lineConfigured: false } });
+    });
+    await page.goto('/dashboard?mode=simple', { waitUntil: 'domcontentloaded' });
+    await waitForEventHandlers(page);
+    await waitForSimpleShell(page);
+    const input = page.locator('#topman-review-password');
+    await expect(input).toHaveAttribute('type', 'password');
+    await expect(page.locator('label[for="topman-review-password"]')).toBeVisible();
+    await input.fill('synthetic-test-credential');
+    await page.locator('[data-action="brief-login"]').click();
+    await expect(page.locator('[data-action="brief-logout"]')).toBeVisible();
+    expect(requests[0]).toEqual({ action: 'login', authorization: 'Bearer synthetic-test-credential' });
+    expect(await page.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage }))).not.toContain('synthetic-test-credential');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForEventHandlers(page);
+    await expect(page.locator('[data-action="brief-logout"]')).toBeVisible();
+    await page.locator('[data-action="brief-logout"]').click();
+    await expect(input).toBeVisible();
+    expect(requests.at(-1)).toEqual({ action: 'logout', authorization: undefined });
   });
 
   test('switches to advanced and back to simple', async ({ page }) => {
