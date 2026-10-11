@@ -1,5 +1,11 @@
 {
   "ignoreCommand": "bash scripts/vercel-ignore.sh",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "main": true
+    }
+  },
   "crons": [
     { "path": "/api/topman-core-refresh?group=fast", "schedule": "*/15 * * * *" },
     { "path": "/api/topman-core-refresh?group=market", "schedule": "3,23,43 * * * *" },
