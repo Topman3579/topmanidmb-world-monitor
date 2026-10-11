@@ -2,7 +2,18 @@
 
 import { fileURLToPath } from 'node:url';
 
-const DEFAULT_HEALTH_URL = 'https://api.worldmonitor.app/api/health?compact=1';
+// This fork must never probe the upstream project. There is no public health
+// endpoint to fall back to: production sits behind Vercel Deployment Protection.
+// Set the HEALTH_URL repo variable to this deployment's /api/health?compact=1
+// (run with WM_HEALTH_SCOPE=fork; see api/health.js).
+const UPSTREAM_HOST = 'worldmonitor.app';
+export const VERCEL_PROTECTION_BYPASS_HEADER = 'x-vercel-protection-bypass';
+
+const DISABLED_NOTICE = [
+  '::notice::Seed freshness monitor is disabled until HEALTH_URL is configured.',
+  'Set the repo variable HEALTH_URL to this fork\'s /api/health?compact=1 and run that endpoint with WM_HEALTH_SCOPE=fork (see api/health.js).',
+  'This monitor does not default to the upstream health endpoint.',
+].join(' ');
 
 export function validateCompactHealthPayload(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -28,10 +39,66 @@ export function findStaleSeedProblems(payload) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export function isUpstreamWorldMonitorHost(hostname) {
+  const host = String(hostname ?? '').trim().toLowerCase().replace(/\.+$/, '');
+  return host === UPSTREAM_HOST || host.endsWith(`.${UPSTREAM_HOST}`);
+}
+
+// Pure decision for HEALTH_URL. `skip` is a successful no-op (exit 0).
+// `reject` is a config error (exit 1). `fetch` is the only path that hits the network.
+export function planSeedFreshnessCheck(healthUrl) {
+  const trimmed = String(healthUrl ?? '').trim();
+  if (!trimmed) {
+    return { action: 'skip', notice: DISABLED_NOTICE };
+  }
+
+  let url;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return { action: 'reject', error: 'HEALTH_URL is not a valid absolute URL.' };
+  }
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    return { action: 'reject', error: `HEALTH_URL scheme ${url.protocol} is not allowed.` };
+  }
+
+  const host = url.hostname.toLowerCase().replace(/\.+$/, '');
+  if (isUpstreamWorldMonitorHost(host)) {
+    return {
+      action: 'reject',
+      error: `Refusing HEALTH_URL host ${host}: worldmonitor.app and its subdomains are the upstream project and must not be checked.`,
+    };
+  }
+
+  return { action: 'fetch', url: url.toString() };
+}
+
+// Adds the Vercel protection bypass header only when a secret is present.
+// Callers must not log the returned header value.
+export function healthRequestHeaders(bypassSecret) {
+  const headers = { 'User-Agent': 'worldmonitor-seed-freshness-monitor/1.0' };
+  const secret = typeof bypassSecret === 'string' ? bypassSecret.trim() : '';
+  if (secret) headers[VERCEL_PROTECTION_BYPASS_HEADER] = secret;
+  return headers;
+}
+
 async function main() {
-  const healthUrl = process.env.HEALTH_URL || DEFAULT_HEALTH_URL;
-  const response = await fetch(healthUrl, {
-    headers: { 'User-Agent': 'worldmonitor-seed-freshness-monitor/1.0' },
+  const plan = planSeedFreshnessCheck(process.env.HEALTH_URL);
+  if (plan.action === 'skip') {
+    console.log(plan.notice);
+    return;
+  }
+  if (plan.action === 'reject') {
+    console.error(plan.error);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Never print VERCEL_AUTOMATION_BYPASS_SECRET or the bypass header value.
+  const headers = healthRequestHeaders(process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
+  const response = await fetch(plan.url, {
+    headers,
     signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok) {
