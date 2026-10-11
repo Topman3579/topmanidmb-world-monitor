@@ -33,7 +33,7 @@ RUN npm run build:crawlable-corpus && npm run build:content-corpus && npx tsc &&
 
 
 # Stage 2: Serve the built assets from nginx.
-FROM nginx:alpine@sha256:54f2a904c251d5a34adf545a72d32515a15e08418dae0266e23be2e18c66fefa AS runtime
+FROM nginx:alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2 AS runtime
 
 WORKDIR /usr/share/nginx/html
 
