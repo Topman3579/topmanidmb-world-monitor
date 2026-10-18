@@ -29,13 +29,6 @@ function readRepoJson(relativePath) {
   return JSON.parse(readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8'));
 }
 
-function packagePathsDependingOn(lockfile, dependencyName) {
-  return Object.entries(lockfile.packages ?? {})
-    .filter(([, pkg]) => Object.hasOwn(pkg.dependencies ?? {}, dependencyName))
-    .map(([path]) => path)
-    .sort();
-}
-
 function lockedVersions(lockfile, dependencyName) {
   return Object.entries(lockfile.packages ?? {})
     .filter(([path]) => path.endsWith(`/node_modules/${dependencyName}`) || path === `node_modules/${dependencyName}`)
@@ -183,15 +176,17 @@ describe('security audit baseline', () => {
     }
   });
 
-  it('limits the remaining image-size baseline to pro-test Metro tooling', () => {
-    const advisories = ['GHSA-5p2g-fcmc-qvqq', 'GHSA-w3rx-r6r6-pgpr'];
+  it('keeps the react-native/Metro peer path out of pro-test without exemptions', () => {
     const proPackage = readRepoJson('pro-test/package.json');
     const proLock = readRepoJson('pro-test/package-lock.json');
+    const proNpmrc = readFileSync(new URL('../pro-test/.npmrc', import.meta.url), 'utf8');
 
-    assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['pro-test/package-lock.json'], advisories);
+    assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['pro-test/package-lock.json'], []);
+    assert.match(proNpmrc, /^legacy-peer-deps=true$/m);
     assert.equal(proPackage.dependencies?.['image-size'], undefined);
-    assert.deepEqual(packagePathsDependingOn(proLock, 'image-size'), ['node_modules/metro']);
-    assert.deepEqual(lockedVersions(proLock, 'image-size'), ['1.2.1']);
+    for (const name of ['react-native', 'metro', 'image-size', 'braces', 'micromatch']) {
+      assert.deepEqual(lockedVersions(proLock, name), [], `${name} must not return to pro-test through Clerk`);
+    }
   });
 
   it('treats a symlinked entry path as direct invocation (no silent fail-open)', () => {

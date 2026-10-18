@@ -17,10 +17,10 @@ export const BASELINE_ADVISORIES_BY_LOCKFILE = {
   'package-lock.json': [],
   'consumer-prices-core/package-lock.json': [],
   'blog-site/package-lock.json': [],
-  // Clerk 5 still retains Metro in pro-test. The lock-shape regression test
-  // limits this existing image-size 1.x exception to that non-runtime tooling;
-  // Clerk 6 has removed the path from the root lockfile entirely.
-  'pro-test/package-lock.json': ['GHSA-5p2g-fcmc-qvqq', 'GHSA-w3rx-r6r6-pgpr'],
+  // pro-test/.npmrc sets legacy-peer-deps so Clerk 5's Solana mobile adapter
+  // no longer auto-installs its optional react-native peer (and with it Metro,
+  // image-size and braces). The browser bundle never imported that path.
+  'pro-test/package-lock.json': [],
   'scripts/package-lock.json': [],
   'docker/runtime-package-lock.json': [],
 };
