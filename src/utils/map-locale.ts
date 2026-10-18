@@ -1,3 +1,4 @@
+import type { ExpressionSpecification } from 'maplibre-gl';
 import { getCurrentLanguage } from '@/services/i18n';
 
 const LANG_TO_TILE_FIELD: Record<string, string> = {
@@ -27,7 +28,7 @@ const LANG_TO_TILE_FIELD: Record<string, string> = {
   // vi — not available in Protomaps/OSM tiles
 };
 
-type Expression = [string, ...unknown[]];
+type Expression = ExpressionSpecification;
 
 interface MapStyleLayer {
   id: string;
