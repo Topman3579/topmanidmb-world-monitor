@@ -140,7 +140,7 @@ The transport conformance suite binds the handler to a localhost listener. The h
 The regression net therefore has two layers:
 
 - `tests/mcp-transport-conformance.test.mjs` locks the *contract*: markdown guide on a plain `GET /mcp`, JSON card on the aliases, `405` preserved for SSE GETs, `HEAD` advertising the representation its `GET` returns, the card cacheable **only** with `Vary`, and the transport URL never cacheable.
-- `scripts/mcp-live-smoke.mjs` (6-hourly cron) probes *production*: it warms the cache with a plain GET, then issues the SSE GET and fails if the answer is anything but `405` — naming `x-vercel-cache: HIT` explicitly when it is a cache replay. It also asserts the variant `308` and that variant `POST` is not redirected.
+- `scripts/mcp-live-smoke.mjs` probes a *live deployment*. On this fork it runs only via manual `workflow_dispatch` of `mcp-live-smoke.yml` with an explicit `mcp_smoke_hosts` (the 6-hourly cron was removed because the script defaults to upstream `worldmonitor.app`, which this fork does not serve), so there is no automatic coverage until someone dispatches it: it warms the cache with a plain GET, then issues the SSE GET and fails if the answer is anything but `405` — naming `x-vercel-cache: HIT` explicitly when it is a cache replay. It also asserts the variant `308` and that variant `POST` is not redirected.
 
 Run against un-fixed production, the new probe reproduced all three defects independently, including the cache HIT.
 

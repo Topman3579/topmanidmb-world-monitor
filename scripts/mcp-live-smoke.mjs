@@ -102,6 +102,10 @@ function ok(host, check, detail = '') {
 // text() promise — clearing the timer only after the body is consumed is what
 // turns a stalled-body response into a fast HANG failure instead of a job
 // that idles until the workflow timeout.
+//   MCP_SMOKE_OAUTH_SAME_ORIGIN=1  probe OAuth endpoint paths on the probed host
+//   instead of the (possibly upstream) origin the metadata advertises.
+const OAUTH_SAME_ORIGIN = ['1', 'true'].includes(String(process.env.MCP_SMOKE_OAUTH_SAME_ORIGIN ?? '').toLowerCase());
+
 async function timedFetch(url, init = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -267,10 +271,27 @@ async function walkHost(host) {
   }
   for (const key of ['registration_endpoint', 'token_endpoint']) {
     checks += 1;
-    const endpoint = meta[key];
-    if (typeof endpoint !== 'string') {
+    const advertised = meta[key];
+    if (typeof advertised !== 'string') {
       fail(host, `oauth ${key}`, 'missing from metadata');
       continue;
+    }
+    let endpoint = advertised;
+    if (OAUTH_SAME_ORIGIN) {
+      // Fork deployments advertise upstream worldmonitor.app endpoints from
+      // api/_agent-metadata.js. Probe the same path on the dispatched host so
+      // a manual smoke never contacts upstream and checks this host's routes.
+      let parsed;
+      try {
+        parsed = new URL(advertised, host);
+      } catch {
+        fail(host, `oauth ${key}`, `unparseable endpoint in metadata: ${advertised}`);
+        continue;
+      }
+      endpoint = `${new URL(host).origin}${parsed.pathname}`;
+      if (parsed.origin !== new URL(host).origin) {
+        console.log(`  ℹ [${host}] oauth ${key} advertised on ${parsed.origin}; probing ${endpoint} instead (MCP_SMOKE_OAUTH_SAME_ORIGIN)`);
+      }
     }
     try {
       const { res, ms } = await timedFetch(endpoint, {
