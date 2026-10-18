@@ -108,10 +108,19 @@ incident note.
 
 ### Merged does not mean deployed
 
-`.github/workflows/seed-freshness-monitor.yml` runs every 15 minutes on the
-default branch. It first requires the latest `main` commit's `gate` status to
-be green, then checks public compact health and fails when any seed metadata is
-older than its `maxStaleMin` threshold (`STALE_SEED`). This is the alert for the
+`.github/workflows/seed-freshness-monitor.yml` runs hourly (at minute 17) on
+the default branch. **It does nothing until configured:** while the `HEALTH_URL`
+repo variable is unset the job exits successfully without making any request,
+so a green run does not mean the alert is active. To enable it, set `HEALTH_URL`
+to this fork's `/api/health?compact=1` (served with `WM_HEALTH_SCOPE=fork`; the
+upstream `worldmonitor.app` hosts are refused). Production sits behind Vercel
+Deployment Protection, so also add the `VERCEL_AUTOMATION_BYPASS_SECRET` repo
+secret; it is sent as `x-vercel-protection-bypass` only when `HEALTH_URL` is
+`https://`, and a redirect from that URL fails the run instead of being followed.
+
+Once configured, it first requires the latest `main` commit's `gate` status to
+be green, then checks compact health and fails when any seed metadata is older
+than its `maxStaleMin` threshold (`STALE_SEED`). This is the alert for the
 "green main, stale Railway image" gap; the existing compact health monitor
 continues to cover critical `EMPTY`/`EMPTY_DATA` and Redis failures.
 

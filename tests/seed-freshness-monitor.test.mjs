@@ -3,8 +3,14 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import {
+  assertForkHealthScope,
+  fetchHealth,
   findStaleSeedProblems,
+  healthRequestHeaders,
+  isUpstreamWorldMonitorHost,
+  planSeedFreshnessCheck,
   validateCompactHealthPayload,
+  VERCEL_PROTECTION_BYPASS_HEADER,
 } from '../scripts/check-seed-freshness.mjs';
 
 describe('scheduled seed freshness monitor', () => {
@@ -47,11 +53,112 @@ describe('scheduled seed freshness monitor', () => {
     );
 
     assert.match(workflow, /schedule:/);
-    assert.match(workflow, /cron:\s*['"]\*\/15 \* \* \* \*['"]/);
+    assert.match(workflow, /cron:\s*['"]17 \* \* \* \*['"]/);
+    assert.match(workflow, /workflow_dispatch:/);
     assert.match(workflow, /actions\/setup-node@[a-f0-9]+/);
     assert.match(workflow, /node-version:\s*['"]24['"]/);
     assert.match(workflow, /context\s*==\s*"gate"/);
     assert.match(workflow, /gate_state.*success/s);
+    assert.match(workflow, /HEALTH_URL:\s*\$\{\{\s*vars\.HEALTH_URL\s*\}\}/);
+    assert.match(workflow, /VERCEL_AUTOMATION_BYPASS_SECRET:\s*\$\{\{\s*secrets\.VERCEL_AUTOMATION_BYPASS_SECRET\s*\}\}/);
     assert.match(workflow, /node scripts\/check-seed-freshness\.mjs/);
+    assert.doesNotMatch(workflow, /https?:\/\/(?:[a-z0-9-]+\.)*worldmonitor\.app/);
+  });
+
+  it('does not check anything when HEALTH_URL is unset', () => {
+    for (const value of [undefined, '', '   ']) {
+      const plan = planSeedFreshnessCheck(value);
+      assert.equal(plan.action, 'skip');
+      assert.match(plan.notice, /::notice::/);
+      assert.match(plan.notice, /disabled until HEALTH_URL is configured/);
+      assert.match(plan.notice, /WM_HEALTH_SCOPE=fork/);
+      assert.match(plan.notice, /api\/health\.js/);
+      assert.equal(plan.url, undefined);
+    }
+  });
+
+  it('rejects the upstream worldmonitor.app host and its subdomains', () => {
+    const rejected = [
+      'https://api.worldmonitor.app/api/health?compact=1',
+      'https://worldmonitor.app/api/health',
+      'https://www.worldmonitor.app/api/health',
+      'https://API.WorldMonitor.App/api/health',
+      'http://seed.api.worldmonitor.app/health',
+    ];
+    for (const healthUrl of rejected) {
+      const plan = planSeedFreshnessCheck(healthUrl);
+      assert.equal(plan.action, 'reject', healthUrl);
+      assert.match(plan.error, /must not be checked/);
+      assert.equal(plan.url, undefined);
+    }
+
+    assert.equal(isUpstreamWorldMonitorHost('worldmonitor.app'), true);
+    assert.equal(isUpstreamWorldMonitorHost('api.worldmonitor.app.'), true);
+    assert.equal(isUpstreamWorldMonitorHost('notworldmonitor.app'), false);
+    assert.equal(isUpstreamWorldMonitorHost('worldmonitor.app.example.com'), false);
+
+    const allowed = planSeedFreshnessCheck('https://topmanidmb-world-monitor.vercel.app/api/health?compact=1');
+    assert.equal(allowed.action, 'fetch');
+    assert.equal(allowed.url, 'https://topmanidmb-world-monitor.vercel.app/api/health?compact=1');
+  });
+
+  it('sends the Vercel bypass header without putting the secret in the plan', () => {
+    const secret = 'bypass-secret-should-not-leak';
+    const headers = healthRequestHeaders(secret);
+    assert.equal(headers[VERCEL_PROTECTION_BYPASS_HEADER], secret);
+    assert.equal(healthRequestHeaders('')[VERCEL_PROTECTION_BYPASS_HEADER], undefined);
+    assert.equal(healthRequestHeaders('   ')[VERCEL_PROTECTION_BYPASS_HEADER], undefined);
+    assert.equal(healthRequestHeaders(undefined)[VERCEL_PROTECTION_BYPASS_HEADER], undefined);
+
+    const plan = planSeedFreshnessCheck('');
+    assert.equal(JSON.stringify(plan).includes(secret), false);
+    const source = readFileSync(new URL('../scripts/check-seed-freshness.mjs', import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /https?:\/\/(?:[a-z0-9-]+\.)*worldmonitor\.app/);
+    assert.doesNotMatch(source, /console\.(?:log|error|warn|info)\([\s\S]*bypassSecret/);
+  });
+
+  it('requires https for HEALTH_URL whenever the bypass secret will be attached', () => {
+    const httpUrl = 'http://topmanidmb-world-monitor.vercel.app/api/health?compact=1';
+    assert.equal(planSeedFreshnessCheck(httpUrl).action, 'fetch');
+    const withSecret = planSeedFreshnessCheck(httpUrl, { requireHttps: true });
+    assert.equal(withSecret.action, 'reject');
+    assert.match(withSecret.error, /https/);
+    const httpsPlan = planSeedFreshnessCheck(httpUrl.replace('http:', 'https:'), { requireHttps: true });
+    assert.equal(httpsPlan.action, 'fetch');
+  });
+
+  it('never follows redirects while the bypass header is attached', async () => {
+    const calls = [];
+    const redirecting = async (url, init) => {
+      calls.push({ url, init });
+      return { status: 307, type: 'basic', ok: false, headers: new Headers({ location: 'https://evil.example/' }) };
+    };
+    const headers = healthRequestHeaders('bypass-secret-should-not-leak');
+    await assert.rejects(
+      fetchHealth('https://topmanidmb-world-monitor.vercel.app/api/health?compact=1', headers, { fetchImpl: redirecting }),
+      (error) => /redirect/.test(error.message) && !error.message.includes('bypass-secret-should-not-leak'),
+    );
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init.redirect, 'manual');
+
+    const opaque = async () => ({ status: 0, type: 'opaqueredirect', ok: false });
+    await assert.rejects(fetchHealth('https://example.test/h', headers, { fetchImpl: opaque }), /redirect/);
+
+    const plain = [];
+    await fetchHealth('https://example.test/h', healthRequestHeaders(''), {
+      fetchImpl: async (_url, init) => {
+        plain.push(init);
+        return { status: 200, ok: true, type: 'basic' };
+      },
+    });
+    assert.equal(plain[0].redirect, 'follow');
+  });
+
+  it('only trusts compact health that proves the fork scope was evaluated', () => {
+    assert.throws(() => assertForkHealthScope({ status: 'HEALTHY' }), /fork-scoped/);
+    assert.throws(() => assertForkHealthScope({ status: 'HEALTHY', scope: 'full' }), /fork-scoped/);
+    assert.throws(() => assertForkHealthScope(null), /fork-scoped/);
+    const scoped = { status: 'HEALTHY', scope: 'fork', completeness: 'owned-data-plane-only' };
+    assert.equal(assertForkHealthScope(scoped), scoped);
   });
 });

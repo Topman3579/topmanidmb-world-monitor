@@ -1,8 +1,14 @@
 name: Seed Freshness Monitor
 
+# Hourly. HEALTH_URL comes from a repo variable; when it is unset the script
+# exits 0. This fork has no public health endpoint (Vercel Deployment
+# Protection) and must not call the upstream api.worldmonitor.app. An optional
+# VERCEL_AUTOMATION_BYPASS_SECRET is sent as x-vercel-protection-bypass and is
+# never printed. With the secret set, HEALTH_URL must be https:// and redirects
+# are refused rather than followed, so the secret cannot leak to another host.
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -38,4 +44,7 @@ jobs:
 
       - name: Check seed metadata freshness
         if: github.event_name == 'workflow_dispatch' || steps.gate.outputs.should_run == 'true'
+        env:
+          HEALTH_URL: ${{ vars.HEALTH_URL }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: node scripts/check-seed-freshness.mjs
