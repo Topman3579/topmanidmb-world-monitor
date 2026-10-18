@@ -25,53 +25,6 @@ export const BASELINE_ADVISORIES_BY_LOCKFILE = {
   'docker/runtime-package-lock.json': [],
 };
 
-// Time-boxed acceptances. Kept separate from BASELINE_ADVISORIES_BY_LOCKFILE
-// so dependency-bump PRs can edit that object without conflicting here.
-//
-// pro-test is deployed: pro-test/vite.config.ts writes the committed
-// public/pro/ bundle, and Vercel serves that directory verbatim (/pro, and
-// the upstream apex rewrite to /pro/welcome.html). The root build does not
-// rebuild it. GHSA-vfj7-8cjw-p6xm (braces) is reached only via Metro build
-// tooling pulled by Clerk 5 in pro-test — @clerk/clerk-js →
-// @solana/wallet-adapter-react → @solana-mobile/wallet-adapter-mobile's
-// react-native peer → @react-native/community-cli-plugin → metro →
-// metro-file-map → micromatch → braces — not by the browser runtime.
-// Expires 2026-11-10 (UTC date, inclusive). Tracked follow-up: migrate
-// pro-test to Clerk 6. A still-present advisory fails the audit after that
-// date so the migration gets revisited.
-export const EXPIRING_ADVISORIES_BY_LOCKFILE = {
-  'pro-test/package-lock.json': [
-    {
-      id: 'GHSA-vfj7-8cjw-p6xm',
-      expires: '2026-11-10',
-      reason:
-        'braces is reached only via Metro build tooling pulled by Clerk 5 in pro-test, not browser runtime. The built site is deployed from public/pro/. Expires 2026-11-10. Tracked follow-up: migrate pro-test to Clerk 6.',
-    },
-  ],
-};
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-export function utcDateStamp(now = new Date()) {
-  const date = now instanceof Date ? now : new Date(now);
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('Invalid now value for advisory expiry check');
-  }
-  return date.toISOString().slice(0, 10);
-}
-
-export function isExpiringAdvisoryActive(entry, now = new Date()) {
-  const expires = entry?.expires ?? '';
-  if (!ISO_DATE.test(expires)) return false;
-  const parsed = new Date(`${expires}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== expires) return false;
-  return utcDateStamp(now) <= expires;
-}
-
-export function expiringAdvisoryEntries(lockfile) {
-  return EXPIRING_ADVISORIES_BY_LOCKFILE[lockfile] ?? [];
-}
-
 function severityRank(severity) {
   return SEVERITY_RANK.get(String(severity ?? '').toLowerCase()) ?? -1;
 }
@@ -109,12 +62,9 @@ export function collectAuditFindings(report, auditLevel = 'high') {
   return [...findings.values()].sort((a, b) => `${a.id}:${a.name}`.localeCompare(`${b.id}:${b.name}`));
 }
 
-export function collectUnbaselinedFindings(report, lockfile, auditLevel = 'high', now = new Date()) {
-  const accepted = new Set(BASELINE_ADVISORIES_BY_LOCKFILE[lockfile] ?? []);
-  for (const entry of expiringAdvisoryEntries(lockfile)) {
-    if (isExpiringAdvisoryActive(entry, now)) accepted.add(entry.id);
-  }
-  return collectAuditFindings(report, auditLevel).filter((finding) => !accepted.has(finding.id));
+export function collectUnbaselinedFindings(report, lockfile, auditLevel = 'high') {
+  const baseline = new Set(BASELINE_ADVISORIES_BY_LOCKFILE[lockfile] ?? []);
+  return collectAuditFindings(report, auditLevel).filter((finding) => !baseline.has(finding.id));
 }
 
 export function collectAdvisoryIds(report) {
@@ -131,31 +81,6 @@ export function collectAdvisoryIds(report) {
 export function collectStaleBaselineEntries(report, lockfile) {
   const present = collectAdvisoryIds(report);
   return (BASELINE_ADVISORIES_BY_LOCKFILE[lockfile] ?? []).filter((id) => !present.has(id));
-}
-
-export function collectStaleExpiringEntries(report, lockfile) {
-  const present = collectAdvisoryIds(report);
-  const stale = [];
-  for (const entry of expiringAdvisoryEntries(lockfile)) {
-    if (!entry?.id || present.has(entry.id) || stale.includes(entry.id)) continue;
-    stale.push(entry.id);
-  }
-  return stale;
-}
-
-export function collectExpiredAdvisoryHits(report, lockfile, auditLevel = 'high', now = new Date()) {
-  const expired = new Set(
-    expiringAdvisoryEntries(lockfile)
-      .filter((entry) => entry?.id && !isExpiringAdvisoryActive(entry, now))
-      .map((entry) => entry.id),
-  );
-  return collectAuditFindings(report, auditLevel).filter((finding) => expired.has(finding.id));
-}
-
-export function formatExpiredAdvisoryError(finding, entry, lockfile) {
-  const when = entry?.expires ?? 'unknown';
-  const why = entry?.reason ? ` ${entry.reason}` : '';
-  return `::error title=Expired advisory acceptance::${finding.id} acceptance for ${lockfile} expired on ${when}. Revisit the tracked follow-up: migrate pro-test to Clerk 6.${why}`;
 }
 
 function parseArgs(argv) {
@@ -245,45 +170,22 @@ function printFinding(prefix, finding) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const now = new Date();
   const workspace = resolve(process.cwd(), args.workspace);
   const packageJson = resolve(process.cwd(), args.packageJson);
   const lockfile = resolve(process.cwd(), args.lockfile);
   const report = readAuditReport({ workspace, packageJson, lockfile });
   const allFindings = collectAuditFindings(report, args.auditLevel);
-  const unbaselined = collectUnbaselinedFindings(report, args.lockfile, args.auditLevel, now);
+  const unbaselined = collectUnbaselinedFindings(report, args.lockfile, args.auditLevel);
   const unbaselinedKeys = new Set(unbaselined.map((finding) => `${finding.id}:${finding.name}`));
-  const activeExpiringIds = new Set(
-    expiringAdvisoryEntries(args.lockfile)
-      .filter((entry) => isExpiringAdvisoryActive(entry, now))
-      .map((entry) => entry.id),
-  );
-  const baselineIds = new Set(BASELINE_ADVISORIES_BY_LOCKFILE[args.lockfile] ?? []);
 
   for (const finding of allFindings.filter((item) => !unbaselinedKeys.has(`${item.id}:${item.name}`))) {
-    if (activeExpiringIds.has(finding.id) && !baselineIds.has(finding.id)) {
-      printFinding('::warning title=Time-boxed production advisory::', finding);
-    } else {
-      printFinding('::warning title=Baselined production advisory::', finding);
-    }
+    printFinding('::warning title=Baselined production advisory::', finding);
   }
 
   for (const staleId of collectStaleBaselineEntries(report, args.lockfile)) {
     console.log(
       `::warning title=Stale baseline entry::${staleId} is baselined for ${args.lockfile} but matched no current advisory; remove it from BASELINE_ADVISORIES_BY_LOCKFILE.`,
     );
-  }
-
-  for (const staleId of collectStaleExpiringEntries(report, args.lockfile)) {
-    console.log(
-      `::warning title=Stale expiring advisory::${staleId} is time-boxed for ${args.lockfile} but matched no current advisory; remove it from EXPIRING_ADVISORIES_BY_LOCKFILE.`,
-    );
-  }
-
-  const expiredHits = collectExpiredAdvisoryHits(report, args.lockfile, args.auditLevel, now);
-  for (const finding of expiredHits) {
-    const entry = expiringAdvisoryEntries(args.lockfile).find((item) => item.id === finding.id);
-    console.error(formatExpiredAdvisoryError(finding, entry, args.lockfile));
   }
 
   if (unbaselined.length > 0) {
