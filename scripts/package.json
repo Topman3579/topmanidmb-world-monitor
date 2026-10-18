@@ -21,7 +21,7 @@
     "sax": "^1.6.0",
     "telegram": "^2.22.2",
     "tsx": "^4.21.0",
-    "undici": "^7.29.0",
+    "undici": "^7.29.1",
     "web-push": "^3.6.7",
     "ws": "^8.21.0",
     "yaml": "^2.8.3"
@@ -30,8 +30,8 @@
     "esbuild": "0.28.1",
     "fast-xml-parser": "$fast-xml-parser",
     "ip-address": "10.3.1",
-    "brace-expansion@<2.0.0": "1.1.18",
-    "brace-expansion@>=2.0.0 <3.0.0": "2.1.4",
+    "brace-expansion@<2.0.0": "1.1.20",
+    "brace-expansion@>=2.0.0 <3.0.0": "2.1.6",
     "undici": "$undici",
     "ws": "$ws"
   },
