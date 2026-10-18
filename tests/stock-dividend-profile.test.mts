@@ -102,6 +102,16 @@ describe('fetchDividendProfile', () => {
         divs[String(ts)] = { amount, date: ts };
       }
     }
+    // An active quarterly payer has also paid in the current year. Without
+    // these, from mid-October onward the newest fixture payment (Oct 15 of
+    // last year) falls outside the trailing-365-day window and the profile is
+    // correctly classified as suspended (frequency ''). Only past dates are
+    // added, and current-year totals never feed CAGR.
+    const nowSec = Math.floor(Date.now() / 1000);
+    for (let q = 0; q < 4; q++) {
+      const ts = Math.floor(Date.UTC(currentYear, q * 3, 15) / 1000);
+      if (ts < nowSec) divs[String(ts)] = { amount: 0.65, date: ts };
+    }
     globalThis.fetch = (async () => {
       return new Response(JSON.stringify(makeDividendChartPayload(divs)), { status: 200 });
     }) as typeof fetch;
