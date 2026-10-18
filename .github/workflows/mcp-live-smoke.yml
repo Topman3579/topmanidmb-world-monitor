@@ -58,6 +58,9 @@ jobs:
           MCP_SMOKE_HOSTS: ${{ inputs.mcp_smoke_hosts }}
           # This fork does not deploy the script's upstream variant hosts.
           MCP_SMOKE_VARIANT_HOSTS: ''
+          # Fork metadata advertises upstream OAuth endpoints; probe the same
+          # paths on the dispatched host so the run never contacts upstream.
+          MCP_SMOKE_OAUTH_SAME_ORIGIN: '1'
         run: |
           if [ -z "$MCP_SMOKE_HOSTS" ]; then
             echo "::error::mcp_smoke_hosts is required. The script default is upstream worldmonitor.app, which this fork does not deploy."
