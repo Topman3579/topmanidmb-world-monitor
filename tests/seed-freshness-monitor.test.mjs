@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import {
+  fetchHealth,
   findStaleSeedProblems,
   healthRequestHeaders,
   isUpstreamWorldMonitorHost,
@@ -113,5 +114,42 @@ describe('scheduled seed freshness monitor', () => {
     const source = readFileSync(new URL('../scripts/check-seed-freshness.mjs', import.meta.url), 'utf8');
     assert.doesNotMatch(source, /https?:\/\/(?:[a-z0-9-]+\.)*worldmonitor\.app/);
     assert.doesNotMatch(source, /console\.(?:log|error|warn|info)\([\s\S]*bypassSecret/);
+  });
+
+  it('requires https for HEALTH_URL whenever the bypass secret will be attached', () => {
+    const httpUrl = 'http://topmanidmb-world-monitor.vercel.app/api/health?compact=1';
+    assert.equal(planSeedFreshnessCheck(httpUrl).action, 'fetch');
+    const withSecret = planSeedFreshnessCheck(httpUrl, { requireHttps: true });
+    assert.equal(withSecret.action, 'reject');
+    assert.match(withSecret.error, /https/);
+    const httpsPlan = planSeedFreshnessCheck(httpUrl.replace('http:', 'https:'), { requireHttps: true });
+    assert.equal(httpsPlan.action, 'fetch');
+  });
+
+  it('never follows redirects while the bypass header is attached', async () => {
+    const calls = [];
+    const redirecting = async (url, init) => {
+      calls.push({ url, init });
+      return { status: 307, type: 'basic', ok: false, headers: new Headers({ location: 'https://evil.example/' }) };
+    };
+    const headers = healthRequestHeaders('bypass-secret-should-not-leak');
+    await assert.rejects(
+      fetchHealth('https://topmanidmb-world-monitor.vercel.app/api/health?compact=1', headers, { fetchImpl: redirecting }),
+      (error) => /redirect/.test(error.message) && !error.message.includes('bypass-secret-should-not-leak'),
+    );
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init.redirect, 'manual');
+
+    const opaque = async () => ({ status: 0, type: 'opaqueredirect', ok: false });
+    await assert.rejects(fetchHealth('https://example.test/h', headers, { fetchImpl: opaque }), /redirect/);
+
+    const plain = [];
+    await fetchHealth('https://example.test/h', healthRequestHeaders(''), {
+      fetchImpl: async (_url, init) => {
+        plain.push(init);
+        return { status: 200, ok: true, type: 'basic' };
+      },
+    });
+    assert.equal(plain[0].redirect, 'follow');
   });
 });

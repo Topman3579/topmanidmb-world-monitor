@@ -4,7 +4,8 @@ name: Seed Freshness Monitor
 # exits 0. This fork has no public health endpoint (Vercel Deployment
 # Protection) and must not call the upstream api.worldmonitor.app. An optional
 # VERCEL_AUTOMATION_BYPASS_SECRET is sent as x-vercel-protection-bypass and is
-# never printed.
+# never printed. With the secret set, HEALTH_URL must be https:// and redirects
+# are refused rather than followed, so the secret cannot leak to another host.
 on:
   schedule:
     - cron: '17 * * * *'

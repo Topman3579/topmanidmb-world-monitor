@@ -46,7 +46,9 @@ export function isUpstreamWorldMonitorHost(hostname) {
 
 // Pure decision for HEALTH_URL. `skip` is a successful no-op (exit 0).
 // `reject` is a config error (exit 1). `fetch` is the only path that hits the network.
-export function planSeedFreshnessCheck(healthUrl) {
+// `requireHttps` is set whenever the Vercel protection bypass secret will be
+// attached, so the credential can never travel over plain HTTP.
+export function planSeedFreshnessCheck(healthUrl, { requireHttps = false } = {}) {
   const trimmed = String(healthUrl ?? '').trim();
   if (!trimmed) {
     return { action: 'skip', notice: DISABLED_NOTICE };
@@ -61,6 +63,13 @@ export function planSeedFreshnessCheck(healthUrl) {
 
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
     return { action: 'reject', error: `HEALTH_URL scheme ${url.protocol} is not allowed.` };
+  }
+
+  if (requireHttps && url.protocol !== 'https:') {
+    return {
+      action: 'reject',
+      error: 'HEALTH_URL must use https:// when VERCEL_AUTOMATION_BYPASS_SECRET is configured.',
+    };
   }
 
   const host = url.hostname.toLowerCase().replace(/\.+$/, '');
@@ -83,8 +92,31 @@ export function healthRequestHeaders(bypassSecret) {
   return headers;
 }
 
+export function hasBypassHeader(headers) {
+  return Boolean(headers?.[VERCEL_PROTECTION_BYPASS_HEADER]);
+}
+
+// Fetches the planned HEALTH_URL. When the bypass header is attached, redirects
+// are never followed: Node's fetch keeps custom headers across cross-origin
+// redirects, which would hand the secret to whatever host the redirect names.
+export async function fetchHealth(url, headers, { fetchImpl = fetch, timeoutMs = 20_000 } = {}) {
+  const withSecret = hasBypassHeader(headers);
+  const response = await fetchImpl(url, {
+    headers,
+    redirect: withSecret ? 'manual' : 'follow',
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (withSecret && (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400))) {
+    throw new Error(
+      `Compact health request answered a redirect (HTTP ${response.status || 'opaque'}); refusing to follow it while the protection bypass secret is attached. Point HEALTH_URL at the final https URL.`,
+    );
+  }
+  return response;
+}
+
 async function main() {
-  const plan = planSeedFreshnessCheck(process.env.HEALTH_URL);
+  const automationBypass = String(process.env.VERCEL_AUTOMATION_BYPASS_SECRET ?? '').trim();
+  const plan = planSeedFreshnessCheck(process.env.HEALTH_URL, { requireHttps: Boolean(automationBypass) });
   if (plan.action === 'skip') {
     console.log(plan.notice);
     return;
@@ -96,11 +128,8 @@ async function main() {
   }
 
   // Never print VERCEL_AUTOMATION_BYPASS_SECRET or the bypass header value.
-  const headers = healthRequestHeaders(process.env.VERCEL_AUTOMATION_BYPASS_SECRET);
-  const response = await fetch(plan.url, {
-    headers,
-    signal: AbortSignal.timeout(20_000),
-  });
+  const headers = healthRequestHeaders(automationBypass);
+  const response = await fetchHealth(plan.url, headers);
   if (!response.ok) {
     throw new Error(`Compact health request failed: HTTP ${response.status}`);
   }
