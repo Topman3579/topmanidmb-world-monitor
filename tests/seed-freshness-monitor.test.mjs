@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import {
+  assertForkHealthScope,
   fetchHealth,
   findStaleSeedProblems,
   healthRequestHeaders,
@@ -151,5 +152,13 @@ describe('scheduled seed freshness monitor', () => {
       },
     });
     assert.equal(plain[0].redirect, 'follow');
+  });
+
+  it('only trusts compact health that proves the fork scope was evaluated', () => {
+    assert.throws(() => assertForkHealthScope({ status: 'HEALTHY' }), /fork-scoped/);
+    assert.throws(() => assertForkHealthScope({ status: 'HEALTHY', scope: 'full' }), /fork-scoped/);
+    assert.throws(() => assertForkHealthScope(null), /fork-scoped/);
+    const scoped = { status: 'HEALTHY', scope: 'fork', completeness: 'owned-data-plane-only' };
+    assert.equal(assertForkHealthScope(scoped), scoped);
   });
 });

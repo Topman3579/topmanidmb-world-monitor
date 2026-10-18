@@ -27,6 +27,18 @@ export function validateCompactHealthPayload(payload) {
   return payload;
 }
 
+// api/health.js emits scope: 'fork' only when WM_HEALTH_SCOPE=fork, i.e. when
+// this fork's owned seed checks were actually evaluated. Any other HEALTHY
+// payload (unscoped deployment, foreign endpoint) proves nothing about them.
+export function assertForkHealthScope(payload) {
+  if (payload?.scope !== 'fork') {
+    throw new Error(
+      `Compact health payload is not fork-scoped (scope=${JSON.stringify(payload?.scope ?? null)}). Serve HEALTH_URL with WM_HEALTH_SCOPE=fork so this fork's seed checks are evaluated.`,
+    );
+  }
+  return payload;
+}
+
 export function findStaleSeedProblems(payload) {
   validateCompactHealthPayload(payload);
   return Object.entries(payload.problems ?? {})
@@ -135,6 +147,7 @@ async function main() {
   }
 
   const payload = await response.json();
+  assertForkHealthScope(payload);
   const staleSeeds = findStaleSeedProblems(payload);
   if (staleSeeds.length === 0) {
     console.log(`Seed freshness healthy at ${payload.checkedAt || 'unknown time'}: no STALE_SEED problems.`);
