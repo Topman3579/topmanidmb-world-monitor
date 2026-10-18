@@ -198,7 +198,11 @@ export const VARIANT_FEEDS: Record<string, Record<string, ServerFeed[]>> = {
       { name: 'Y Combinator Blog', url: 'https://www.ycombinator.com/blog/rss/' },
       { name: 'a16z Blog', url: 'https://www.a16z.news/feed' },
       { name: 'First Round Review', url: 'https://review.firstround.com/articles/rss' },
-      { name: 'Sequoia Blog', url: 'https://www.sequoiacap.com/feed/' },
+      // www.sequoiacap.com/feed 308s through sequoiacap.com and then
+      // framerusercontent.com. The CI guardrail re-checks every hop, and
+      // framerusercontent.com is a shared CDN — do not allowlist it.
+      // Same Google News query already used in src/config/feeds.ts.
+      { name: 'Sequoia Blog', url: gn('site:sequoiacap.com when:7d') },
       { name: 'Stratechery', url: 'https://stratechery.com/feed/' },
     ],
     regionalStartups: [
