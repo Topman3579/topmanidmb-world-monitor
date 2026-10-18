@@ -14,16 +14,13 @@ const SEVERITY_RANK = new Map([
 ]);
 
 export const BASELINE_ADVISORIES_BY_LOCKFILE = {
-  'package-lock.json': [
-    // No patched image-size release exists yet. The lock-shape regression test
-    // limits these exceptions to browser-inaccessible Metro/texture tooling.
-    'GHSA-5p2g-fcmc-qvqq',
-    'GHSA-w3rx-r6r6-pgpr',
-  ],
+  'package-lock.json': [],
   'consumer-prices-core/package-lock.json': [],
   'blog-site/package-lock.json': [],
-  // Same no-fix Metro-only path as the root lockfile, guarded below by tests.
-  'pro-test/package-lock.json': ['GHSA-5p2g-fcmc-qvqq', 'GHSA-w3rx-r6r6-pgpr'],
+  // pro-test/.npmrc sets legacy-peer-deps so Clerk 5's Solana mobile adapter
+  // no longer auto-installs its optional react-native peer (and with it Metro,
+  // image-size and braces). The browser bundle never imported that path.
+  'pro-test/package-lock.json': [],
   'scripts/package-lock.json': [],
   'docker/runtime-package-lock.json': [],
 };

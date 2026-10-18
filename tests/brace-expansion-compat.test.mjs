@@ -69,8 +69,8 @@ describe('scripts workspace brace-expansion compatibility', () => {
       version: minimatch5.require('brace-expansion/package.json').version,
     };
 
-    assert.equal(braceV1.version, '1.1.18');
-    assert.equal(braceV2.version, '2.1.4');
+    assert.equal(braceV1.version, '1.1.20');
+    assert.equal(braceV2.version, '2.1.6');
     assert.deepEqual(BASELINE_ADVISORIES_BY_LOCKFILE['scripts/package-lock.json'], []);
 
     for (const brace of [braceV1.module, braceV2.module]) {

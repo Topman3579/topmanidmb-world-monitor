@@ -1108,6 +1108,11 @@ export default defineConfig(({ mode }) => {
         },
       }),
     ],
+    optimizeDeps: {
+      // MapLibre GL JS v6's ESM worker is not pre-bundlable; Vite otherwise
+      // looks for maplibre-gl-worker.mjs under .vite/deps and fails the build.
+      exclude: ['maplibre-gl'],
+    },
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src'),
@@ -1182,6 +1187,10 @@ export default defineConfig(({ mode }) => {
               // identity; renaming here without updating the constant silently
               // re-eagerises the WebGL stack into the entry HTML's modulepreload list.
               if (id.includes('/maplibre-gl/')) {
+                // v6's module worker must stay a dedicated Vite worker chunk.
+                // Folding it into the maplibre chunk makes setWorkerUrl point at
+                // the main bundle, and vector tiles never load.
+                if (id.includes('maplibre-gl-worker') || id.includes('worker')) return undefined;
                 return 'maplibre';
               }
               if (id.includes('/pmtiles/') || id.includes('/@protomaps/basemaps/')) {
